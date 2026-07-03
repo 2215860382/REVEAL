@@ -13,7 +13,7 @@ AGG_WORKERS="${AGG_WORKERS:-8}"
 export PYTHONPATH=.
 
 echo "[1/3] resume round2 extraction -> 720"
-"$PY" -m src.generate_rubric.construct.extract_pair_criteria \
+"$PY" -m src.generate_rubric.construct.direct_answer.extract_pair_criteria \
   --dev "$D/splits/dev_questions.jsonl" \
   --chains "$D/round1_chains.jsonl" \
   --pairs "$D/round1_pairs.jsonl" \
@@ -25,7 +25,7 @@ echo "round2 pair_criteria now: $N/720"
 
 echo "[2/3] merge round2 delta onto round1 base -> round2_merged_runtime.yaml"
 rm -f "$D/round2_merged_runtime.yaml.state.json"
-"$PY" -m src.generate_rubric.construct.aggregate_type_rubric \
+"$PY" -m src.generate_rubric.construct.direct_answer.aggregate_type_rubric \
   --criteria "$D/round2_pair_criteria.jsonl" \
   --base-rubric "$D/round1_type_level_rubric.yaml" \
   --llm-api-url "$URL" --agg-workers "$AGG_WORKERS" \

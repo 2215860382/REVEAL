@@ -34,17 +34,17 @@ PAIRS="$OUT_ROOT/pairs.jsonl"
 echo "[sample] building candidate chains + gold labels → $CHAINS"
 oracle_flag=""
 [ -n "$ORACLE_CHAINS" ] && oracle_flag="--oracle-chains $ORACLE_CHAINS"
-"$PYTHON" -m src.generate_rubric.construct.sample_chains \
+"$PYTHON" -m src.generate_rubric.construct.contrastive_trace.sample_chains \
   --config "$CONFIG" --memory-dir "$MEMORY_DIR" \
   --embed-api-url "$EMBED_API_URL" --vlm-api-url "$VLM_API_URL" \
   --workers "$WORKERS" $oracle_flag $EXTRA_SAMPLE_ARGS --out "$CHAINS"
 
 echo "[pairs] insufficient × sufficient → $PAIRS"
-"$PYTHON" -m src.generate_rubric.construct.make_pairs --chains "$CHAINS" --out "$PAIRS"
+"$PYTHON" -m src.generate_rubric.construct.contrastive_trace.make_pairs --chains "$CHAINS" --out "$PAIRS"
 
 echo "[round1] refine over ALL pairs"
 RUBRIC="$OUT_ROOT/rubric_r1.yaml"
-"$PYTHON" -m src.generate_rubric.construct.refine_rubric \
+"$PYTHON" -m src.generate_rubric.construct.contrastive_trace.refine_rubric \
   --pairs "$PAIRS" --chains "$CHAINS" --rubric-out "$RUBRIC" \
   --config "$CONFIG" --llm-api-url "$LLM_API_URL"
 
@@ -52,7 +52,7 @@ r=2
 while [ "$r" -le "$MAX_ROUNDS" ]; do
   FRONTIER="$OUT_ROOT/frontier_r${r}.jsonl"
   echo "[round$r] frontier_select with $RUBRIC"
-  "$PYTHON" -m src.generate_rubric.construct.frontier_select \
+  "$PYTHON" -m src.generate_rubric.construct.contrastive_trace.frontier_select \
     --pairs "$PAIRS" --chains "$CHAINS" --rubric "$RUBRIC" \
     --config "$CONFIG" --llm-api-url "$LLM_API_URL" --workers "$WORKERS" --out "$FRONTIER"
 
@@ -64,7 +64,7 @@ while [ "$r" -le "$MAX_ROUNDS" ]; do
   fi
 
   NEXT="$OUT_ROOT/rubric_r${r}.yaml"
-  "$PYTHON" -m src.generate_rubric.construct.refine_rubric \
+  "$PYTHON" -m src.generate_rubric.construct.contrastive_trace.refine_rubric \
     --pairs "$FRONTIER" --chains "$CHAINS" --rubric-in "$RUBRIC" --rubric-out "$NEXT" \
     --config "$CONFIG" --llm-api-url "$LLM_API_URL"
   RUBRIC="$NEXT"
@@ -75,12 +75,12 @@ echo "[finalize] inject groundedness guard + backtest"
 FINAL="$OUT_ROOT/rubric_final.yaml"
 "$PYTHON" - "$RUBRIC" "$FINAL" <<'PY'
 import sys
-from src.generate_rubric.construct.rubric_io import load_rubric, save_rubric, inject_groundedness
+from src.generate_rubric.construct.contrastive_trace.rubric_io import load_rubric, save_rubric, inject_groundedness
 r = load_rubric(sys.argv[1]); inject_groundedness(r); save_rubric(sys.argv[2], r)
 print("final rubric →", sys.argv[2])
 PY
 
-"$PYTHON" -m src.generate_rubric.construct.backtest_report \
+"$PYTHON" -m src.generate_rubric.construct.contrastive_trace.backtest_report \
   --chains "$CHAINS" --pairs "$PAIRS" --rubric "$FINAL" \
   --config "$CONFIG" --llm-api-url "$LLM_API_URL" --workers "$WORKERS" \
   --out "$OUT_ROOT/backtest_report.json"

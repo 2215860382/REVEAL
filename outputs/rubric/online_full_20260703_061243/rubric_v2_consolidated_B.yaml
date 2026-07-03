@@ -1,0 +1,457 @@
+general:
+  rubric_criteria:
+  - name: proposition_explicitly_asserted
+    description: Whether the option's specific proposition is explicitly asserted
+      or denied by the evidence, not merely implied by mentioning the entity and the
+      predicate in separate or adjacent context.
+    score_1: The exact proposition an option hinges on is stated outright in the evidence.
+    score_half: A closely related statement is present but the exact proposition must
+      be inferred.
+    score_0: Only the entity or topic appears; the proposition itself is never stated.
+    weight: 4.0
+    failure_repair_action: refine_query
+  - name: entity_attribute_binding
+    description: Whether the specific named entity is bound to the specific attribute,
+      role, action, or value the option asserts within one evidentiary scope, not
+      the two appearing in unrelated contexts.
+    score_1: Entity and its asserted attribute are linked in the same evidence.
+    score_half: Both appear but in separate segments; the link is plausible but not
+      explicit.
+    score_0: Entity and attribute never co-occur or are linked to different subjects.
+    weight: 3.0
+    failure_repair_action: refine_query
+  - name: causal_link_explicitness
+    description: Whether the specific causal, purpose, or mechanism link (the why/how)
+      is explicitly stated, not the cause and effect presented as separate co-occurring
+      facts.
+    score_1: The causal/purpose/mechanism link is explicitly articulated.
+    score_half: Cause and effect are both present but their connection is left implicit.
+    score_0: Only an outcome or only a factor is shown; no link is expressed.
+    weight: 3.0
+    failure_repair_action: refine_query
+  - name: internal_state_attribution
+    description: Whether a specific belief, intent, emotion, or stance is explicitly
+      attributed to the named agent, not inferred from external actions or surrounding
+      context.
+    score_1: The agent's internal state is explicitly stated or self-reported.
+    score_half: External cues strongly imply the state but it is not stated.
+    score_0: Only actions/context are shown; the internal state is pure inference.
+    weight: 3.0
+    failure_repair_action: asr_match
+  - name: temporal_localization
+    description: Whether evidence temporally locates the queried moment, interval,
+      or before/after relation via explicit timestamps, ordinal markers, or narrated
+      time, not generic undated content.
+    score_1: The queried time/interval/relation is explicitly anchored.
+    score_half: Partial temporal cues; the exact boundary or relation is approximate.
+    score_0: No temporal anchoring; content could be from any time.
+    weight: 4.0
+    failure_repair_action: time_sorted
+  - name: ordinal_sequence_grounding
+    description: Whether, for order or sequence claims, evidence supplies an explicit
+      order marker or timestamp for every item required, so the relative order can
+      be reconstructed rather than guessed from isolated mentions.
+    score_1: Every item carries an order marker/timestamp; the full sequence is recoverable.
+    score_half: Order is recoverable for most but not all items in the set.
+    score_0: Items appear without any basis for establishing their relative order.
+    weight: 4.0
+    failure_repair_action: time_sorted
+  - name: set_completeness
+    description: Whether, for all/every/none/count/common-to claims, evidence enumerates
+      or bounds the COMPLETE relevant set, not a subset that leaves other instances
+      unobserved.
+    score_1: The complete set is enumerated or explicitly bounded.
+    score_half: Most of the set is covered but completeness is not guaranteed.
+    score_0: Only a partial subset is shown; the set boundary is unknown.
+    weight: 4.0
+    failure_repair_action: broadcast
+  - name: comparative_grounding
+    description: Whether, for comparative or superlative claims, the relevant attribute
+      is grounded for ALL compared items so the ranking or magnitude can be established,
+      not just the target in isolation.
+    score_1: The attribute is grounded across all compared items; ranking is derivable.
+    score_half: The target and some rivals are grounded but the comparison is incomplete.
+    score_0: Only the target's attribute is shown; no basis for comparison.
+    weight: 3.0
+    failure_repair_action: broadcast
+  - name: scope_exclusivity_grounding
+    description: Whether, for only/exclusively/primarily/exception claims, evidence
+      establishes the scope relative to the whole (presence AND absence of alternatives),
+      not just the primary instance.
+    score_1: Both the target and the absence/limits of alternatives are established.
+    score_half: The target is clear but the exclusivity relative to alternatives is
+      partial.
+    score_0: Only the target is shown; exclusivity/exception is unverified.
+    weight: 3.0
+    failure_repair_action: broadcast
+  - name: visual_resolution
+    description: Whether the target entity, attribute, or on-object marking is visually
+      resolved (appearance, on-screen content, unique identifier) enough to distinguish
+      it, not merely named or shown generically.
+    score_1: The specific visual detail/marking/identifier is clearly resolved.
+    score_half: The entity is visible but the distinguishing detail is ambiguous.
+    score_0: Only a generic scene; the specific visual content is unresolved.
+    weight: 3.0
+    failure_repair_action: dense_sample
+  - name: outcome_resolution
+    description: Whether the final result, outcome, or resolution of the event or
+      process is explicitly shown, not only the setup, attempt, or an intermediate
+      state.
+    score_1: The terminal result/resolution is explicitly present.
+    score_half: A near-final state is shown but the definitive outcome is implied.
+    score_0: Only setup/process/intermediate state; the outcome is absent.
+    weight: 3.0
+    failure_repair_action: time_sorted
+  - name: actual_execution_grounding
+    description: Whether evidence shows the actual occurrence or execution of the
+      queried event, not merely its planning, intent, discussion, hypothetical, or
+      metaphorical reference.
+    score_1: The event is shown actually happening/being performed.
+    score_half: Strong indication of execution but only preparation/aftermath is visible.
+    score_0: Only plans, intent, discussion, or a figurative reference are present.
+    weight: 3.0
+    failure_repair_action: dense_sample
+  - name: instance_disambiguation
+    description: Whether evidence pertains to the SPECIFIC instance, segment, round,
+      or context queried, excluding other similar instances that could be confused
+      with the target.
+    score_1: The specific queried instance is unambiguously identified.
+    score_half: The right instance is likely but could be conflated with a similar
+      one.
+    score_0: Evidence is from a different or indeterminate instance of the same type.
+    weight: 3.0
+    failure_repair_action: refine_query
+  - name: role_category_attribution
+    description: Whether the specific role, profession, category, relationship-type,
+      or identity is explicitly attributed to the entity, not implied only by actions
+      or associated objects.
+    score_1: The specific role/category/relationship is explicitly assigned.
+    score_half: The role is strongly suggested by context but not labeled.
+    score_0: Only generic actions/objects; the role/category is unstated.
+    weight: 3.0
+    failure_repair_action: refine_query
+  - name: quantitative_grounding
+    description: Whether the specific number, count, measure, or magnitude the option
+      hinges on is explicitly stated or directly enumerable, not a vague or general
+      quantity.
+    score_1: The exact value/quantity is stated or countable from the evidence.
+    score_half: An approximate or partial quantity is available.
+    score_0: Only a qualitative mention; the specific value is absent.
+    weight: 3.0
+    failure_repair_action: refine_query
+  - name: state_continuity_verification
+    description: Whether, for claims that a state held throughout, persisted, or recurred
+      across phases, evidence covers the intermediate span or every required phase,
+      not isolated start/end snapshots.
+    score_1: Continuity/recurrence is confirmed across the full span or all phases.
+    score_half: Most of the span is covered but a gap leaves continuity uncertain.
+    score_0: Only isolated snapshots; the span between them is unobserved.
+    weight: 3.0
+    failure_repair_action: time_sorted
+  - name: content_grounding
+    description: Whether the specific content of a communication, discussion, or marking
+      (what was actually said, written, or shown) is present, not merely that the
+      interaction occurred or its general topic.
+    score_1: The specific propositional/textual content is present in the evidence.
+    score_half: The general topic is present but the specific content is summarized
+      away.
+    score_0: Only that an exchange/marking exists; its content is absent.
+    weight: 3.0
+    failure_repair_action: asr_match
+  - name: evidence_groundedness
+    description: Whether the sufficiency judgment is grounded in the retrieved evidence,
+      not in world knowledge, option wording echoes, or guesswork.
+    score_1: Judgment rests entirely on facts present in the retrieved evidence.
+    score_half: Judgment leans partly on outside knowledge or option phrasing.
+    score_0: Judgment is fabricated from world knowledge / echoes with no evidentiary
+      basis.
+    weight: 1.0
+    failure_repair_action: refine_query
+  - name: distractor_exclusion
+    description: Whether the evidence provides the contrary evidence needed to rule
+      out the competing (wrong) options; for any option asserting an absence or non-occurrence,
+      that negation is confirmed rather than merely unmentioned.
+    score_1: Wrong options can be positively excluded / the negation is confirmed.
+    score_half: Some distractors are excludable but others cannot be ruled out.
+    score_0: Nothing lets wrong options be ruled out; absence only inferred from silence.
+    weight: 3.0
+    failure_repair_action: broadcast
+  scoring_rule: average
+  sufficient_threshold: 0.8
+type_aliases:
+  Temporal Reasoning: Temporal Reasoning
+  Temporal Perception: Temporal Perception
+  Information Synopsis: Information Synopsis
+  Object Reasoning: Object Reasoning
+  Action Reasoning: Action Reasoning
+  Action Recognition: Action Recognition
+  Object Recognition: Object Recognition
+  Counting Problem: Counting Problem
+  Attribute Perception: Attribute Perception
+  OCR Problems: OCR Problems
+  Spatial Reasoning: Spatial Reasoning
+  Spatial Perception: Spatial Perception
+templates:
+  Temporal Reasoning:
+    rubric_criteria:
+    - name: narrative_vs_meta_distinction
+      description: Whether evidence distinguishes an event actually occurring/demonstrated
+        on the timeline from meta-commentary, agenda, definition, or a recap montage
+        about it, so ordering reflects real execution.
+      score_1: The actual real-time occurrence is captured, distinct from any meta-mention.
+      score_half: Occurrence is likely but could be a recap/agenda rather than the
+        live event.
+      score_0: Only a list/agenda/recap; the real-time occurrence is not shown.
+      weight: 4.0
+      failure_repair_action: time_sorted
+    - name: first_occurrence_grounding
+      description: Whether evidence captures the first introduction of each target
+        item, not a later re-mention or summary, so relative order reflects the true
+        introduction timeline.
+      score_1: The first appearance of each item is captured.
+      score_half: First appearance captured for some items, re-mentions for others.
+      score_0: Only later mentions/summaries; first occurrences are missing.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Temporal Perception:
+    rubric_criteria:
+    - name: thematic_stance_alignment
+      description: Whether evidence captures the specific qualitative stance or perspective
+        (praise vs criticism, cause vs effect, summary vs detail) the option asserts,
+        not merely the topic with a neutral or conflicting stance.
+      score_1: The specific asserted stance/perspective is present.
+      score_half: The topic is present but the stance is ambiguous.
+      score_0: The stance conflicts with or is absent from the evidence.
+      weight: 3.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Information Synopsis:
+    rubric_criteria:
+    - name: thesis_vs_detail_distinction
+      description: Whether evidence distinguishes the video's central thesis or main
+        topic from supporting details, examples, or sub-topics, so the main idea is
+        not confused with a specific instance.
+      score_1: The central thesis is identifiable and separated from mere details.
+      score_half: The thesis is present but entangled with equally-weighted details.
+      score_0: Only isolated details; the central thesis is not distinguishable.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: explicit_scope_declaration
+      description: Whether evidence contains an explicit narrated or on-screen statement
+        of the video's overall scope, thesis, or coverage, rather than requiring scope
+        to be inferred from a sequence of events.
+      score_1: An explicit scope/thesis declaration is present.
+      score_half: Scope is partially declared but mostly inferential.
+      score_0: No scope declaration; scope must be guessed from events.
+      weight: 3.0
+      failure_repair_action: asr_match
+    - name: whole_video_framing
+      description: Whether evidence includes the opening framing and/or closing segment
+        and establishes the primary subject's dominance, confirming the synopsis covers
+        the whole self-contained video rather than a fragment.
+      score_1: Opening/closure and primary-subject dominance confirm whole-video scope.
+      score_half: Part of the framing is present; whole-video scope is partly supported.
+      score_0: Only a mid-video fragment; whole-video framing is absent.
+      weight: 3.0
+      failure_repair_action: broadcast
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Object Reasoning:
+    rubric_criteria:
+    - name: symbolic_or_metaphorical_meaning
+      description: Whether the figurative, symbolic, or metaphorical meaning of a
+        sign, object, or mapping is explicitly defined, not merely shown or mentioned
+        literally.
+      score_1: The symbolic/metaphorical meaning is explicitly stated.
+      score_half: A figurative link is suggested but not defined.
+      score_0: Only the literal object/sign; its figurative meaning is absent.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: counterfactual_state_grounding
+      description: Whether, for hypothetical/counterfactual options, evidence establishes
+        the system state at the moment the condition is triggered, so its consequence
+        can be derived, not just the actual outcome.
+      score_1: The triggering-moment state is established, enabling the counterfactual.
+      score_half: The state is partly known around the trigger point.
+      score_0: Only the actual outcome; the counterfactual state is unavailable.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Action Reasoning:
+    rubric_criteria:
+    - name: interaction_nature_grounding
+      description: Whether the specific nature or valence of an interaction (play,
+        aggression, hunting, hostile, friendly, reciprocal) is demonstrated, fixing
+        relationship/interaction-type claims rather than generic co-presence.
+      score_1: The interaction's specific nature/valence is unambiguously demonstrated.
+      score_half: An interaction occurs but its nature could be read multiple ways.
+      score_0: Only co-presence; the interaction nature is unestablished.
+      weight: 3.0
+      failure_repair_action: dense_sample
+    - name: trigger_vs_disposition_distinction
+      description: Whether evidence distinguishes an immediate situational trigger
+        for the agent's action from a general habit, capability, or disposition.
+      score_1: The immediate trigger (or its absence) is clearly established.
+      score_half: A trigger is plausible but not separated from general behavior.
+      score_0: Only the action/traits; trigger vs disposition is unresolved.
+      weight: 3.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Action Recognition:
+    rubric_criteria:
+    - name: production_meta_context_grounding
+      description: Whether the action's status as production/performance/filming meta-context
+        (cameras, stage, rehearsal) versus a literal event is grounded, when the option
+        depends on that distinction.
+      score_1: The production/meta vs literal status is explicitly grounded.
+      score_half: Some meta cues present but the status is ambiguous.
+      score_0: No meta cues; production-vs-literal cannot be resolved.
+      weight: 3.0
+      failure_repair_action: dense_sample
+    - name: fine_grained_action_category
+      description: Whether the specific high-level action category is resolved among
+        plausible alternatives sharing the same entities/scene, not left as generic
+        movement.
+      score_1: The specific action category is resolved and excludes look-alikes.
+      score_half: The action is visible but could be several categories.
+      score_0: Only generic motion; the action category is unresolved.
+      weight: 3.0
+      failure_repair_action: dense_sample
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Object Recognition:
+    rubric_criteria:
+    - name: rule_application_grounding
+      description: Whether evidence applies the relevant rule, constraint, or condition
+        to the specific target instance to verify a status, not the rule and the instance
+        shown separately.
+      score_1: The rule is explicitly applied to the target instance.
+      score_half: Rule and instance are both present but the check is implicit.
+      score_0: Rule and instance appear separately; no application shown.
+      weight: 3.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Counting Problem:
+    rubric_criteria:
+    - name: instance_distinctness
+      description: Whether evidence distinguishes distinct unique instances of the
+        target from repeated occurrences of the same instance, so the count reflects
+        unique items.
+      score_1: Distinct instances are separable from duplicates.
+      score_half: Mostly separable but some instances may be double-counted.
+      score_0: No basis to tell unique instances from repeats.
+      weight: 4.0
+      failure_repair_action: dense_sample
+    - name: instance_vs_aggregate
+      description: Whether the count is derived from enumerating individual identifiable
+        instances, not from aggregate statistics, percentages, or population totals.
+      score_1: Individual instances are enumerable.
+      score_half: A mix of enumerable instances and aggregate figures.
+      score_0: Only aggregate stats; no individual instances to count.
+      weight: 3.0
+      failure_repair_action: broadcast
+    - name: holistic_enumeration_view
+      description: Whether evidence offers a single consolidated view (list, grid,
+        chart, summary shot) enumerating all instances, allowing a direct count instead
+        of aggregating disjoint segments.
+      score_1: A single view enumerates all target instances.
+      score_half: Partial consolidated view; some instances still scattered.
+      score_0: Only disjoint segments; no consolidated enumeration.
+      weight: 3.0
+      failure_repair_action: dense_sample
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Attribute Perception:
+    rubric_criteria:
+    - name: attribute_phase_anchoring
+      description: Whether the queried attribute is grounded to the specific phase
+        or moment (before/after/initial/final) the option asserts, not a different
+        phase of the entity.
+      score_1: The attribute is confirmed at the specific asserted phase.
+      score_half: The attribute is shown at a nearby but not exact phase.
+      score_0: The attribute is shown at a different/indeterminate phase.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  OCR Problems:
+    rubric_criteria:
+    - name: onscreen_text_presence
+      description: Whether the specific textual label, identifier, or metadata required
+        (name, episode code, timestamp, number, on-screen title) is actually present
+        and readable as text/record, not just a generic visual depiction.
+      score_1: The specific required text/identifier is present and legible.
+      score_half: Some text present but the specific required token is partial/unclear.
+      score_0: No readable text bearing the required identifier.
+      weight: 4.0
+      failure_repair_action: dense_sample
+    - name: identifier_event_binding
+      description: Whether the textual identifier is bound to the specific event,
+        state, or value it is meant to distinguish, not the identifier and the event
+        appearing in separate contexts.
+      score_1: Identifier and the event/value it labels are explicitly linked.
+      score_half: Both present but the binding must be inferred.
+      score_0: Identifier and event appear disconnected.
+      weight: 4.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Spatial Reasoning:
+    rubric_criteria:
+    - name: spatial_configuration_rationale
+      description: Whether the reason, rule, or intent causing a spatial configuration,
+        or the relational attribute (kinship, ownership, affiliation) between entities,
+        is grounded rather than only the configuration/outcome shown.
+      score_1: The rationale or relational attribute is explicitly grounded.
+      score_half: Configuration is shown but its rationale/relation is partial.
+      score_0: Only the configuration/outcome; rationale/relation absent.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: landmark_identification
+      description: Whether the specific named landmark, unique geographic feature,
+        or distinct location is identified, not generic visual attributes that fit
+        many places.
+      score_1: The specific location/landmark is identified.
+      score_half: Distinctive but not uniquely identifying features are present.
+      score_0: Only generic scenery; the location is unidentified.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: rate_conversion_grounding
+      description: Whether, for options requiring time↔distance conversion, evidence
+        provides the rate/pace or a distance-per-time mapping, not isolated time or
+        distance values alone.
+      score_1: A usable rate/pace or mapping is provided.
+      score_half: One dimension plus a partial rate is available.
+      score_0: Only isolated time or distance; no rate to convert.
+      weight: 3.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Spatial Perception:
+    rubric_criteria:
+    - name: joint_visual_co_presence
+      description: Whether target entities are shown simultaneously within the same
+        frame or continuous shot, enabling direct observation of their relative spatial
+        relation rather than inference from disjoint appearances.
+      score_1: Entities are co-present in one frame/continuous shot.
+      score_half: Brief or partial co-presence; relation partly observable.
+      score_0: Only separate appearances; relative relation must be inferred.
+      weight: 4.0
+      failure_repair_action: dense_sample
+    - name: facing_direction_resolution
+      description: Whether the facing direction or body orientation of the target
+        entities relative to each other or the camera is explicitly resolved, not
+        merely their presence.
+      score_1: Facing/orientation is clearly resolved.
+      score_half: Orientation is partially visible/ambiguous.
+      score_0: Orientation cannot be determined from the evidence.
+      weight: 4.0
+      failure_repair_action: dense_sample
+    scoring_rule: average
+    sufficient_threshold: 0.8

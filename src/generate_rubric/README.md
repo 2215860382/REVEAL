@@ -1,84 +1,37 @@
-# generate_rubric — Evidence-Sufficiency Rubric Construction
+# generate_rubric — 证据充分性 rubric 构造
 
-Code-only package that builds long-video multiple-choice-QA **evidence-sufficiency**
-rubrics for the VEIL verifier. A rubric scores whether a retrieved evidence chain is
-sufficient to **verify or exclude each option** — not answer quality, not option
-support. (A false option can score high when the evidence is enough to rule it out.)
+给 VEIL verifier 构造长视频多选 QA 的**证据充分性（evidence-sufficiency）** rubric 的纯代码包。rubric 评的是「检索到的证据链够不够**验证 / 排除每个选项**」——不是答案质量，也不是选项支持度。（一个错误选项，只要证据足以排除它，也能得高分。）
 
-## Where things live
+## 两套构造方法
 
-| What | Where |
-|------|-------|
-| Pipeline code (this package) | `src/generate_rubric/construct/*.py` |
-| Runnable shell scripts | `scripts/*.sh` |
-| Final runtime rubrics (tracked) | `outputs/rubric/*.yaml` |
-| Intermediate construction artifacts (gitignored) | `outputs/results/intermediate_goods/` |
+拆在 `construct/` 下，各自自包含、各带一份 README：
 
-Final rubrics in `outputs/rubric/`:
-- `direct_answer_generated_v2.yaml` — default runtime rubric (distilled, 7 weighted general criteria).
-- `tsqf_handwritten_legacy.yaml` — handwritten TSQF baseline.
-- `round1_type_level_rubric.yaml` — round-1 pairwise-constructed rubric.
-- `round2_merged_runtime.yaml` — round1 ∪ round2 merged (main constructed rubric).
-- `round2_weighted_runtime.yaml` — round2 + LLM criterion weights (1–5) + groundedness guard.
+| 目录 | 方法 | 一句话 |
+|------|------|--------|
+| [`construct/direct_answer/`](construct/direct_answer/) | 直接答案式（旧三段式） | 链取自**已有答题结果**，LLM **批量提取 + 聚合** rubric，两轮 |
+| [`construct/contrastive_trace/`](construct/contrastive_trace/) | 对比轨迹式（这次 RTD） | **主动采样多来源轨迹 + answerer 打 gold 标签**，**逐对在线精修 + 前沿迭代** |
 
-The verifier loads `outputs/rubric/direct_answer_generated_v2.yaml` by default; override
-per run with `VEIL_RUBRIC_PATH=<path>` (each run records the rubric path + sha1 in its
-`*.meta.json`).
+两者共享的基础模块（`io` / `llm` / `schema` / `prompts` / `make_pairs` / `backtest_report`）在每个目录里各存一份，互不依赖。各方法的 pipeline 阶段、运行命令、产物见各自 README。
 
-## Method
+## 文件在哪
 
-- **OnlineRubrics** (pairwise elicitation): start from an existing coarse rubric, compare
-  two evidence chains, extract only the differences not already covered.
-- **Chasing the Tail**: prioritize differences between *high-quality* chains
-  (good-vs-great / great-vs-excellent), not just weak-vs-good.
+| 是什么 | 在哪 |
+|--------|------|
+| Pipeline 代码 | `src/generate_rubric/construct/{direct_answer,contrastive_trace}/*.py` |
+| 可跑的 shell 脚本 | `scripts/*.sh`（`run_two_rounds.sh` / `run_dev_pipeline.sh` → direct_answer；`run_online_rubric.sh` → contrastive_trace） |
+| 最终 runtime rubric | `outputs/rubric/*.yaml` |
 
-Pipeline stages (`construct/`):
-`sample_dev` → `chains_from_result` → `make_pairs` → `extract_pair_criteria`
-→ `aggregate_type_rubric` → (`weight_rubric`) → `backtest_report`.
+`outputs/rubric/` 现存：
+- `round2_merged_runtime.yaml` — **当前定版实验实际使用的 rubric**（direct_answer 谱系，abl_5_full=79.00% 用的就是它）。
+- `direct_answer_generated_v2.yaml` — 蒸馏版默认 runtime rubric（7 条加权 general criterion）。
+- `online_full_20260703_061243/` — contrastive_trace 方法本次完整跑的产物存档。
 
-`aggregate_type_rubric` supports `--render-only` (re-render a complete `.state.json`
-without any LLM call), `--base-rubric` (merge a round's delta onto a base rubric), and
-`--agg-workers` (aggregate question types concurrently).
+verifier 默认加载 `direct_answer_generated_v2.yaml`；按 run 覆盖用 `VEIL_RUBRIC_PATH=<path>`（每次 run 把 rubric 路径 + sha1 记进 `*.meta.json`）。
 
-## Run
+## 核心结论
 
-```bash
-# Two-round construction (writes to outputs/results/intermediate_goods/overnight_*)
-RESULT=outputs/debug/mf_resized_planslim_full_900.jsonl \
-MEMORY_DIR=outputs/memory/videomme_multiframe \
-LLM_API_URL=http://127.0.0.1:8003,http://127.0.0.1:8004 \
-bash scripts/run_two_rounds.sh
+系统是 **answerer-bound**：rubric 设计正确且生效（改变 141/180 题的 verifier 打分），但只翻转 11/180 的最终答案，在这个规模下**不是准确率杠杆**。诊断佐证：oracle 完美规划器上限仅 76.4%、块级权重均匀 1:1 最优（偏离越差）。
 
-# Optional: weight + anti-gaming guard
-PYTHONPATH=. python -m src.generate_rubric.construct.weight_rubric \
-  --rubric outputs/rubric/round2_merged_runtime.yaml \
-  --out outputs/rubric/round2_weighted_runtime.yaml
-```
+两个 answerer-prompt 干预都被证伪并回退：① 关键词路由的题型指引（val 81.1%→73.3%）；② CoT answerer 在 dev-720 上显著变负（72.5%→69.6%，McNemar p=0.021）——逼 answerer 在有损记忆摘要上推理，反而把对的直觉 argue 掉。
 
-## Result (VideoMME, this build)
-
-On held-out val-90 / test-90 / full-900, the constructed rubrics, the distilled `v2`,
-and the handwritten `tsqf` baseline all land within noise (~79–80% on 180 clean
-questions; 74% on 900). Diagnostics (oracle perfect-planner ceiling 76.4%, keyframe
-k=64 probe, and a rubric-score-vs-prediction analysis showing the rubric changes
-verifier scoring on 141/180 questions but flips only 11/180 final answers) indicate the
-system is **answerer-bound**: rubric design is correct and active but is not the accuracy
-lever at this scale.
-
-Two answerer-prompt interventions were tried and both falsified:
-
-1. **Keyword-routed question-type guidance** (negation / synopsis / temporal) hurt both
-   held-out splits in the same direction (val 81.1%→73.3%, test 78.9%→75.6%; 12
-   regressions vs 2 gains). Reverted.
-2. **Chain-of-thought answerer** (reason briefly over evidence timestamps, then emit the
-   letter) looked marginally positive on 180 (val −1, test +4, net +3) — but that was
-   small-sample noise. On **dev-720** it was significantly *negative*: 72.5%→69.6%
-   (−2.9 pt, 31 gained / 52 lost, McNemar p=0.021). Reverted. Forcing the answerer to
-   reason over the lossy memory summary makes it argue itself out of correct intuitions.
-
-Method lesson: **only ≥720-question results are trustworthy here**; 180-split rankings
-flip as noise (this is why the constructed rubrics looked split-dependent). The answerer
-is near its ceiling on the given evidence — gains require *better evidence* (retrieval
-recall / richer memory captions), not answerer-prompt steering. A text-only full-context
-probe (feed all chunk texts, no retrieval) was net +8 on the 180-split, suggesting a real
-recall gap, but that too needs 720-scale confirmation before being trusted.
+**方法论教训：这里只有 ≥720 题结果可信**，180-split 排名随噪声翻转（这正是早期构造的 rubric 看起来 split-dependent 的原因）。answerer 在给定证据上已近上限——涨点要靠**更好的证据**（检索召回 / 更丰富的记忆 caption），而非 answerer prompt 调控。

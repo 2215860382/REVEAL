@@ -19,7 +19,7 @@ if [ "$MAX_PAIRS" != "0" ]; then
   MAX_PAIR_ARGS=(--max-pairs "$MAX_PAIRS")
 fi
 
-"$PYTHON" -m src.generate_rubric.construct.sample_dev \
+"$PYTHON" -m src.generate_rubric.construct.direct_answer.sample_dev \
   --config configs/veil.yaml \
   --result "$RESULT" \
   --n-dev "$N_DEV" \
@@ -27,18 +27,18 @@ fi
   --n-test "$N_TEST" \
   --out-dir "$OUT_DIR"
 
-"$PYTHON" -m src.generate_rubric.construct.chains_from_result \
+"$PYTHON" -m src.generate_rubric.construct.direct_answer.chains_from_result \
   --config configs/veil.yaml \
   --dev "$OUT_DIR/dev_questions.jsonl" \
   --result "$RESULT" \
   --memory-dir "$MEMORY_DIR" \
   --out "$OUT_DIR/chains.jsonl"
 
-"$PYTHON" -m src.generate_rubric.construct.make_pairs \
+"$PYTHON" -m src.generate_rubric.construct.direct_answer.make_pairs \
   --chains "$OUT_DIR/chains.jsonl" \
   --out "$OUT_DIR/pairs.jsonl"
 
-"$PYTHON" -m src.generate_rubric.construct.extract_pair_criteria \
+"$PYTHON" -m src.generate_rubric.construct.direct_answer.extract_pair_criteria \
   --dev "$OUT_DIR/dev_questions.jsonl" \
   --chains "$OUT_DIR/chains.jsonl" \
   --pairs "$OUT_DIR/pairs.jsonl" \
@@ -47,12 +47,12 @@ fi
   "${MAX_PAIR_ARGS[@]}" \
   --out "$OUT_DIR/pair_criteria.jsonl"
 
-"$PYTHON" -m src.generate_rubric.construct.aggregate_type_rubric \
+"$PYTHON" -m src.generate_rubric.construct.direct_answer.aggregate_type_rubric \
   --criteria "$OUT_DIR/pair_criteria.jsonl" \
   --llm-api-url "$LLM_API_URL" \
   --out "$OUT_DIR/type_level_rubric.yaml"
 
-"$PYTHON" -m src.generate_rubric.construct.backtest_report \
+"$PYTHON" -m src.generate_rubric.construct.direct_answer.backtest_report \
   --dev "$OUT_DIR/dev_questions.jsonl" \
   --chains "$OUT_DIR/chains.jsonl" \
   --pairs "$OUT_DIR/pairs.jsonl" \
