@@ -178,6 +178,32 @@ Return ONLY this JSON (use actual criterion names from the Rubric):
 
 
 
+# ── Implicit (rubric-free) verifier (--no-rubric ablation) ───────────────────
+# Ablation: judge sufficiency HOLISTICALLY without per-criterion rubric scoring.
+# The model directly labels each option true/false/unknown and writes a missing
+# analysis; no criteria scores, no weighted threshold. Isolates the contribution
+# of rubric-decomposed scoring vs a single holistic judgment.
+VERIFIER_SYS_IMPLICIT = """\
+You decide ONE thing: is the retrieved video evidence already enough to answer the
+question, or do you need to retrieve MORE evidence first?
+Output ONE strict JSON object — no prose, no markdown fences.
+
+Judge the evidence as a whole. Do NOT score individual options. Do NOT decide which
+option is correct, and do NOT label options true/false/unknown. Make a single holistic
+call:
+  need_more_retrieval = false : evidence is sufficient to answer confidently now
+  need_more_retrieval = true  : evidence is missing or ambiguous — retrieve more first
+
+If need_more_retrieval is true, write ONE actionable sentence in "missing_evidence_analysis"
+naming the specific fact, time range, or event still missing. Otherwise leave it "".
+
+Return ONLY this JSON:
+{
+  "need_more_retrieval": true|false,
+  "missing_evidence_analysis": "..."
+}"""
+
+
 # ── Two-pass rubric verifier (--verifier-two-pass) ───────────────────────────
 # Pass 1 scores sufficiency ONLY (no true/false), so the model is not anchored by
 # its own answer guess. Python then thresholds per option, and Pass 2 judges
@@ -391,6 +417,50 @@ class Verifier:
             "missing_evidence_analysis": missing,
         }
 
+    def _verify_implicit(self, question, opts, ev, candidates, keyframe_images) -> Dict:
+        """Rubric-free holistic sufficiency gate (--no-rubric ablation).
+
+        The model makes ONE holistic call — is another retrieval round needed? — with
+        NO per-option true/false/unknown judgment and NO per-criterion scoring or
+        threshold. The missing-evidence signal is KEPT, so this isolates the rubric
+        machinery only; the verifier→planner repair signal is ablated separately by
+        --ignore-verifier-signal.
+        """
+        user = "\n\n".join([
+            f"Question: {question}", f"Options:\n{opts}",
+            f"Evidence Chain:\n{ev}", "Return the JSON now.",
+        ])
+        messages = [
+            {"role": "system", "content": VERIFIER_SYS_IMPLICIT},
+            {"role": "user",   "content": user},
+        ]
+        if keyframe_images and getattr(self.llm, '_api_endpoints', None):
+            messages[-1] = _inject_images(messages[-1], keyframe_images)
+        raw    = self.llm.chat(messages, max_new_tokens=400, enable_thinking=False)
+        parsed = extract_json(raw)
+
+        raw_need = parsed.get("need_more_retrieval")
+        if isinstance(raw_need, bool):
+            need_more = raw_need
+        else:
+            need_more = as_str(raw_need).strip().lower() in ("true", "yes", "1")
+        label = "INSUFFICIENT" if need_more else "SUFFICIENT"
+
+        missing: Optional[str] = None
+        if label == "INSUFFICIENT":
+            raw_missing = parsed.get("missing_evidence_analysis")
+            if isinstance(raw_missing, str) and raw_missing.strip():
+                missing = raw_missing.strip()
+
+        return {
+            "label":                  label,
+            "option_judgment":        {},
+            "unknown_options":        [],
+            "option_rubric_scores":   {},
+            "option_criteria_scores": {},
+            "missing_evidence_analysis": missing,
+        }
+
     def verify(
         self,
         question: str,
@@ -400,6 +470,7 @@ class Verifier:
         keyframe_images=(),
         sufficient_threshold_delta: float = 0.0,
         two_pass: bool = False,
+        implicit: bool = False,
     ) -> Dict:
         """Judge evidence sufficiency with rubric-guided per-option scoring.
 
@@ -421,6 +492,9 @@ class Verifier:
         )
         opts = "\n".join(f"  ({chr(ord('A')+i)}) {c}" for i, c in enumerate(candidates))
         ev   = _format_evidence(evidence_texts)
+
+        if implicit:
+            return self._verify_implicit(question, opts, ev, candidates, keyframe_images)
 
         if two_pass:
             return self._verify_twopass(

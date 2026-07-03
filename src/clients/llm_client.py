@@ -134,39 +134,66 @@ class LLMClient:
             # Optional; tokenizer chat templates that support it (e.g. thinking modes) consume this.
             "chat_template_kwargs": {"enable_thinking": enable_thinking},
         }
+        import logging
+        _log = logging.getLogger(__name__)
+
+        # Endpoint failover: a dead/idle-killed backend (connection refused, 502/
+        # 503/504) must NOT poison the record. Build a per-call endpoint order that
+        # starts at the shared round-robin offset but then deterministically walks
+        # EVERY endpoint — so a single request always reaches a healthy backend even
+        # when workers share the counter (a plain `rr % n` retry can skip endpoints
+        # under concurrency and exhaust on dead ones).
+        n_ep = len(self._api_endpoints)
         with self._api_lock:
-            ep = self._api_endpoints[self._api_rr % len(self._api_endpoints)]
+            start = self._api_rr % n_ep
             self._api_rr += 1
-        resp = self._requests.post(ep, json=payload, timeout=600)
-        if resp.status_code in (400, 500):
-            # Strip image_url items from the last message and retry once.
-            msgs = payload["messages"]
-            has_images = any(
-                isinstance(m.get("content"), list) and
-                any(c.get("type") == "image_url" for c in m["content"])
-                for m in msgs
-            )
-            if has_images:
-                import logging
-                logging.getLogger(__name__).warning(
-                    "LLM API %s error with images — retrying without images", resp.status_code
-                )
-                payload["messages"] = [
-                    {**m, "content": (
-                        [c for c in m["content"] if c.get("type") != "image_url"]
-                        if isinstance(m.get("content"), list) else m["content"]
-                    )}
-                    for m in msgs
-                ]
-                with self._api_lock:
-                    ep = self._api_endpoints[self._api_rr % len(self._api_endpoints)]
-                    self._api_rr += 1
+        order = [self._api_endpoints[(start + i) % n_ep] for i in range(n_ep)]
+
+        def _next_ep():
+            with self._api_lock:
+                ep = self._api_endpoints[self._api_rr % len(self._api_endpoints)]
+                self._api_rr += 1
+            return ep
+
+        last_exc = None
+        for ep in order:
+            try:
                 resp = self._requests.post(ep, json=payload, timeout=600)
-        resp.raise_for_status()
-        result = resp.json()["choices"][0]["message"]["content"]
-        if "</think>" in result:
-            result = result.split("</think>", 1)[1].strip()
-        return result.strip()
+            except Exception as e:  # ConnectionError / Timeout → try next backend
+                last_exc = e
+                _log.warning("LLM API %s unreachable (%s) — failing over", ep, type(e).__name__)
+                continue
+            if resp.status_code in (502, 503, 504):  # backend up but unhealthy
+                last_exc = self._requests.exceptions.HTTPError(
+                    f"{resp.status_code} from {ep}")
+                _log.warning("LLM API %s returned %s — failing over", ep, resp.status_code)
+                continue
+            if resp.status_code in (400, 500):
+                # Strip image_url items from the last message and retry once (next ep).
+                msgs = payload["messages"]
+                has_images = any(
+                    isinstance(m.get("content"), list) and
+                    any(c.get("type") == "image_url" for c in m["content"])
+                    for m in msgs
+                )
+                if has_images:
+                    _log.warning("LLM API %s error with images — retrying without images",
+                                 resp.status_code)
+                    payload["messages"] = [
+                        {**m, "content": (
+                            [c for c in m["content"] if c.get("type") != "image_url"]
+                            if isinstance(m.get("content"), list) else m["content"]
+                        )}
+                        for m in msgs
+                    ]
+                    resp = self._requests.post(_next_ep(), json=payload, timeout=600)
+            resp.raise_for_status()
+            result = resp.json()["choices"][0]["message"]["content"]
+            if "</think>" in result:
+                result = result.split("</think>", 1)[1].strip()
+            return result.strip()
+        # All endpoints exhausted.
+        raise last_exc if last_exc else RuntimeError("LLM API: no endpoints available")
 
     def _chat_transformers(self, text: str, max_new_tokens: int, temperature: float) -> str:
         inputs = self.tokenizer([text], return_tensors="pt").to(self.device)

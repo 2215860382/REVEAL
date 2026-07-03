@@ -153,6 +153,10 @@ def main():
                     help="For iter >= 1 planning, ignore verifier feedback and plan only from question/evidence/history")
     ap.add_argument("--verifier-two-pass", action="store_true",
                     help="Two-pass verifier: pass1 scores sufficiency only, pass2 judges true/false conditioned on the per-option threshold result")
+    ap.add_argument("--no-rubric", action="store_true",
+                    help="Ablation: holistic verifier sufficiency judgment (no per-criterion rubric scoring / threshold)")
+    ap.add_argument("--max-iter", type=int, default=None,
+                    help="Override veil_loop.max_iter (e.g. 1 = single-round retrieval, no plan-repair loop)")
     ap.add_argument("--sufficient-threshold-delta", type=float, default=0.0,
                     help="Add this value to rubric sufficient_threshold inside verifier, capped at 1.0")
     ap.add_argument("--dialogue-first", action="store_true",
@@ -187,6 +191,12 @@ def main():
                     help="If evidence is still insufficient after all iterations, re-examine "
                          "the raw frames (frames_raw) of the relevant chunks with a "
                          "question-aware VLM pass and inject the result as evidence.")
+    ap.add_argument("--reranker", action="store_true",
+                    help="Enable bge-reranker-v2-m3 cross-encoder rerank in multi_pool "
+                         "retrieval: widen the L1 recall pool (VEIL_RERANK_POOL, default 50) "
+                         "then cross-encode-rerank down to final_top_k. Precision-recall probe.")
+    ap.add_argument("--reranker-gpu", default="cuda:4",
+                    help="GPU for the cross-encoder reranker (default cuda:4).")
     ap.add_argument("--use-oracle", action="store_true",
                     help="At each iter, also call answerer with gold_answer known; if "
                          "oracle_pred == gold, freeze that result as final answer. "
@@ -209,7 +219,7 @@ def main():
     out_root = Path(cfg.get("paths", {}).get("outputs_root", "outputs"))
 
     _vl = cfg.get("veil_loop", {})
-    veil_max_iter   = int(_vl.get("max_iter", 3))
+    veil_max_iter   = int(args.max_iter) if args.max_iter is not None else int(_vl.get("max_iter", 3))
     q_hist_dedup    = float(_vl.get("query_history_dedup_threshold", 0.9))
     ev_dedup        = float(_vl.get("evidence_dedup_threshold", 0.9))
     q_ev_dedup      = float(_vl.get("query_evidence_dedup_threshold", 0.9))
@@ -387,6 +397,15 @@ def main():
             siglip = SigLIPEmbedder(model_path=siglip_model, device=siglip_device)
             log.info("  SigLIP ready (%.1fs)", time.time() - t0)
 
+    reranker = None
+    if args.reranker:
+        from src.clients.reranker import BGEReranker
+        rr_path = "/home2/ycj/Models/BAAI/bge-reranker-v2-m3"
+        log.info("loading reranker %s on %s ...", rr_path, args.reranker_gpu)
+        t0 = time.time()
+        reranker = BGEReranker(model_path=rr_path, device=args.reranker_gpu)
+        log.info("  reranker ready (%.1fs)", time.time() - t0)
+
     # ── Thread safety (GPU models are not thread-safe) ────────────────────────
     _gpu_lock = threading.Lock()
 
@@ -404,6 +423,7 @@ def main():
 
     if embedder: embedder = _LockedModel(embedder)
     if siglip:   siglip   = _LockedModel(siglip)
+    if reranker: reranker = _LockedModel(reranker)
 
     # ── Bank cache ────────────────────────────────────────────────────────────
     _bank_cache:  dict = {}
@@ -434,7 +454,9 @@ def main():
         if bank is None:
             return None, "bank_missing"
         kw = dict(
-            reranker=None, coarse_top_k=8, final_top_k=8,
+            reranker=reranker,
+            coarse_top_k=int(os.environ.get("VEIL_COARSE_TOP_K", "").strip() or 8),
+            final_top_k=int(os.environ.get("VEIL_FINAL_TOP_K", "").strip() or 8),
             max_iter=veil_max_iter,
             query_history_dedup_threshold=q_hist_dedup,
             evidence_dedup_threshold=ev_dedup,
@@ -449,6 +471,7 @@ def main():
             single_query_iter0=args.single_query_iter0,
             ignore_verifier_signal=args.ignore_verifier_signal,
             verifier_two_pass=args.verifier_two_pass,
+            verifier_implicit=args.no_rubric,
             sufficient_threshold_delta=args.sufficient_threshold_delta,
             dialogue_first=args.dialogue_first,
             asr_alpha=args.asr_alpha,

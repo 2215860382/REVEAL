@@ -62,10 +62,16 @@ class EvidenceChain:
     video_id: str
     question_type: str
     chain_id: str
-    quality: str
-    source: str
+    quality: str                     # "sufficient" | "insufficient" (outcome-anchored)
+    source: str                      # "query:<variant>@alpha=.. " | "random" | "oracle"
     evidence: list[EvidenceItem]
     notes: str = ""
+    # Outcome-anchored labelling (filled by sample_chains.py).
+    sufficient: bool | None = None
+    sufficient_votes: str = ""        # e.g. "2/3"
+    topk: int | None = None           # budget for query chains; None for random/oracle
+    config: str = ""                  # retrieval config tag (query variant × alpha)
+    n_chunks: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)

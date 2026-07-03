@@ -117,6 +117,68 @@ def _online_recaption(question, candidates, missing, chunk_ids, video_id,
         return ""
 
 
+def _pick_online_chunks(strategy, ev_ids, bank, question, embedder,
+                        k: int = 4, neigh: int = 2) -> list:
+    """Pick chunk_ids whose raw frames the online layer should re-caption.
+
+    The point of the redesign: target the *uncovered* region of the video,
+    not the chunks the retriever already surfaced (which recaptioning cannot
+    improve). Strategies (env VEIL_ONLINE_SAMPLE):
+      retrieved       — legacy: re-look the already-retrieved chunks (control)
+      neighbor        — time-adjacent (±neigh) chunks the retriever skipped
+      query           — re-score ALL unretrieved chunks by the question, top-K
+      neighbor_query  — neighbors first, backfill to K via query re-scoring
+      uniform         — evenly spread across unretrieved chunks on the timeline
+    Returns a list of chunk_ids (possibly empty → online no-ops safely)."""
+    ev_list = [int(i) for i in ev_ids if int(i) >= 0]
+    seen    = set(ev_list)
+    chunks  = list(getattr(bank, "chunks", []) or [])
+    if strategy == "retrieved" or not chunks:
+        return ev_list[:k]
+
+    order     = sorted(range(len(chunks)),
+                       key=lambda i: getattr(chunks[i], "start_time", 0.0))
+    pos_by_id = {chunks[order[p]].chunk_id: p for p in range(len(order))}
+
+    def neighbors() -> list:
+        out: list = []
+        for cid in ev_list:                       # keep retrieval order
+            p = pos_by_id.get(cid)
+            if p is None:
+                continue
+            for dp in range(1, neigh + 1):
+                for qpos in (p - dp, p + dp):
+                    if 0 <= qpos < len(order):
+                        nid = chunks[order[qpos]].chunk_id
+                        if nid not in seen and nid not in out:
+                            out.append(nid)
+        return out
+
+    if strategy == "neighbor":
+        return neighbors()[:k]
+
+    if strategy == "uniform":
+        unc = [chunks[order[p]].chunk_id for p in range(len(order))
+               if chunks[order[p]].chunk_id not in seen]
+        if not unc:
+            return []
+        step = max(1, len(unc) // k)
+        return unc[::step][:k]
+
+    if strategy in ("query", "neighbor_query"):
+        picked = neighbors()[:k] if strategy == "neighbor_query" else []
+        if len(picked) < k:
+            taken = set(picked)
+            pool  = [c for c in chunks
+                     if c.chunk_id not in seen and c.chunk_id not in taken]
+            _, qids, _ = _retrieve_on_chunks(question, pool, embedder,
+                                             k - len(picked), set())
+            picked += [i for i in qids if i not in taken]
+        return picked[:k]
+
+    return ev_list[:k]
+
+
 # ── Oracle mode (debug upper bound) ──────────────────────────────────────────
 
 _ORACLE_MISSING_SYS = """\
@@ -464,6 +526,30 @@ def _coarse_to_fine_retrieve(
     )
 
 
+def _merge_intervals(iv: List[tuple]) -> List[tuple]:
+    """Merge overlapping (start,end) windows into disjoint sorted intervals."""
+    out: List[tuple] = []
+    for a, b in sorted(iv):
+        if out and a <= out[-1][1]:
+            out[-1] = (out[-1][0], max(out[-1][1], b))
+        else:
+            out.append((a, b))
+    return out
+
+
+def _uncovered_fraction(s: float, e: float, covered: List[tuple]) -> float:
+    """Fraction of [s,e] NOT overlapping any (disjoint) covered window. 1.0 = wholly new region."""
+    span = e - s
+    if span <= 0:
+        return 0.0 if any(cs <= s <= ce for cs, ce in covered) else 1.0
+    ov = 0.0
+    for cs, ce in covered:
+        lo, hi = max(s, cs), min(e, ce)
+        if hi > lo:
+            ov += hi - lo
+    return max(0.0, 1.0 - min(ov, span) / span)
+
+
 def _multi_pool_retrieve(
     query: str,
     bank: "MemoryBank",
@@ -474,6 +560,7 @@ def _multi_pool_retrieve(
     exclude_ids: Set[int],
     dialogue_first: bool = False,
     l2_cap: int = 4,
+    iter_idx: Optional[int] = None,
 ) -> tuple[List[str], List[int], List[List[float]]]:
     """Mode B: retrieve from L1..L4 pools, merge by score.
 
@@ -502,6 +589,56 @@ def _multi_pool_retrieve(
     l3_cap = _envi("VEIL_MP_L3_CAP", 0)
     l4_cap = _envi("VEIL_MP_L4_CAP", 0)
     final_keep = final_top_k
+
+    # Layer escalation — tie iteration to abstraction level. iter-0 sees only L1
+    # detail; summaries (L2) unlock on iter-1, overviews (L3) on iter-2, global (L4)
+    # on iter-3. So each re-retrieval round adds a NEW information type instead of
+    # re-searching the same pooled space. Only escalates when the verifier deemed
+    # L1 detail insufficient (that is what advances the iter counter). Default off.
+    #
+    # Two flavours (evidence still accumulates across iters either way — this only
+    # gates which layer THIS round retrieves from):
+    #   accumulate (default): iter-N unlocks layer N while keeping all lower layers,
+    #                         so each round also pulls fresh L1 detail.
+    #   exclusive (VEIL_LAYER_EXCLUSIVE=1): iter-N retrieves ONLY layer N — no fresh
+    #                         L1 on later rounds; pure level-switch (L1→L2→L3).
+    if iter_idx is not None and os.environ.get("VEIL_LAYER_ESCALATE", "").strip() in ("1", "true", "True"):
+        if os.environ.get("VEIL_LAYER_EXCLUSIVE", "").strip() in ("1", "true", "True"):
+            if iter_idx != 0:
+                l1_cap = 0
+            if iter_idx != 1:
+                l2_cap = 0
+            if iter_idx != 2:
+                l3_cap = 0
+            l4_cap = 0
+        else:
+            if iter_idx < 1:
+                l2_cap = 0
+            if iter_idx < 2:
+                l3_cap = 0
+            if iter_idx < 3:
+                l4_cap = 0
+
+    # Precision-recall probe: when a cross-encoder reranker is supplied, widen the
+    # L1 candidate pool (BGE dot-product recall) so the reranker can surface chunks
+    # the narrow top-k missed, then cross-encode-rerank down to final_keep.
+    # Default (reranker is None): pool = l1_cap, behaviour byte-identical to before.
+    l1_pool_cap = l1_cap
+    if reranker is not None:
+        l1_pool_cap = max(l1_cap, _envi("VEIL_RERANK_POOL", 50))
+
+    # Method #2 — temporal-coverage exploration. On iter≥1 (exclude_ids non-empty),
+    # add λ·(fraction of the chunk's [start,end] in video regions NOT yet retrieved)
+    # to its L1 score, pushing retrieval toward unexplored parts of the timeline
+    # instead of the runner-up neighbours of what it already has. Self-gating:
+    # iter-0 has empty exclude_ids → uncovered=1 uniformly → ranking unchanged.
+    # λ=0 (default) → byte-identical to before. Widen the pool so new regions can enter.
+    try:
+        explore_lambda = float(os.environ.get("VEIL_EXPLORE_LAMBDA", "").strip() or 0.0)
+    except ValueError:
+        explore_lambda = 0.0
+    if explore_lambda > 0.0:
+        l1_pool_cap = max(l1_pool_cap, _envi("VEIL_EXPLORE_POOL", 50))
     try:
         sw = float(os.environ.get("VEIL_MP_SUMMARY_WEIGHT", "").strip() or 1.0)
     except ValueError:
@@ -512,7 +649,7 @@ def _multi_pool_retrieve(
     # L1 pool
     l1_vecs = np.array([c.v_text for c in bank.chunks], dtype=np.float32)
     l1_scores = l1_vecs @ q_vec
-    l1_order = np.argsort(-l1_scores)[:l1_cap]
+    l1_order = np.argsort(-l1_scores)[:l1_pool_cap]
 
     # Merge by score
     def _l1_ev(c):
@@ -524,11 +661,20 @@ def _multi_pool_retrieve(
                 parts.append(f"Speech: {c.asr}")
         return "\n".join(parts)
 
+    covered_windows: List[tuple] = []
+    if explore_lambda > 0.0 and exclude_ids:
+        covered_windows = _merge_intervals(
+            [(c.start_time, c.end_time) for c in bank.chunks if c.chunk_id in exclude_ids])
+
     candidates = []
     for i in l1_order:
         c = bank.chunks[i]
         if c.chunk_id not in exclude_ids:
-            candidates.append((float(l1_scores[i]), c, _l1_ev(c)))
+            sc = float(l1_scores[i])
+            if covered_windows:
+                sc += explore_lambda * _uncovered_fraction(
+                    c.start_time, c.end_time, covered_windows)
+            candidates.append((sc, c, _l1_ev(c)))
 
     # L2/L3/L4 summary pools (score-weighted by VEIL_MP_SUMMARY_WEIGHT)
     for layer, cap in ((bank.l2_chunks, l2_cap),
@@ -543,8 +689,14 @@ def _multi_pool_retrieve(
             if c.chunk_id not in exclude_ids:
                 candidates.append((float(scores[int(i)]) * sw, c, c.memory_text))
 
-    candidates.sort(key=lambda x: -x[0])
-    selected = candidates[:final_keep]
+    if reranker is not None and len(candidates) > final_keep:
+        # Cross-encoder rerank the widened pool; keep the top final_keep by relevance.
+        cand_texts = [ev for _, _, ev in candidates]
+        reranked = reranker.rerank(query, cand_texts, top_k=final_keep)
+        selected = [candidates[i] for i, _ in reranked]
+    else:
+        candidates.sort(key=lambda x: -x[0])
+        selected = candidates[:final_keep]
     return (
         [ev for _, _, ev in selected],
         [c.chunk_id for _, c, _ in selected],
@@ -602,6 +754,7 @@ def run_veil(
     oracle_no_second_rerank: bool       = False,
     per_chunk_keyframe_cap: int         = 1,
     verifier_two_pass:     bool         = False,
+    verifier_implicit:     bool         = False,
     dialogue_first:        bool         = False,
     asr_alpha:             float        = 0.0,
     text_first_keyframes:  bool         = False,
@@ -654,6 +807,14 @@ def run_veil(
     else:
         current_plan: dict = planner.decompose_iter0(question, candidates)
     plan_history.append(current_plan["queries"])
+    # Selective rerank: only engage the cross-encoder from iter >= this (env-gated).
+    # 0 (default) = rerank every iter incl. iter-0 (blanket); 1 = only struggling
+    # questions that reached iter>=1 after an INSUFFICIENT verdict, leaving easy
+    # iter-0-sufficient questions on pure BGE retrieval to avoid collateral damage.
+    try:
+        _rerank_min_iter = int(os.environ.get("VEIL_RERANK_MIN_ITER", "0").strip() or 0)
+    except ValueError:
+        _rerank_min_iter = 0
     last_verdict: dict = {}
     gold_letter = (chr(65 + candidates.index(gold_answer))
                    if use_oracle and gold_answer and gold_answer in candidates else "")
@@ -700,10 +861,11 @@ def run_veil(
                         dialogue_first=dialogue_first, asr_alpha=asr_alpha,
                     )
                 elif multi_layer_mode == "multi_pool":
+                    _rr = reranker if it >= _rerank_min_iter else None
                     t, i, v = _multi_pool_retrieve(
-                        q, bank, embedder, reranker,
+                        q, bank, embedder, _rr,
                         coarse_top_k, final_top_k, seen_ids,
-                        dialogue_first=dialogue_first,
+                        dialogue_first=dialogue_first, iter_idx=it,
                     )
                 else:
                     t, i, v = _query_retrieve(
@@ -769,7 +931,8 @@ def run_veil(
         last_verdict = verifier.verify(question, candidates, ev_for_verifier, rubric,
                                   keyframe_images=kf_for_verifier,
                                   sufficient_threshold_delta=sufficient_threshold_delta,
-                                  two_pass=verifier_two_pass)
+                                  two_pass=verifier_two_pass,
+                                  implicit=verifier_implicit)
 
         # ── Oracle check (post-verifier) ──────────────────────────────────────
         # Oracle uses the same evidence/keyframe caps as the final answerer.
@@ -923,6 +1086,8 @@ def run_veil(
         # the raw video frames (frames_raw) for the relevant chunks and re-examine
         # them with a question-aware VLM pass; prepend the fresh text as evidence.
         online_used = False
+        online_sample = os.environ.get("VEIL_ONLINE_SAMPLE", "retrieved").strip().lower()
+        online_chunk_ids = None
         if online_layer and last_verdict and not _verdict_sufficient(last_verdict):
             # frames_raw lives in the SOURCE multiframe dir, not the text bank dir.
             # Recover its root from a chunk's absolute keyframe_path (…/videomme_
@@ -933,10 +1098,14 @@ def run_veil(
                 if kp:
                     frames_root = os.path.dirname(os.path.dirname(os.path.dirname(kp)))
                     break
+            # Redesigned online layer: sample the UNCOVERED region (not the
+            # already-retrieved chunks) per VEIL_ONLINE_SAMPLE strategy.
+            online_chunk_ids = _pick_online_chunks(
+                online_sample, ev_ids, bank, question, embedder)
             extra = _online_recaption(
                 question, candidates,
                 last_verdict.get("missing_evidence_analysis") or "",
-                ev_ids, bank.video_id, frames_root, answerer.model)
+                online_chunk_ids, bank.video_id, frames_root, answerer.model)
             if extra:
                 ev_texts = [extra] + list(ev_texts)
                 ev_ids   = [-999] + list(ev_ids)
@@ -952,6 +1121,8 @@ def run_veil(
         result["n_keyframes_to_answer"] = len(kf_for_answer)
         result["n_evidence_to_answer"]  = len(ev_texts)
         result["online_used"]           = online_used
+        result["online_sample"]         = online_sample if online_used else None
+        result["online_chunk_ids"]      = online_chunk_ids if online_used else None
         if text_first_status is not None:
             result["text_first_status"]    = text_first_status
             result["text_first_kept_cids"] = text_first_kept_cids

@@ -1,4 +1,11 @@
-"""Create prioritized weak/good/great/excellent evidence-chain pairs."""
+"""Pair evidence chains: one answered-wrong (insufficient) × one answered-right (sufficient).
+
+Chains come from three sources (random / query / oracle) but pairing does not care —
+it just needs, within a question, a wrong-evidence chain and a right-evidence chain.
+To give RTD both coarse and fine contrasts, when a question yields more pairs than the
+cap we keep the *tightest* pair first (smallest sufficient vs largest insufficient),
+then fill with variety across sources/sizes.
+"""
 from __future__ import annotations
 
 import argparse
@@ -8,7 +15,10 @@ from src.generate_rubric.construct.io import read_jsonl, write_jsonl
 from src.generate_rubric.construct.schema import ChainPair
 
 
-QUALITY_RANK = {"weak": 0, "good": 1, "great": 2, "excellent": 3}
+def _is_sufficient(c: dict) -> bool:
+    if c.get("sufficient") is not None:
+        return bool(c["sufficient"])
+    return c.get("quality") == "sufficient"
 
 
 def main() -> None:
@@ -18,33 +28,47 @@ def main() -> None:
     ap.add_argument("--max-pairs-per-question", type=int, default=3)
     args = ap.parse_args()
 
-    by_idx = defaultdict(list)
+    by_idx: dict[int, list[dict]] = defaultdict(list)
     for c in read_jsonl(args.chains):
         by_idx[int(c["sample_idx"])].append(c)
 
     pairs = []
+    skipped = 0
     for idx, chains in by_idx.items():
-        chains.sort(key=lambda c: QUALITY_RANK.get(c.get("quality", ""), -1))
-        by_q = defaultdict(list)
-        for c in chains:
-            by_q[c.get("quality", "")].append(c)
+        suff = [c for c in chains if _is_sufficient(c)]
+        insuff = [c for c in chains if not _is_sufficient(c)]
+        if not suff or not insuff:
+            skipped += 1
+            continue
 
-        candidates = []
-        if by_q["weak"] and by_q["excellent"]:
-            candidates.append((by_q["weak"][0], by_q["excellent"][0], "weak_vs_excellent"))
-        if by_q["good"] and by_q["great"]:
-            candidates.append((by_q["good"][0], by_q["great"][0], "good_vs_great"))
-        if by_q["great"] and by_q["excellent"]:
-            candidates.append((by_q["great"][0], by_q["excellent"][0], "great_vs_excellent"))
-        if len(by_q["excellent"]) >= 2:
-            candidates.append((by_q["excellent"][0], by_q["excellent"][1], "excellent_vs_excellent_diverse"))
-        if by_q["weak"] and by_q["good"] and not any(pt == "good_vs_great" for _, _, pt in candidates):
-            candidates.append((by_q["weak"][0], by_q["good"][0], "weak_vs_good"))
-        if not candidates and len(chains) >= 2:
-            candidates.append((chains[0], chains[-1], f"{chains[0]['quality']}_vs_{chains[-1]['quality']}"))
+        # size for tightness = number of evidence chunks
+        def nchunks(c):
+            return c.get("n_chunks") or len(c.get("evidence") or [])
 
-        for weaker, stronger, pair_type in candidates[: args.max_pairs_per_question]:
-            pair_id = f"{idx}:{pair_type}:{weaker['chain_id']}->{stronger['chain_id']}"
+        min_suff = min(suff, key=nchunks)          # smallest chain that still answers right
+        max_insuff = max(insuff, key=nchunks)      # largest chain that still answers wrong
+
+        ordered: list[tuple[dict, dict]] = [(max_insuff, min_suff)]  # tightest first
+        # then variety: each other insufficient against min_suff, spread by source
+        for w in insuff:
+            if w is max_insuff:
+                continue
+            ordered.append((w, min_suff))
+        # and min_insuff against other sufficient chains for cross-source contrast
+        for st in suff:
+            if st is min_suff:
+                continue
+            ordered.append((max_insuff, st))
+
+        seen = set()
+        for weaker, stronger in ordered:
+            if len(seen) >= args.max_pairs_per_question:
+                break
+            key = (weaker["chain_id"], stronger["chain_id"])
+            if key in seen:
+                continue
+            seen.add(key)
+            pair_id = f"{idx}:{weaker['chain_id']}->{stronger['chain_id']}"
             pairs.append(ChainPair(
                 sample_idx=idx,
                 video_id=weaker["video_id"],
@@ -52,11 +76,11 @@ def main() -> None:
                 pair_id=pair_id,
                 weaker_chain_id=weaker["chain_id"],
                 stronger_chain_id=stronger["chain_id"],
-                pair_type=pair_type,
+                pair_type="insufficient_vs_sufficient",
             ).to_dict())
 
     write_jsonl(args.out, pairs)
-    print(f"wrote {len(pairs)} pairs to {args.out}")
+    print(f"wrote {len(pairs)} pairs to {args.out} ({skipped} questions skipped: no wrong/right split)")
 
 
 if __name__ == "__main__":

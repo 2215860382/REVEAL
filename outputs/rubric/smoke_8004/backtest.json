@@ -1,0 +1,61 @@
+{
+  "chain_label_counts": {
+    "insufficient": 3,
+    "sufficient": 3
+  },
+  "chain_source_counts": {
+    "oracle": 3,
+    "random": 3
+  },
+  "criteria_by_type": {
+    "Attribute Perception": 1,
+    "Information Synopsis": 1,
+    "Object Reasoning": 1
+  },
+  "n_chains": 6,
+  "n_general_criteria": 3,
+  "n_pairs": 3,
+  "needs_more_work": [
+    {
+      "criteria": 1,
+      "pairs": 1,
+      "question_type": "Information Synopsis",
+      "separation_rate": 0.0
+    },
+    {
+      "criteria": 1,
+      "pairs": 1,
+      "question_type": "Object Reasoning",
+      "separation_rate": 0.0
+    },
+    {
+      "criteria": 1,
+      "pairs": 1,
+      "question_type": "Attribute Perception",
+      "separation_rate": 0.0
+    }
+  ],
+  "pairs_by_type": {
+    "Attribute Perception": 1,
+    "Information Synopsis": 1,
+    "Object Reasoning": 1
+  },
+  "separation_by_type": {
+    "Attribute Perception": {
+      "n": 1,
+      "ok": 0,
+      "rate": 0.0
+    },
+    "Information Synopsis": {
+      "n": 1,
+      "ok": 0,
+      "rate": 0.0
+    },
+    "Object Reasoning": {
+      "n": 1,
+      "ok": 0,
+      "rate": 0.0
+    }
+  },
+  "separation_success_rate": 0.0
+}

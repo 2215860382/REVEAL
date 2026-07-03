@@ -1,0 +1,83 @@
+general:
+  rubric_criteria:
+  - name: evidence_coverage
+    description: Evidence covers the key event, time window, state change, comparison
+      target, or causal link needed to verify or exclude each option.
+    score_1: All aspects the options hinge on are present in the evidence.
+    score_half: Some required aspect present but at least one is missing.
+    score_0: A key aspect the options depend on is entirely absent.
+    weight: 1.0
+    failure_repair_action: refine_query
+  - name: evidence_specificity
+    description: Evidence explicitly grounds the relevant person, object, action,
+      scene, speaker, on-screen text, or spatial relation rather than a generic scene.
+    score_1: The specific entity/relation an option asserts is explicitly grounded.
+    score_half: Related but generic evidence; the exact entity/relation is implicit.
+    score_0: Only unrelated or generic scene evidence; nothing specific to the options.
+    weight: 1.0
+    failure_repair_action: dense_sample
+  - name: evidence_consistency
+    description: Evidence is internally consistent and contains enough contrary evidence
+      to exclude options that conflict with the video.
+    score_1: Evidence is consistent and lets conflicting options be ruled out.
+    score_half: Partly consistent; some conflicting options cannot be ruled out yet.
+    score_0: Evidence is contradictory or cannot exclude any wrong option.
+    weight: 1.0
+    failure_repair_action: broadcast
+  scoring_rule: average
+  sufficient_threshold: 0.8
+type_aliases:
+  Information Synopsis: Information Synopsis
+  Object Reasoning: Object Reasoning
+  Attribute Perception: Attribute Perception
+templates:
+  Information Synopsis:
+    rubric_criteria:
+    - name: main_topic_identification
+      description: Evidence explicitly identifies the video's central subject or thesis
+        statement, rather than just showing generic scenes or isolated details.
+      score_1: The evidence explicitly states or clearly demonstrates the video's
+        main topic, allowing the correct 'mainly about' option to be verified and
+        others excluded.
+      score_half: The evidence hints at a topic or shows relevant details but lacks
+        an explicit statement of the central theme, making the main topic ambiguous.
+      score_0: The evidence contains only generic scenes, ambient content, or isolated
+        details with no indication of the video's overall subject.
+      weight: 4.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Object Reasoning:
+    rubric_criteria:
+    - name: entity_explicit_grounding
+      description: Evidence explicitly identifies the specific person, institution,
+        or object that is the central subject of the video and is directly referenced
+        in the options, rather than providing only generic scene context.
+      score_1: The specific entity (e.g., 'John Brown') is explicitly named or clearly
+        identified as the video's subject in the evidence.
+      score_half: The entity is implied or partially visible but not explicitly named
+        or confirmed as the central subject.
+      score_0: The evidence contains only generic scenes, ambient audio, or unrelated
+        content with no explicit identification of the specific entity required to
+        verify or exclude options.
+      weight: 4.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Attribute Perception:
+    rubric_criteria:
+    - name: explicit_factual_assertion
+      description: Evidence must contain explicit factual claims, assertions, or narrative
+        statements regarding the specific entities and events mentioned in the options,
+        rather than just generic visual context or ambient scenes.
+      score_1: Evidence explicitly states facts or claims that directly address the
+        specific entities and events in the options (e.g., 'Whitehead succeeded',
+        'Smithsonian claims no evidence').
+      score_half: Evidence mentions the entities or events but lacks a clear factual
+        claim or assertion to verify/exclude the specific option details.
+      score_0: Evidence contains only generic scenes, ambient audio, or unrelated
+        content with no explicit factual assertions regarding the options.
+      weight: 4.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8

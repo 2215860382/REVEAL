@@ -173,6 +173,108 @@ Rules:
 """
 
 
+RTD_REFINE_SYSTEM = """\
+You refine an evidence-sufficiency rubric for long-video multiple-choice QA, one pair at a time
+(Refinement-through-Differentiation).
+
+Definitions:
+- A criterion scores whether the current evidence is sufficient to VERIFY OR EXCLUDE each option.
+- Sufficiency is NOT answer correctness and NOT option support. A wrong option scores high when
+  the evidence is enough to exclude it.
+
+The rubric is a GROWING, REUSABLE LIBRARY of sufficiency dimensions for the whole question TYPE
+— not a description of any one question. Each criterion must be phrased so it applies to ANY
+question of this type. Use the pair below only as the motivating example that reveals a dimension;
+NEVER bake this question's specific entities, names, numbers, or answer into a criterion.
+
+You are given the CURRENT rubric for one question type and ONE pair of evidence chains for a
+question of that type:
+- the WRONG chain: answering with only this evidence gets the question wrong (insufficient),
+- the RIGHT chain: answering with only this evidence gets it right (sufficient).
+
+Task: identify the GENERAL, type-level sufficiency dimension this pair reveals — the abstract
+property the RIGHT chain has and the WRONG chain lacks (e.g. "evidence timestamps bracket the
+queried moment", "the target entity is visually resolved, not merely named", "counts are stated
+explicitly rather than inferred"). Then update the library toward covering that dimension.
+
+A "dimension" is an abstract EVIDENCE MECHANISM, judged independently of the claim's topic. Two
+criteria that test the SAME mechanism but on different subject matter are the SAME dimension —
+they must be ONE criterion, not two. In particular, "evidence explicitly asserts/denies the
+option's specific proposition" is ONE dimension whether the proposition is causal, quantitative,
+an identity, an outcome, a status, an attribution, etc. Do NOT mint a separate criterion per
+claim category (no family of *_explicitness twins). A type usually needs only ~4–10 criteria
+spanning distinct mechanisms (e.g. proposition is explicitly stated vs. merely implied; the
+target moment/interval is temporally located; the entity is visually resolved, not just named;
+a comparison/superlative is grounded across the compared items; negation/absence is confirmed).
+
+Decision order (STRONGLY bias toward accumulation of DISTINCT mechanisms, not rewriting):
+1. If an EXISTING criterion already covers this MECHANISM (even on different subject matter) →
+   return an EMPTY operations list. Do NOT restate it in this question's terms, do NOT clone it
+   for a new topic. As the library matures MOST pairs return empty — that is the correct outcome.
+2. Else if the pair reveals a genuinely NEW mechanism (no existing criterion tests it) → `add`
+   ONE new criterion, stated abstractly for the type and mechanism, not the topic.
+3. Only `rewrite` when an existing criterion targets the SAME mechanism but is wrong, narrower
+   than it should be, or overfit to one topic — rewrite it BROADER, never narrower to this pair.
+4. `decompose` only a truly vague/stacked criterion; `delete` only a genuine duplicate.
+
+Operations over the TYPE rubric (never edit general criteria):
+- add · rewrite · decompose · delete · adjust_weight (weight 1–5, by criterion name).
+
+Hard rules:
+- Criteria are ABSTRACT and type-general. A criterion naming this question's specific objects,
+  options, scores, or people is WRONG — abstract it or return empty ops.
+- Ground the dimension in the ACTUAL difference between these two chains. No world knowledge.
+- No generic criteria ("evidence is relevant/complete/clear/supports the answer").
+- Adding a new distinct MECHANISM is GOOD; cloning an existing mechanism for a new topic is BAD.
+  A mature type rubric holds ~4–10 criteria, each a different mechanism. No hard cap, but if you
+  are about to add the 12th criterion, it is almost certainly a duplicate mechanism → empty ops.
+- failure_repair_action ∈ {refine_query, time_sorted, dense_sample, broadcast, asr_match}.
+
+Output ONE strict JSON object, no prose, no markdown fences.
+"""
+
+
+RTD_REFINE_USER_TEMPLATE = """\
+Question type: {question_type}
+Question: {question}
+Options:
+{options}
+
+General criteria (read-only context, do NOT edit):
+{general_json}
+
+CURRENT type rubric criteria (edit these):
+{type_json}
+
+WRONG chain (insufficient — answered incorrectly):
+{weaker_evidence}
+
+RIGHT chain (sufficient — answered correctly):
+{stronger_evidence}
+
+First name the general type-level dimension this pair reveals, then decide per the decision order
+(prefer empty ops if already covered; add only a genuinely new dimension). Return JSON:
+{{
+  "analysis": "the ABSTRACT sufficiency dimension the RIGHT chain has and the WRONG chain lacks, stated for the TYPE (not this question's specifics), and whether an existing criterion already covers it",
+  "operations": [
+    {{"op": "add", "criterion": {{
+        "name": "short_snake_case",
+        "description": "abstract, type-general evidence-sufficiency criterion (no question-specific entities)",
+        "score_1": "fully sufficient condition",
+        "score_half": "partially sufficient condition",
+        "score_0": "insufficient condition",
+        "weight": 3,
+        "failure_repair_action": "refine_query"
+    }}}},
+    {{"op": "rewrite", "target": "existing_name", "criterion": {{ ...same fields... }}}},
+    {{"op": "decompose", "target": "existing_name", "into": [ {{ ...fields... }}, {{ ...fields... }} ]}},
+    {{"op": "delete", "target": "existing_name"}},
+    {{"op": "adjust_weight", "target": "existing_name", "weight": 4}}
+  ]
+}}
+"""
+
+
 def format_initial_rubric() -> str:
     return json.dumps(INITIAL_RUBRIC, ensure_ascii=False, indent=2)
 
