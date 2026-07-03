@@ -4183,6 +4183,217 @@ templates:
         or the evidence only describes actions without defining the role.
       weight: 3.0
       failure_repair_action: refine_query
+    - name: functional_role_explicitness
+      description: Evidence explicitly states the specific functional role, capacity,
+        or title an entity holds within the context of the event, game, or activity
+        (e.g., 'Games Master', 'Host', 'Referee', 'Sponsor'), rather than merely describing
+        the entity's actions, reputation, or general presence without defining their
+        specific function in the scenario.
+      score_1: The specific functional role or capacity asserted in the option is
+        explicitly stated (e.g., via on-screen text, narration, or direct quote) and
+        linked to the entity in the evidence.
+      score_half: The entity's actions or context are described, and a role is implied,
+        but the explicit statement defining their specific functional capacity within
+        the event is missing, ambiguous, or inferred.
+      score_0: The entity is mentioned, but the specific functional role or capacity
+        asserted in the option is entirely absent, attributed to a different entity,
+        or the evidence only describes actions without defining the role.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: transactional_role_explicitness
+      description: Evidence explicitly states the specific commercial or transactional
+        roles (e.g., buyer/seller, supplier/client, provider/consumer) of the entities
+        involved in an interaction, rather than merely showing the entities interacting,
+        exchanging goods, or discussing needs without explicitly defining the transactional
+        nature of their relationship.
+      score_1: The specific transactional roles (e.g., 'I supply', 'they need', 'we
+        bought') asserted in the option are explicitly stated or directly demonstrated
+        as the basis of the interaction in the evidence.
+      score_half: The entities and the exchange of goods or services are present,
+        but the explicit statement defining the specific commercial roles (buyer vs.
+        seller) is missing, ambiguous, or only implied by the context of the exchange.
+      score_0: The entities and their interaction are mentioned, but there is no evidence
+        explicitly stating the commercial or transactional roles, making it impossible
+        to verify claims about buying, selling, or supplying.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: initial_state_quantification_explicitness
+      description: Evidence explicitly states the specific numerical value, count,
+        or quantity of an attribute at the precise starting moment or initial condition
+        of an event, process, or challenge, rather than merely providing the value
+        at a later stage, an accumulated total, or a current state that implies change.
+      score_1: The specific numerical value asserted for the initial state is explicitly
+        stated and linked to the start of the event/process in the evidence.
+      score_half: The numerical value is present, but the link to the 'initial' or
+        'starting' moment is ambiguous, or the value provided is an accumulated/current
+        total that does not explicitly confirm the starting amount.
+      score_0: The evidence provides values for later stages, totals, or current states,
+        but lacks any explicit statement of the specific quantity at the start of
+        the event, making it impossible to verify the initial condition.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: spatial_location_explicitness
+      description: Evidence explicitly identifies the specific location, place name,
+        or setting (e.g., 'Jatilui', 'Nusa Penida', 'Devil's Tears') required to verify
+        the context of an event or interaction, rather than merely describing generic
+        visual features (e.g., 'beach', 'temple', 'reef') that could apply to multiple
+        locations.
+      score_1: The specific location or place name asserted or required by the query
+        is explicitly stated or visually identified (e.g., via signage, narration)
+        in the evidence.
+      score_half: The visual features of the location are described, but the specific
+        name or unique identifier required to confirm the exact setting is missing,
+        ambiguous, or only implied by context.
+      score_0: The evidence provides only generic descriptions of the setting (e.g.,
+        'a beach', 'a temple') without any specific location name or identifier, making
+        it impossible to verify claims dependent on the specific place.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: journey_completion_grounding
+      description: Evidence explicitly establishes the completion of a travel sequence
+        or movement process at a specific destination (e.g., 'arrived', 'made it to',
+        'reached'), rather than merely describing the destination, the activities
+        performed there, or the state of the entity at the location without confirming
+        the arrival event itself.
+      score_1: The specific moment or statement confirming the completion of the journey
+        and arrival at the destination is explicitly stated or demonstrated in the
+        evidence.
+      score_half: The destination and activities are described, and the entity is
+        present there, but the explicit confirmation of the arrival event or the completion
+        of the travel sequence is missing, ambiguous, or only implied by the presence.
+      score_0: The evidence describes the destination or the entity's state there,
+        but provides no information confirming that the journey was completed or that
+        the entity actually arrived, making it impossible to verify claims about the
+        arrival.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: sensory_modality_grounding
+      description: Evidence explicitly contains the specific sensory modality (e.g.,
+        auditory description of a sound, visual description of a specific mark, tactile
+        description) required to verify or exclude an option that hinges on that modality,
+        rather than merely providing evidence from a different modality or generic
+        context.
+      score_1: The evidence explicitly includes the specific sensory data (e.g., the
+        sound of a hiss, the sight of a crack) asserted or required by the option.
+      score_half: The evidence provides context or data from a different modality
+        (e.g., visual context for a sound-based claim) but lacks the specific sensory
+        description required to verify the option.
+      score_0: The evidence lacks any description of the specific sensory modality
+        required to verify the option, making it impossible to distinguish between
+        options defined by different sensory attributes.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: comparative_engagement_magnitude
+      description: Evidence explicitly demonstrates a significant difference in the
+        intensity, duration, or frequency of engagement (e.g., attention, interaction,
+        reaction) between the target entity and the alternative options within a shared
+        context, rather than merely showing isolated instances of interaction with
+        the target or listing options without establishing a comparative hierarchy
+        of interest.
+      score_1: The evidence clearly shows the target entity eliciting a distinctly
+        higher level of engagement (e.g., active play vs. passive observation) compared
+        to the other options present in the same scene or sequence, allowing the superlative
+        claim to be verified.
+      score_half: The evidence shows engagement with the target and mentions other
+        options, but the comparative difference in engagement intensity is ambiguous,
+        not shown in a shared context, or the alternatives are not clearly presented
+        as less engaging.
+      score_0: The evidence shows interaction with the target but provides no comparative
+        baseline against other options, or shows isolated interactions that do not
+        establish the target as the 'most' engaging relative to the alternatives.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: temporal_span_completeness
+      description: Evidence explicitly covers the full temporal span or intermediate
+        states between the specific time points required to verify a comparative claim
+        about an entity's state, appearance, or attribute, rather than merely providing
+        isolated snapshots at the start and end points that leave the state at the
+        queried moments ambiguous due to unobserved changes in between.
+      score_1: The evidence explicitly establishes the entity's state or appearance
+        at all relevant time points, including any intermediate moments where changes
+        occur, allowing the specific attributes at the queried times to be definitively
+        verified or excluded.
+      score_half: The evidence provides the entity's state at the queried time points
+        but lacks explicit coverage of intermediate moments where a change might have
+        occurred, leaving the specific state at the queried times ambiguous or reliant
+        on inference.
+      score_0: The evidence provides only isolated snapshots (e.g., start and end)
+        with no information about the entity's state at the specific queried moments
+        or the changes occurring between them, making it impossible to verify the
+        comparative claim.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: comparative_instance_coverage
+      description: Evidence explicitly provides the relevant attribute, state, or
+        appearance for every specific entity or temporal instance involved in a comparison
+        (e.g., 'X on Day A' and 'X on Day B'), rather than providing evidence for
+        only one side of the comparison or a generic state that does not allow the
+        specific contrast to be verified.
+      score_1: The evidence explicitly establishes the relevant attribute for all
+        entities or time-points required to perform the comparison asserted in the
+        option.
+      score_half: The evidence establishes the attribute for the target entity or
+        one time-point, but lacks explicit evidence for the comparator entity or the
+        other time-point, leaving the comparison incomplete or impossible to verify.
+      score_0: The evidence provides information for only one side of the comparison
+        or no specific instances, making it impossible to determine the difference
+        or similarity asserted in the option.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: camera_perspective_grounding
+      description: Evidence explicitly establishes the camera's perspective, viewpoint,
+        or the identity of the camera operator (e.g., first-person view, handheld
+        by a participant, static observer, specific angle relative to the action)
+        required to verify or exclude options about the role of the person shooting
+        the video, rather than merely describing the scene from a detached third-person
+        perspective without locating the camera.
+      score_1: The evidence explicitly identifies the camera's perspective or the
+        operator's role (e.g., via visual cues like a hand in frame, first-person
+        narration, or explicit statement of who is filming), allowing the shooter's
+        role to be verified or excluded.
+      score_half: The evidence describes the scene and implies a perspective (e.g.,
+        shaky cam, specific angle), but lacks explicit confirmation of the camera
+        operator's identity or the specific viewpoint required to definitively determine
+        their role.
+      score_0: The evidence describes the scene entirely from a detached third-person
+        perspective with no visual or auditory cues linking the camera to a specific
+        person or role, making it impossible to verify claims about the shooter's
+        identity.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: visual_feature_matching_explicitness
+      description: Evidence explicitly establishes a match or resemblance between
+        the visual features (e.g., clothing, physical traits, accessories) of two
+        entities or instances required to verify a claim of similarity, identity,
+        or 'most closely resembles', rather than merely listing the features of each
+        entity separately without articulating the specific visual correspondence.
+      score_1: The evidence explicitly confirms that the specific visual features
+        of the target entity match or closely resemble those of the reference entity,
+        allowing the resemblance claim to be verified.
+      score_half: The visual features of both entities are described, but the explicit
+        link or confirmation of their similarity/match is missing, ambiguous, or only
+        implied by context.
+      score_0: The visual features of the entities are mentioned separately, but there
+        is no evidence establishing a match or resemblance between them, making it
+        impossible to verify claims about who resembles whom.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: invariant_total_grounding
+      description: Evidence explicitly states that the sum of the parts of a partitioned
+        set (e.g., controlled by A, controlled by B, disputed) must always equal a
+        specific constant total, rather than merely describing the parts or the tracking
+        mechanism without establishing the invariant sum constraint.
+      score_1: The evidence explicitly states the specific constant total that the
+        sum of the parts must equal (e.g., 'always sums to 12'), allowing options
+        about the total or the relationship between parts to be verified or excluded.
+      score_half: The evidence mentions the parts or the tracking mechanism, and implies
+        a total, but does not explicitly state the invariant sum constraint or the
+        specific constant value required to verify the claim.
+      score_0: The evidence describes the parts or the mechanism but provides no information
+        about the total sum or the invariant relationship between the parts, making
+        it impossible to verify claims about the sum.
+      weight: 3.0
+      failure_repair_action: refine_query
     scoring_rule: average
     sufficient_threshold: 0.8
   Attribute Perception:

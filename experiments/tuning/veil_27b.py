@@ -144,63 +144,15 @@ def main():
                     help="Parallel workers (safe with API-mode LLM)")
     ap.add_argument("--pipeline-name",       default=None,
                     help="Override PIPELINE_NAME (= output jsonl filename stem)")
-    ap.add_argument("--per-chunk-keyframe-cap", type=int, default=1,
-                    help="Max keyframes per chunk fed to VLM (1=current behaviour)")
     ap.add_argument("--single-query-iter0",  action="store_true",
                     help="At iter 0, use the original question as a single query "
                          "instead of LLM-decomposing into per-option sub-queries")
     ap.add_argument("--ignore-verifier-signal", action="store_true",
                     help="For iter >= 1 planning, ignore verifier feedback and plan only from question/evidence/history")
-    ap.add_argument("--verifier-two-pass", action="store_true",
-                    help="Two-pass verifier: pass1 scores sufficiency only, pass2 judges true/false conditioned on the per-option threshold result")
     ap.add_argument("--no-rubric", action="store_true",
                     help="Ablation: holistic verifier sufficiency judgment (no per-criterion rubric scoring / threshold)")
     ap.add_argument("--max-iter", type=int, default=None,
                     help="Override veil_loop.max_iter (e.g. 1 = single-round retrieval, no plan-repair loop)")
-    ap.add_argument("--sufficient-threshold-delta", type=float, default=0.0,
-                    help="Add this value to rubric sufficient_threshold inside verifier, capped at 1.0")
-    ap.add_argument("--dialogue-first", action="store_true",
-                    help="Reformat evidence_texts to put ASR/Speech first with [DIALOGUE] tag")
-    ap.add_argument("--asr-alpha", type=float, default=0.0,
-                    help="Blend an ASR-only BGE channel into retrieval scoring (0=off, 0.4=balanced)")
-    ap.add_argument("--text-first-keyframes", action="store_true",
-                    help="Two-stage answerer: LLM (text-only) picks which chunks need visual "
-                         "confirmation; VLM gets keyframes only for those chunks")
-    ap.add_argument("--image-timestamps", action="store_true",
-                    help="Prepend a [Frame at Xs — Segment N] text label before each keyframe "
-                         "image in the answerer prompt")
-    ap.add_argument("--kf-dedup-threshold", type=float, default=None,
-                    help="Override visual keyframe dedup cosine threshold (1.0 = no dedup, keep all)")
-    ap.add_argument("--conditional-vision", action="store_true",
-                    help="Text-only verifier+answer; escalate to keyframes ONLY when text judged insufficient")
-    ap.add_argument("--label-layers", action="store_true",
-                    help="Prefix each evidence chunk with its pyramid layer (L1 detail .. L3 overview)")
-    ap.add_argument("--time-sort-evidence", action="store_true",
-                    help="Order evidence chunks chronologically instead of by retrieval score")
-    ap.add_argument("--hires-keyframes", action="store_true",
-                    help="Feed full-res keyframes_origin (1280x720) instead of keyframes_resized")
-    ap.add_argument("--no-question-first", action="store_false", dest="question_first",
-                    default=True,
-                    help="Disable question-first prompting (default: on). With question-first, "
-                         "the question + choices appear at the TOP of the answerer prompt "
-                         "before images and evidence, then repeat at the end")
-    ap.add_argument("--align-images-to-evidence", action="store_true",
-                    help="Reorder keyframes so they follow the rubric-reranked evidence order "
-                         "(image i sits alongside evidence segment i by chunk_id)")
-    ap.add_argument("--online-layer", action="store_true",
-                    help="If evidence is still insufficient after all iterations, re-examine "
-                         "the raw frames (frames_raw) of the relevant chunks with a "
-                         "question-aware VLM pass and inject the result as evidence.")
-    ap.add_argument("--reranker", action="store_true",
-                    help="Enable bge-reranker-v2-m3 cross-encoder rerank in multi_pool "
-                         "retrieval: widen the L1 recall pool (VEIL_RERANK_POOL, default 50) "
-                         "then cross-encode-rerank down to final_top_k. Precision-recall probe.")
-    ap.add_argument("--reranker-gpu", default="cuda:4",
-                    help="GPU for the cross-encoder reranker (default cuda:4).")
-    ap.add_argument("--use-oracle", action="store_true",
-                    help="At each iter, also call answerer with gold_answer known; if "
-                         "oracle_pred == gold, freeze that result as final answer. "
-                         "Upper-bound estimate of system ceiling given current bank+retrieval.")
     ap.add_argument("--multi-layer-mode",
                     choices=["none", "coarse_to_fine", "multi_pool", "planner_ctx"],
                     default="none",
@@ -224,10 +176,6 @@ def main():
     ev_dedup        = float(_vl.get("evidence_dedup_threshold", 0.9))
     q_ev_dedup      = float(_vl.get("query_evidence_dedup_threshold", 0.9))
     kf_dedup_thresh = float(_vl.get("kf_dedup_threshold", 0.9))
-    if args.kf_dedup_threshold is not None:
-        kf_dedup_thresh = args.kf_dedup_threshold
-    if args.hires_keyframes:
-        os.environ["VEIL_HIRES_KEYFRAMES"] = "1"
 
     memory_dir = Path(args.memory_dir) if args.memory_dir else \
                  out_root / "memory" / f"{bench}_L_27B"
@@ -270,9 +218,7 @@ def main():
         "llm_api_url": args.llm_api_url,
         "llm_api_model": args.llm_api_model,
         "embed_api_url": args.embed_api_url,
-        "question_first": args.question_first,
         "single_query_iter0": args.single_query_iter0,
-        "sufficient_threshold_delta": args.sufficient_threshold_delta,
         "multi_layer_mode": args.multi_layer_mode,
     }
     log.info("run_metadata: %s", json.dumps(run_metadata, ensure_ascii=False, sort_keys=True))
@@ -397,15 +343,6 @@ def main():
             siglip = SigLIPEmbedder(model_path=siglip_model, device=siglip_device)
             log.info("  SigLIP ready (%.1fs)", time.time() - t0)
 
-    reranker = None
-    if args.reranker:
-        from src.clients.reranker import BGEReranker
-        rr_path = "/home2/ycj/Models/BAAI/bge-reranker-v2-m3"
-        log.info("loading reranker %s on %s ...", rr_path, args.reranker_gpu)
-        t0 = time.time()
-        reranker = BGEReranker(model_path=rr_path, device=args.reranker_gpu)
-        log.info("  reranker ready (%.1fs)", time.time() - t0)
-
     # ── Thread safety (GPU models are not thread-safe) ────────────────────────
     _gpu_lock = threading.Lock()
 
@@ -423,7 +360,6 @@ def main():
 
     if embedder: embedder = _LockedModel(embedder)
     if siglip:   siglip   = _LockedModel(siglip)
-    if reranker: reranker = _LockedModel(reranker)
 
     # ── Bank cache ────────────────────────────────────────────────────────────
     _bank_cache:  dict = {}
@@ -454,7 +390,6 @@ def main():
         if bank is None:
             return None, "bank_missing"
         kw = dict(
-            reranker=reranker,
             coarse_top_k=int(os.environ.get("VEIL_COARSE_TOP_K", "").strip() or 8),
             final_top_k=int(os.environ.get("VEIL_FINAL_TOP_K", "").strip() or 8),
             max_iter=veil_max_iter,
@@ -467,25 +402,10 @@ def main():
             answer_keyframe_cap=akk,
             verifier_evidence_cap=vek,
             rubric_rerank=True,
-            per_chunk_keyframe_cap=args.per_chunk_keyframe_cap,
             single_query_iter0=args.single_query_iter0,
             ignore_verifier_signal=args.ignore_verifier_signal,
-            verifier_two_pass=args.verifier_two_pass,
             verifier_implicit=args.no_rubric,
-            sufficient_threshold_delta=args.sufficient_threshold_delta,
-            dialogue_first=args.dialogue_first,
-            asr_alpha=args.asr_alpha,
-            text_first_keyframes=args.text_first_keyframes,
-            image_timestamps=args.image_timestamps,
-            question_first=args.question_first,
-            align_images_to_evidence=args.align_images_to_evidence,
-            conditional_vision=args.conditional_vision,
-            label_layers=args.label_layers,
-            time_sort_evidence=args.time_sort_evidence,
-            use_oracle=args.use_oracle,
-            gold_answer=s.answer if args.use_oracle else "",
             multi_layer_mode=args.multi_layer_mode,
-            online_layer=args.online_layer,
         )
         return run_veil(s.question, s.candidates, bank, embedder, answerer, llm,
                         task_type=s.question_type, **kw), None
