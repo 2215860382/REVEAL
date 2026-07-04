@@ -13,8 +13,10 @@ together and the bank keeps working even if the source single-layer bank is late
 deleted (hard links share inodes, so this costs no extra disk on the same
 filesystem). Pass ``--frame-mode reference`` for the legacy behaviour (absolute
 paths back into the source bank, no images copied), or ``--frame-mode copy`` for
-a true portable duplicate. ``--include-raw`` additionally brings each chunk's
-``frames_raw/`` subdir (large; only needed for on-demand re-captioning, not answering).
+a true portable duplicate. By default only keyframes (``keyframes_resized`` +
+``keyframes_origin``) are brought — that is all the answerer/hires path reads.
+``--include-raw`` additionally copies each chunk's ``frames_raw/`` subdir (large;
+only needed for on-demand re-captioning, not answering).
 
 The source single-layer bank is left untouched. New banks are written to a
 SEPARATE output dir in pyramid format, loadable by
@@ -291,8 +293,9 @@ def add_multilayer_build_args(ap: argparse.ArgumentParser) -> None:
 
     Defaults reproduce the definitive **ml3_n12** bank: time budgets disabled
     (T=100000s → pure count grouping), mid fan-out n=12, L4 rolls up the whole
-    video. Frames are copied into the bank (true self-contained duplicate) and
-    ``frames_raw`` is included by default.
+    video. Keyframes are copied into the bank (true self-contained duplicate);
+    ``frames_raw`` is left out by default (answerer never reads it) — add it with
+    ``--include-raw``.
     """
     g = ap.add_argument_group("multilayer grouping (defaults = ml3_n12)")
     g.add_argument("--l2-seconds", type=float, default=100000); g.add_argument("--l2-max", type=int, default=12)
@@ -307,10 +310,11 @@ def add_multilayer_build_args(ap: argparse.ArgumentParser) -> None:
                         "true self-contained duplicate so the source single-layer "
                         "bank can be deleted afterwards; 'hardlink' = same-fs zero-"
                         "cost link; 'reference' = legacy absolute paths into source.")
-    g.add_argument("--include-raw", dest="include_raw", action="store_true", default=True,
-                   help="Also bring each chunk's frames_raw/ subdir (default on).")
+    g.add_argument("--include-raw", dest="include_raw", action="store_true", default=False,
+                   help="Also bring each chunk's frames_raw/ subdir (~183MB/video; the "
+                        "answerer never reads it — only needed for on-demand re-captioning).")
     g.add_argument("--no-include-raw", dest="include_raw", action="store_false",
-                   help="Skip frames_raw/ (answerer never reads it; ~183MB/video).")
+                   help="Default: keyframes only (keyframes_resized + origin), disk-friendly.")
 
 
 def cfg_from_args(args) -> dict:
