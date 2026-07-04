@@ -22,11 +22,10 @@
 | 最终 runtime rubric | `outputs/rubric/*.yaml` |
 
 `outputs/rubric/` 现存：
-- `round2_merged_runtime.yaml` — **当前定版实验实际使用的 rubric**（direct_answer 谱系，abl_5_full=79.00% 用的就是它）。
-- `direct_answer_generated_v2.yaml` — 蒸馏版默认 runtime rubric（7 条加权 general criterion）。
+- `round2_merged_runtime.yaml` — **唯一 runtime rubric，也是代码默认**（direct_answer 谱系，abl_5_full=79.00% 定版实验用的就是它；general 3 条 + 12 题型 templates）。
 - `online_full_20260703_061243/` — contrastive_trace 方法本次完整跑的产物存档。
 
-verifier 默认加载 `direct_answer_generated_v2.yaml`；按 run 覆盖用 `VEIL_RUBRIC_PATH=<path>`（每次 run 把 rubric 路径 + sha1 记进 `*.meta.json`）。
+verifier 默认加载 `round2_merged_runtime.yaml`（写死在 `src/agents/verifier.py` 与 `experiments/tuning/veil_27b.py`）；按 run 覆盖用 `VEIL_RUBRIC_PATH=<path>`（每次 run 把 rubric 路径 + sha1 记进 `*.meta.json`）。
 
 ## 核心结论
 

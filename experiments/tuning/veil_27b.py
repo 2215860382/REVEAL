@@ -191,7 +191,7 @@ def main():
     config_path = Path(args.config)
     rubric_override = os.environ.get("VEIL_RUBRIC_PATH")
     rubric_path = Path(rubric_override).expanduser() if rubric_override else \
-        repo_root / "outputs" / "rubric" / "direct_answer_generated_v2.yaml"
+        repo_root / "outputs" / "rubric" / "round2_merged_runtime.yaml"
     run_metadata = {
         "started_at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
         "cwd": str(Path.cwd().resolve()),

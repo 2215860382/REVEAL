@@ -40,10 +40,9 @@ bash scripts/run_two_rounds.sh          # 两轮构造
 
 ## 产物（`outputs/rubric/`）
 
-- `round2_merged_runtime.yaml` — round1 ∪ round2 合并，**当前定版实验实际使用的 rubric**（abl_5_full=79.00% 用的就是它）。
-- `direct_answer_generated_v2.yaml` — 蒸馏版默认 runtime rubric（7 条加权 general criterion）。
+- `round2_merged_runtime.yaml` — round1 ∪ round2 合并，**唯一 runtime rubric，也是代码默认**（abl_5_full=79.00% 定版实验用的就是它）。
 
-verifier 默认加载 `direct_answer_generated_v2.yaml`；按 run 覆盖用 `VEIL_RUBRIC_PATH=<path>`（每次 run 会把 rubric 路径 + sha1 记进 `*.meta.json`）。
+verifier 默认加载 `round2_merged_runtime.yaml`；按 run 覆盖用 `VEIL_RUBRIC_PATH=<path>`（每次 run 会把 rubric 路径 + sha1 记进 `*.meta.json`）。
 
 ## 备注
 

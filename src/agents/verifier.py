@@ -5,7 +5,7 @@ Rubric-guided judgment:
                        to a per-option score, thresholded into true / false / unknown.
   2. Label and gaps  – label follows the rubric threshold; gaps drive the next query.
 
-Default rubric lives in ``outputs/rubric/direct_answer_generated_v2.yaml``.
+Default rubric lives in ``outputs/rubric/round2_merged_runtime.yaml``.
 Currently all questions use ``templates.default``; extend ``type_aliases`` / ``keyword_rules``
 in the yaml to route different types to different templates without code changes.
 """
@@ -50,7 +50,7 @@ def _rubric_config() -> Tuple[Dict, Dict, Dict[str, str], List[Tuple[List[str], 
         else Path(__file__).resolve().parents[2]
         / "outputs"
         / "rubric"
-        / "direct_answer_generated_v2.yaml"
+        / "round2_merged_runtime.yaml"
     )
     if not path.is_file():
         raise FileNotFoundError(f"VEIL rubric templates missing: {path}")
