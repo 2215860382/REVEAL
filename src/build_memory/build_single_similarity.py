@@ -430,6 +430,23 @@ def main():
                     help="Longer-side target for keyframes_resized/. Origin"
                          " keyframes and frames_raw are always full res."
                          " Default 448 matches Binlu save_keyframe (build_index.py).")
+    # ── One-command pipeline: also emit the self-contained multi-layer (ml3_n12)
+    #    bank per video right after its single-layer bank is written. ──
+    ap.add_argument("--emit-multilayer", action="store_true",
+                    help="After each video's single-layer bank, build its "
+                         "self-contained ml3_n12 multi-layer bank (layers + photos "
+                         "together) so one command goes video → final bank.")
+    ap.add_argument("--multilayer-out-dir", default=None,
+                    help="Output dir for the multi-layer banks. Default: sibling of "
+                         "--out-dir named '<out>_ml3_n12'.")
+    ap.add_argument("--summary-api-url", default=None,
+                    help="LLM endpoint(s) for layer summaries (default: --api-url).")
+    ap.add_argument("--summary-api-model", default=None,
+                    help="Model name for layer summaries (default: --api-model).")
+    ap.add_argument("--summary-concurrency", type=int, default=32,
+                    help="Cap on concurrent summary LLM calls (--emit-multilayer).")
+    from src.build_memory.build_multilayer import add_multilayer_build_args
+    add_multilayer_build_args(ap)
     args = ap.parse_args()
 
     if args.benchmark is not None:
@@ -480,6 +497,23 @@ def main():
         device=args.bge_gpu,
     )
     log.info("  BGE-M3 ready (%.1fs)", time.time() - t0)
+
+    # ── Multi-layer (ml3_n12) one-command pipeline setup ───────────────────────
+    ml_out_dir = ml_llm = ml_pool = ml_cfg = None
+    if args.emit_multilayer:
+        from concurrent.futures import ThreadPoolExecutor
+        from src.build_memory.build_multilayer import cfg_from_args
+        from src.clients.llm_client import LLMClient
+        ml_out_dir = (Path(args.multilayer_out_dir) if args.multilayer_out_dir
+                      else out_dir.with_name(out_dir.name + "_ml3_n12"))
+        ml_out_dir.mkdir(parents=True, exist_ok=True)
+        s_url   = args.summary_api_url or args.api_url
+        s_model = args.summary_api_model or args.api_model
+        ml_llm = LLMClient(model_path=s_model, api_url=s_url, api_model=s_model)
+        ml_pool = ThreadPoolExecutor(max_workers=args.summary_concurrency)
+        ml_cfg = cfg_from_args(args)
+        log.info("Emit-multilayer ON → %s (frame_mode=%s include_raw=%s)",
+                 ml_out_dir, ml_cfg["frame_mode"], ml_cfg["include_raw"])
 
     # ── Video list ─────────────────────────────────────────────────────────────
     video_paths = _get_video_paths(cfg)
@@ -680,7 +714,23 @@ def main():
         log.info("[%s] saved %d chunks (%.1fs total)",
                  video_id, len(narr_chunks), time.time() - t_video)
 
+        # ── One-command pipeline: build this video's self-contained ml3_n12
+        #    bank from the single-layer bank we just wrote (layers + photos). ──
+        if args.emit_multilayer:
+            from src.build_memory.build_multilayer import build_multilayer_for_video
+            t_ml = time.time()
+            try:
+                msg = build_multilayer_for_video(
+                    video_dir, ml_out_dir / video_id, ml_llm, embedder, ml_cfg, ml_pool,
+                )
+                log.info("  [%s] multilayer %s (%.1fs)", video_id, msg, time.time() - t_ml)
+            except Exception as e:  # noqa: BLE001
+                log.exception("[%s] multilayer build failed: %s", video_id, e)
+
     prod_thread.join()
+    if ml_pool is not None:
+        ml_pool.shutdown(wait=True)
+        log.info("Multilayer banks in %s", ml_out_dir)
     log.info("Done — output in %s", out_dir)
 
 

@@ -3,11 +3,21 @@
 Reads existing L1 banks (narrative.json + vectors.npz, built by
 ``build_single_similarity.py``) and adds coarse summary layers L2/L3/L4 by
 bottom-up grouping + LLM summarization. It does NOT re-extract frames or
-re-caption — it reuses the L1 captions, BGE/SigLIP vectors, and keyframes
-(referenced by absolute path, never copied).
+re-caption — it reuses the L1 captions and BGE/SigLIP vectors.
 
-The existing single-layer builder and its banks are left untouched. New banks are
-written to a SEPARATE output dir in pyramid format, loadable by
+Keyframes: by default (``--frame-mode hardlink``) the per-chunk representative
+frame (``keyframes_resized``) and its full-res ``keyframes_origin`` twin are
+hard-linked INTO the output bank and ``L1.jsonl`` records them as RELATIVE paths,
+so the multi-layer bank is SELF-CONTAINED — layers and their photos live
+together and the bank keeps working even if the source single-layer bank is later
+deleted (hard links share inodes, so this costs no extra disk on the same
+filesystem). Pass ``--frame-mode reference`` for the legacy behaviour (absolute
+paths back into the source bank, no images copied), or ``--frame-mode copy`` for
+a true portable duplicate. ``--include-raw`` additionally brings each chunk's
+``frames_raw/`` subdir (large; only needed for on-demand re-captioning, not answering).
+
+The source single-layer bank is left untouched. New banks are written to a
+SEPARATE output dir in pyramid format, loadable by
 ``bank_loader._load_pyramid_dir`` (L1.jsonl + L{2,3,4}.jsonl + *.npz + meta.json),
 so ``veil.py`` ``multi_layer_mode`` can consume the layers directly.
 
@@ -16,23 +26,32 @@ advance"): build each upper layer BOTTOM-UP, accumulating consecutive children
 until cumulative span ≥ T seconds OR child count ≥ N (whichever first). This gives
 roughly-uniform time coverage while never splitting an L1 chunk.
 
-  L1  = existing similarity groups (variable length)
-  L2  = group L1 until span≥T2 or n≥N2,  summarize  (default 30s / 6)
-  L3  = group L2 until span≥T3 or n≥N3,  summarize  (default 180s / 5)
-  L4  = group L3 until span≥T4 or n≥N4,  summarize  (default 600s / 4)
+Defaults reproduce the definitive **ml3_n12** granularity (the 79% mainline bank):
+time budgets are disabled (T=100000s) so grouping is purely by count, mid fan-out
+n=12 for both L2 and L3, and L4 rolls the whole video into a single gist node.
 
-Usage:
+  L1  = existing similarity groups (variable length)
+  L2  = group L1 by count n≥12,  summarize
+  L3  = group L2 by count n≥12,  summarize
+  L4  = group L3 into one whole-video node,  summarize
+
+Usage (one bank from an existing single-layer bank):
     PYTHONPATH=. python -m src.build_memory.build_multilayer \\
         --src-memory-dir outputs/memory/videomme_multiframe \\
-        --out-memory-dir outputs/memory/videomme_multilayer \\
+        --out-memory-dir outputs/memory/videomme_ml3_n12 \\
         --llm-api-url http://127.0.0.1:8003,http://127.0.0.1:8004 \\
         --embed-api-url http://127.0.0.1:9000 \\
         --workers 16 [--limit 2]
+
+For the full one-command pipeline (videos → single-layer → self-contained ml3_n12
+bank in one run), see ``build_single_similarity.py --emit-multilayer``.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -71,6 +90,52 @@ SUMMARY_USER = (
     "Sub-segment descriptions (in time order):\n{children}\n\n"
     "Write the consolidated event summary for this window."
 )
+
+
+def _place_frame(src: Path, dst: Path, mode: str) -> bool:
+    """Materialise ``src`` at ``dst`` via hard link / copy / symlink.
+
+    Returns True if ``dst`` exists afterwards. Hard link falls back to copy when
+    the two paths straddle filesystems (EXDEV). No-op if ``dst`` already exists.
+    """
+    if not src.is_file():
+        return False
+    if dst.exists():
+        return True
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if mode == "hardlink":
+        try:
+            os.link(src, dst)
+            return True
+        except OSError:
+            shutil.copy2(src, dst)
+            return True
+    if mode == "symlink":
+        os.symlink(src.resolve(), dst)
+        return True
+    shutil.copy2(src, dst)  # mode == "copy"
+    return True
+
+
+def _place_chunk_frames(src_vd: Path, out_vd: Path, kf_name: str,
+                        mode: str, include_raw: bool) -> None:
+    """Co-locate one L1 chunk's images into the output bank.
+
+    Brings the resized representative frame (what the answerer sees) and its
+    full-res ``keyframes_origin`` twin (used by ``--hires-keyframes``); with
+    ``include_raw`` also the chunk's whole ``frames_raw/<cid>/`` subdir.
+    """
+    _place_frame(src_vd / "keyframes_resized" / kf_name,
+                 out_vd / "keyframes_resized" / kf_name, mode)
+    _place_frame(src_vd / "keyframes_origin" / kf_name,
+                 out_vd / "keyframes_origin" / kf_name, mode)
+    if include_raw:
+        cid = kf_name.split("_")[0]  # "0007_0.jpg" -> "0007"
+        src_raw = src_vd / "frames_raw" / cid
+        if src_raw.is_dir():
+            for f in src_raw.iterdir():
+                if f.is_file():
+                    _place_frame(f, out_vd / "frames_raw" / cid / f.name, mode)
 
 
 def _group_bottom_up(nodes: List[dict], t_budget: float, n_max: int) -> List[List[dict]]:
@@ -126,14 +191,25 @@ def _build_upper(llm, child_nodes: List[dict], t_budget: float, n_max: int,
     } for idx, (group, fu) in enumerate(zip(groups, futs))]
 
 
-def _process_video(src_vd: Path, out_vd: Path, llm, embedder, cfg: dict, pool) -> str:
-    """Build one multi-layer bank from an existing single-layer bank dir."""
+def build_multilayer_for_video(src_vd: Path, out_vd: Path, llm, embedder, cfg: dict, pool) -> str:
+    """Build one multi-layer bank from an existing single-layer bank dir.
+
+    ``cfg`` carries the grouping budgets (t2/n2/w2 … t4/n4/w4) plus two keys that
+    control keyframe co-location: ``frame_mode`` ("reference" | "hardlink" |
+    "copy" | "symlink") and ``include_raw`` (bool). In "reference" mode the L1
+    rows keep absolute paths into ``src_vd`` (legacy); otherwise each chunk's
+    frames are placed into ``out_vd`` and recorded as relative paths so the bank
+    is self-contained.
+    """
+    frame_mode = cfg.get("frame_mode", "hardlink")
+    include_raw = cfg.get("include_raw", False)
+
     bank = load_bank(src_vd)
     l1 = sorted(bank.chunks, key=lambda c: c.start_time)
     if not l1:
         return "empty"
 
-    # ── L1 nodes (reuse existing captions; resolve keyframe to absolute path) ──
+    # ── L1 nodes (reuse existing captions; resolve/co-locate keyframes) ──
     vdim = next((len(c.v_visual) for c in l1 if c.v_visual), 0)
     l1_text_vecs = np.zeros((len(l1), 1024), dtype=np.float32)
     l1_vis_vecs = np.zeros((len(l1), vdim), dtype=np.float32) if vdim else None
@@ -144,11 +220,17 @@ def _process_video(src_vd: Path, out_vd: Path, llm, embedder, cfg: dict, pool) -
         if l1_vis_vecs is not None and c.v_visual:
             l1_vis_vecs[i] = np.asarray(c.v_visual, dtype=np.float32)
         # Record the chunk's inference keyframe = keyframes_resized (what the
-        # answerer sees), NOT keyframes_origin. Absolute path into the source bank;
-        # the builder does not copy/manage frame files (an experiment-side concern).
-        kf_abs = ""
+        # answerer sees). "reference" mode keeps an absolute path into the source
+        # bank; otherwise co-locate the frame into out_vd and store it relative,
+        # so the multi-layer bank ships its own photos.
+        kf_ref = ""
         if c.keyframe_path:
-            kf_abs = str((src_vd / "keyframes_resized" / Path(c.keyframe_path).name).resolve())
+            kf_name = Path(c.keyframe_path).name
+            if frame_mode == "reference":
+                kf_ref = str((src_vd / "keyframes_resized" / kf_name).resolve())
+            else:
+                _place_chunk_frames(src_vd, out_vd, kf_name, frame_mode, include_raw)
+                kf_ref = f"keyframes_resized/{kf_name}"
         # Preserve the raw speech transcript line so L1 evidence matches the
         # single-layer bank's `<narrative>\nSpeech: <asr>` format (the narrative
         # already weaves speech in, but keep the verbatim line for fidelity).
@@ -160,7 +242,7 @@ def _process_video(src_vd: Path, out_vd: Path, llm, embedder, cfg: dict, pool) -
             "t_start": float(c.start_time),
             "t_end": float(c.end_time),
             "text": l1_text,
-            "frame_paths": [kf_abs] if kf_abs else [],
+            "frame_paths": [kf_ref] if kf_ref else [],
             "frame_ts": [float(c.keyframe_ts or c.start_time or 0.0)],
             "visual_offsets": [i] if l1_vis_vecs is not None else [],
         })
@@ -198,8 +280,45 @@ def _process_video(src_vd: Path, out_vd: Path, llm, embedder, cfg: dict, pool) -
         "built_by": "build_multilayer", "source_dir": str(src_vd.resolve()),
         "n_l1": len(l1), "n_l2": len(l2), "n_l3": len(l3), "n_l4": len(l4),
         "grouping": {k: cfg[k] for k in ("t2", "n2", "t3", "n3", "t4", "n4")},
+        "frame_mode": frame_mode, "include_raw": include_raw,
     }, ensure_ascii=False, indent=2))
     return f"ok L1={len(l1)} L2={len(l2)} L3={len(l3)} L4={len(l4)}"
+
+
+def add_multilayer_build_args(ap: argparse.ArgumentParser) -> None:
+    """Register the grouping + frame-colocation flags shared by this CLI and the
+    one-command pipeline in ``build_single_similarity.py --emit-multilayer``.
+
+    Defaults reproduce the definitive **ml3_n12** bank: time budgets disabled
+    (T=100000s → pure count grouping), mid fan-out n=12, L4 rolls up the whole
+    video. Frames are copied into the bank (true self-contained duplicate) and
+    ``frames_raw`` is included by default.
+    """
+    g = ap.add_argument_group("multilayer grouping (defaults = ml3_n12)")
+    g.add_argument("--l2-seconds", type=float, default=100000); g.add_argument("--l2-max", type=int, default=12)
+    g.add_argument("--l3-seconds", type=float, default=100000); g.add_argument("--l3-max", type=int, default=12)
+    g.add_argument("--l4-seconds", type=float, default=100000); g.add_argument("--l4-max", type=int, default=100000)
+    g.add_argument("--l2-words", type=int, default=120)
+    g.add_argument("--l3-words", type=int, default=300)
+    g.add_argument("--l4-words", type=int, default=600)
+    g.add_argument("--frame-mode", choices=["reference", "hardlink", "copy", "symlink"],
+                   default="copy",
+                   help="How to bring keyframes into the bank. 'copy' (default) = "
+                        "true self-contained duplicate so the source single-layer "
+                        "bank can be deleted afterwards; 'hardlink' = same-fs zero-"
+                        "cost link; 'reference' = legacy absolute paths into source.")
+    g.add_argument("--include-raw", dest="include_raw", action="store_true", default=True,
+                   help="Also bring each chunk's frames_raw/ subdir (default on).")
+    g.add_argument("--no-include-raw", dest="include_raw", action="store_false",
+                   help="Skip frames_raw/ (answerer never reads it; ~183MB/video).")
+
+
+def cfg_from_args(args) -> dict:
+    """Build the grouping+frame cfg dict consumed by ``build_multilayer_for_video``."""
+    return {"t2": args.l2_seconds, "n2": args.l2_max, "w2": args.l2_words,
+            "t3": args.l3_seconds, "n3": args.l3_max, "w3": args.l3_words,
+            "t4": args.l4_seconds, "n4": args.l4_max, "w4": args.l4_words,
+            "frame_mode": args.frame_mode, "include_raw": args.include_raw}
 
 
 def main():
@@ -217,18 +336,10 @@ def main():
                     help="Shared cap on concurrent summary LLM calls across all videos "
                          "(same-layer groups are independent and run in parallel)")
     ap.add_argument("--limit", type=int, default=None, help="Only build first N videos (smoke test)")
-    # Grouping budgets (seconds) + max children + summary word budgets.
-    ap.add_argument("--l2-seconds", type=float, default=30);  ap.add_argument("--l2-max", type=int, default=6)
-    ap.add_argument("--l3-seconds", type=float, default=180); ap.add_argument("--l3-max", type=int, default=5)
-    ap.add_argument("--l4-seconds", type=float, default=600); ap.add_argument("--l4-max", type=int, default=4)
-    ap.add_argument("--l2-words", type=int, default=120)
-    ap.add_argument("--l3-words", type=int, default=300)
-    ap.add_argument("--l4-words", type=int, default=600)
+    add_multilayer_build_args(ap)
     args = ap.parse_args()
 
-    cfg = {"t2": args.l2_seconds, "n2": args.l2_max, "w2": args.l2_words,
-           "t3": args.l3_seconds, "n3": args.l3_max, "w3": args.l3_words,
-           "t4": args.l4_seconds, "n4": args.l4_max, "w4": args.l4_words}
+    cfg = cfg_from_args(args)
 
     src_root = Path(args.src_memory_dir)
     out_root = Path(args.out_memory_dir)
@@ -261,7 +372,7 @@ def main():
     def work(src_vd):
         t0 = time.time()
         try:
-            msg = _process_video(src_vd, out_root / src_vd.name, llm, _safe_embedder, cfg, summ_pool)
+            msg = build_multilayer_for_video(src_vd, out_root / src_vd.name, llm, _safe_embedder, cfg, summ_pool)
         except Exception as e:  # noqa: BLE001
             log.error("[%s] FAILED: %s", src_vd.name, e, exc_info=True)
             msg = f"FAIL {e}"
