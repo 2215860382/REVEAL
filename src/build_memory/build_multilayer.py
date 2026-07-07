@@ -1,7 +1,7 @@
 """Multi-layer summary bank builder — ADDITIVE over existing single-similarity banks.
 
 Reads existing L1 banks (narrative.json + vectors.npz, built by
-``build_single_similarity.py``) and adds coarse summary layers L2/L3/L4 by
+``build_single_similarity.py``) and adds coarse summary layers L2/L3 by
 bottom-up grouping + LLM summarization. It does NOT re-extract frames or
 re-caption — it reuses the L1 captions and BGE/SigLIP vectors.
 
@@ -20,7 +20,7 @@ only needed for on-demand re-captioning, not answering).
 
 The source single-layer bank is left untouched. New banks are written to a
 SEPARATE output dir in pyramid format, loadable by
-``bank_loader._load_pyramid_dir`` (L1.jsonl + L{2,3,4}.jsonl + *.npz + meta.json),
+``bank_loader._load_pyramid_dir`` (L1.jsonl + L{2,3}.jsonl + *.npz + meta.json),
 so ``veil.py`` ``multi_layer_mode`` can consume the layers directly.
 
 Grouping (solves "L1 is similarity-grouped so its duration is not known in
@@ -30,12 +30,11 @@ roughly-uniform time coverage while never splitting an L1 chunk.
 
 Defaults reproduce the definitive **ml3_n12** granularity (the 79% mainline bank):
 time budgets are disabled (T=100000s) so grouping is purely by count, mid fan-out
-n=12 for both L2 and L3, and L4 rolls the whole video into a single gist node.
+n=12 for both L2 and L3.
 
   L1  = existing similarity groups (variable length)
   L2  = group L1 by count n≥12,  summarize
   L3  = group L2 by count n≥12,  summarize
-  L4  = group L3 into one whole-video node,  summarize
 
 Usage (one bank from an existing single-layer bank):
     PYTHONPATH=. python -m src.build_memory.build_multilayer \\
@@ -196,7 +195,7 @@ def _build_upper(llm, child_nodes: List[dict], t_budget: float, n_max: int,
 def build_multilayer_for_video(src_vd: Path, out_vd: Path, llm, embedder, cfg: dict, pool) -> str:
     """Build one multi-layer bank from an existing single-layer bank dir.
 
-    ``cfg`` carries the grouping budgets (t2/n2/w2 … t4/n4/w4) plus two keys that
+    ``cfg`` carries the grouping budgets (t2/n2/w2, t3/n3/w3) plus two keys that
     control keyframe co-location: ``frame_mode`` ("reference" | "hardlink" |
     "copy" | "symlink") and ``include_raw`` (bool). In "reference" mode the L1
     rows keep absolute paths into ``src_vd`` (legacy); otherwise each chunk's
@@ -254,14 +253,13 @@ def build_multilayer_for_video(src_vd: Path, out_vd: Path, llm, embedder, cfg: d
     # ── Build upper layers bottom-up ──────────────────────────────────────────
     l2 = _build_upper(llm, l1_nodes, cfg["t2"], cfg["n2"], cfg["w2"], pool)
     l3 = _build_upper(llm, l2,       cfg["t3"], cfg["n3"], cfg["w3"], pool)
-    l4 = _build_upper(llm, l3,       cfg["t4"], cfg["n4"], cfg["w4"], pool)
 
     # ── Embed upper-layer summaries (BGE-M3) ──────────────────────────────────
     def _embed(nodes):
         if not nodes:
             return np.zeros((0, 1024), dtype=np.float32)
         return embedder.encode([n["text"] for n in nodes]).astype(np.float32)
-    l2_vecs, l3_vecs, l4_vecs = _embed(l2), _embed(l3), _embed(l4)
+    l2_vecs, l3_vecs = _embed(l2), _embed(l3)
 
     # ── Write pyramid-format bank ─────────────────────────────────────────────
     out_vd.mkdir(parents=True, exist_ok=True)
@@ -271,7 +269,7 @@ def build_multilayer_for_video(src_vd: Path, out_vd: Path, llm, embedder, cfg: d
     np.savez_compressed(out_vd / "L1_text.npz", vectors=l1_text_vecs)
     if l1_vis_vecs is not None:
         np.savez_compressed(out_vd / "L1_visual.npz", vectors=l1_vis_vecs)
-    for layer, rows, vecs in [(2, l2, l2_vecs), (3, l3, l3_vecs), (4, l4, l4_vecs)]:
+    for layer, rows, vecs in [(2, l2, l2_vecs), (3, l3, l3_vecs)]:
         with (out_vd / f"L{layer}.jsonl").open("w") as f:
             for r in rows:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
@@ -280,11 +278,11 @@ def build_multilayer_for_video(src_vd: Path, out_vd: Path, llm, embedder, cfg: d
     (out_vd / "meta.json").write_text(json.dumps({
         "video_id": src_vd.name, "duration": float(duration), "status": "ok",
         "built_by": "build_multilayer", "source_dir": str(src_vd.resolve()),
-        "n_l1": len(l1), "n_l2": len(l2), "n_l3": len(l3), "n_l4": len(l4),
-        "grouping": {k: cfg[k] for k in ("t2", "n2", "t3", "n3", "t4", "n4")},
+        "n_l1": len(l1), "n_l2": len(l2), "n_l3": len(l3),
+        "grouping": {k: cfg[k] for k in ("t2", "n2", "t3", "n3")},
         "frame_mode": frame_mode, "include_raw": include_raw,
     }, ensure_ascii=False, indent=2))
-    return f"ok L1={len(l1)} L2={len(l2)} L3={len(l3)} L4={len(l4)}"
+    return f"ok L1={len(l1)} L2={len(l2)} L3={len(l3)}"
 
 
 def add_multilayer_build_args(ap: argparse.ArgumentParser) -> None:
@@ -292,18 +290,16 @@ def add_multilayer_build_args(ap: argparse.ArgumentParser) -> None:
     one-command pipeline in ``build_single_similarity.py --emit-multilayer``.
 
     Defaults reproduce the definitive **ml3_n12** bank: time budgets disabled
-    (T=100000s → pure count grouping), mid fan-out n=12, L4 rolls up the whole
-    video. Keyframes are copied into the bank (true self-contained duplicate);
+    (T=100000s → pure count grouping), mid fan-out n=12. Keyframes are copied
+    into the bank (true self-contained duplicate);
     ``frames_raw`` is left out by default (answerer never reads it) — add it with
     ``--include-raw``.
     """
     g = ap.add_argument_group("multilayer grouping (defaults = ml3_n12)")
     g.add_argument("--l2-seconds", type=float, default=100000); g.add_argument("--l2-max", type=int, default=12)
     g.add_argument("--l3-seconds", type=float, default=100000); g.add_argument("--l3-max", type=int, default=12)
-    g.add_argument("--l4-seconds", type=float, default=100000); g.add_argument("--l4-max", type=int, default=100000)
     g.add_argument("--l2-words", type=int, default=120)
     g.add_argument("--l3-words", type=int, default=300)
-    g.add_argument("--l4-words", type=int, default=600)
     g.add_argument("--frame-mode", choices=["reference", "hardlink", "copy", "symlink"],
                    default="copy",
                    help="How to bring keyframes into the bank. 'copy' (default) = "
@@ -321,7 +317,6 @@ def cfg_from_args(args) -> dict:
     """Build the grouping+frame cfg dict consumed by ``build_multilayer_for_video``."""
     return {"t2": args.l2_seconds, "n2": args.l2_max, "w2": args.l2_words,
             "t3": args.l3_seconds, "n3": args.l3_max, "w3": args.l3_words,
-            "t4": args.l4_seconds, "n4": args.l4_max, "w4": args.l4_words,
             "frame_mode": args.frame_mode, "include_raw": args.include_raw}
 
 

@@ -64,11 +64,12 @@ def main():
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--bge-model", default="/home2/ycj/Models/BAAI/bge-m3")
     ap.add_argument("--siglip-model", default="/home2/ycj/Models/google/siglip-large-patch16-384")
+    ap.add_argument("--no-fp16", action="store_true", help="load BGE in fp32 (avoids NaN/Inf on some GPUs)")
     args = ap.parse_args()
 
     global BGE, SIGLIP
-    print(f"[embed-server] loading BGE-M3 on {args.device}...", flush=True)
-    BGE = BGEM3Embedder(model_path=args.bge_model, use_fp16=True, device=args.device)
+    print(f"[embed-server] loading BGE-M3 on {args.device} (fp16={not args.no_fp16})...", flush=True)
+    BGE = BGEM3Embedder(model_path=args.bge_model, use_fp16=not args.no_fp16, device=args.device)
     print(f"[embed-server] loading SigLIP on {args.device}...", flush=True)
     SIGLIP = SigLIPEmbedder(model_path=args.siglip_model, device=args.device)
     print(f"[embed-server] ready, listening on {args.host}:{args.port}", flush=True)

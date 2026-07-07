@@ -242,7 +242,7 @@ Question type: {question_type}
 Question: {question}
 Options:
 {options}
-
+{gold_block}
 General criteria (read-only context, do NOT edit):
 {general_json}
 

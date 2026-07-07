@@ -252,7 +252,7 @@ def main():
             query_history_dedup_threshold=0.9,      # default
             evidence_dedup_threshold=0.90,           # default
             query_evidence_dedup_threshold=0.70,    # default
-            siglip=siglip, text_alpha=args.text_alpha, keyframe_dir=kf_dir,
+            keyframe_dir=kf_dir,
             answer_evidence_cap=aek,
             answer_keyframe_cap=akk,
             verifier_evidence_cap=vek,

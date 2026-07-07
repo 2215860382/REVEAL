@@ -1,0 +1,2457 @@
+{
+  "cid_crit": {
+    "127:gold": {
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "temporal_exhaustiveness": 0.0
+    },
+    "127:mislead": {
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "temporal_exhaustiveness": 0.5
+    },
+    "129:gold": {
+      "communication_directionality": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "temporal_exhaustiveness": 0.5
+    },
+    "129:mislead": {
+      "communication_directionality": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "temporal_exhaustiveness": 0.0
+    },
+    "131:gold": {
+      "attribution_linkage": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_specificity": 1.0,
+      "temporal_prediction_explicitness": 1.0
+    },
+    "131:mislead": {
+      "attribution_linkage": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 1.0,
+      "temporal_prediction_explicitness": 0.0
+    },
+    "144:gold": {
+      "activity_variant_explicitness": 1.0,
+      "claim_polarity_explicitness": 1.0,
+      "explicit_label_grounding": 0.5,
+      "named_entity_scope_explicitness": 1.0,
+      "source_attribution_explicitness": 1.0,
+      "temporal_focus_orientation": 1.0,
+      "thesis_scope_alignment": 1.0
+    },
+    "144:mislead": {
+      "activity_variant_explicitness": 0.5,
+      "claim_polarity_explicitness": 0.0,
+      "explicit_label_grounding": 0.5,
+      "named_entity_scope_explicitness": 1.0,
+      "source_attribution_explicitness": 0.5,
+      "temporal_focus_orientation": 0.5,
+      "thesis_scope_alignment": 0.0
+    },
+    "148:gold": {
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0
+    },
+    "148:mislead": {
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5
+    },
+    "153:gold": {
+      "action_reason_explicitness": 0.5,
+      "causal_mechanism_explicitness": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 1.0,
+      "intent_explicitness": 0.5
+    },
+    "153:mislead": {
+      "action_reason_explicitness": 0.0,
+      "causal_mechanism_explicitness": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5,
+      "intent_explicitness": 0.0
+    },
+    "155:gold": {
+      "claim_polarity_explicitness": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "source_attribution_explicitness": 0.5
+    },
+    "155:mislead": {
+      "claim_polarity_explicitness": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "source_attribution_explicitness": 0.0
+    },
+    "160:gold": {
+      "aggregate_resolution": 0.0,
+      "instance_enumeration": 0.5,
+      "marker_resolution": 0.5,
+      "temporal_completeness": 0.0
+    },
+    "160:mislead": {
+      "aggregate_resolution": 0.0,
+      "instance_enumeration": 0.0,
+      "marker_resolution": 0.0,
+      "temporal_completeness": 0.0
+    },
+    "162:gold": {
+      "alternative_state_explicitness": 1.0,
+      "comparative_metric_explicitness": 0.0,
+      "evidence_specificity": 1.0,
+      "exception_explicitness": 1.0,
+      "misconception_explicitness": 1.0
+    },
+    "162:mislead": {
+      "alternative_state_explicitness": 0.5,
+      "comparative_metric_explicitness": 0.0,
+      "evidence_specificity": 1.0,
+      "exception_explicitness": 0.0,
+      "misconception_explicitness": 1.0
+    },
+    "16:gold": {
+      "attribution_linkage": 1.0,
+      "entity_specific_causal_attribution": 0.0,
+      "evidence_consistency": 0.5,
+      "provision_explicitness": 0.5,
+      "temporal_prediction_explicitness": 0.0
+    },
+    "16:mislead": {
+      "attribution_linkage": 0.5,
+      "entity_specific_causal_attribution": 0.5,
+      "evidence_consistency": 0.5,
+      "provision_explicitness": 0.0,
+      "temporal_prediction_explicitness": 0.5
+    },
+    "171:gold": {
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "functional_mechanism_demonstration": 1.0,
+      "temporal_alignment_with_query": 1.0
+    },
+    "171:mislead": {
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "functional_mechanism_demonstration": 0.0,
+      "temporal_alignment_with_query": 0.5
+    },
+    "183:gold": {
+      "activity_variant_explicitness": 1.0,
+      "attribute_precision_explicitness": 1.0,
+      "evidence_span_representativeness": 1.0,
+      "explicit_label_grounding": 1.0,
+      "thesis_scope_alignment": 1.0
+    },
+    "183:mislead": {
+      "activity_variant_explicitness": 0.5,
+      "attribute_precision_explicitness": 0.0,
+      "evidence_consistency": 0.0,
+      "explicit_label_grounding": 0.5,
+      "thesis_scope_alignment": 0.5
+    },
+    "184:gold": {
+      "attribution_linkage": 1.0,
+      "enumeration_and_action_explicitness": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "instrument_usage_explicitness": 0.0
+    },
+    "184:mislead": {
+      "attribution_linkage": 1.0,
+      "enumeration_and_action_explicitness": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5
+    },
+    "188:gold": {
+      "attribute_precision_explicitness": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_specificity": 1.0,
+      "structural_position_localization": 0.5,
+      "thesis_scope_alignment": 1.0
+    },
+    "188:mislead": {
+      "attribute_precision_explicitness": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_specificity": 1.0,
+      "structural_position_localization": 1.0,
+      "thesis_scope_alignment": 1.0
+    },
+    "190:gold": {
+      "attribution_linkage": 0.0,
+      "authoritative_resolution": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "instance_ordering_explicitness": 0.0
+    },
+    "190:mislead": {
+      "attribution_linkage": 1.0,
+      "authoritative_resolution": 0.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "instance_ordering_explicitness": 0.0
+    },
+    "191:gold": {
+      "attribution_linkage": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5,
+      "instance_ordering_explicitness": 0.0,
+      "stance_direction_explicitness": 0.0
+    },
+    "191:mislead": {
+      "attribution_linkage": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5,
+      "instance_ordering_explicitness": 0.0,
+      "stance_direction_explicitness": 0.0
+    },
+    "1:gold": {
+      "attribution_linkage": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_specificity": 1.0,
+      "stance_direction_explicitness": 1.0
+    },
+    "1:mislead": {
+      "attribution_linkage": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_specificity": 1.0,
+      "stance_direction_explicitness": 1.0
+    },
+    "206:gold": {
+      "attribution_linkage": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "interaction_type_explicitness": 1.0,
+      "provision_explicitness": 0.0
+    },
+    "206:mislead": {
+      "attribution_linkage": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "instance_ordering_explicitness": 0.0,
+      "interaction_type_explicitness": 0.0,
+      "provision_explicitness": 0.0
+    },
+    "214:gold": {
+      "complete_set_coverage": 1.0,
+      "explicit_sequential_relation": 1.0,
+      "ordinal_sequence_ranking": 0.5,
+      "temporal_location_of_segments": 1.0
+    },
+    "214:mislead": {
+      "complete_set_coverage": 0.5,
+      "explicit_sequential_relation": 0.0,
+      "ordinal_sequence_ranking": 0.0,
+      "temporal_location_of_segments": 0.0
+    },
+    "220:gold": {
+      "complete_set_coverage": 1.0,
+      "explicit_sequential_relation": 1.0,
+      "ordinal_sequence_ranking": 0.5,
+      "segment_content_mapping": 1.0,
+      "temporal_location_of_segments": 1.0
+    },
+    "220:mislead": {
+      "complete_set_coverage": 0.5,
+      "explicit_sequential_relation": 0.5,
+      "ordinal_sequence_ranking": 0.0,
+      "segment_content_mapping": 1.0,
+      "temporal_location_of_segments": 0.5
+    },
+    "221:gold": {
+      "category_label_explicitness": 1.0,
+      "event_instance_matching": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "temporal_exhaustiveness": 1.0
+    },
+    "221:mislead": {
+      "category_label_explicitness": 0.0,
+      "event_instance_matching": 0.0,
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "temporal_exhaustiveness": 0.0
+    },
+    "227:gold": {
+      "enumeration_and_action_explicitness": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "scenario_count_explicitness": 0.5,
+      "visual_superlative_grounding": 0.0
+    },
+    "227:mislead": {
+      "enumeration_and_action_explicitness": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "scenario_count_explicitness": 0.5,
+      "visual_superlative_grounding": 0.0
+    },
+    "22:gold": {
+      "evaluative_judgment_explicitness": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "functional_content_visibility": 0.0,
+      "quantitative_comparison_explicitness": 1.0
+    },
+    "22:mislead": {
+      "evaluative_judgment_explicitness": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "functional_content_visibility": 1.0,
+      "quantitative_comparison_explicitness": 0.5
+    },
+    "242:gold": {
+      "earliest_occurrence_grounding": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "named_time_unit_grounding": 0.0,
+      "ordinal_sequence_ranking": 0.0
+    },
+    "242:mislead": {
+      "earliest_occurrence_grounding": 0.5,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "named_time_unit_grounding": 1.0,
+      "ordinal_sequence_ranking": 0.5
+    },
+    "247:gold": {
+      "enumeration_and_action_explicitness": 0.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "functional_content_visibility": 0.0,
+      "quantitative_limit_explicitness": 1.0,
+      "temporal_prediction_explicitness": 0.0
+    },
+    "247:mislead": {
+      "enumeration_and_action_explicitness": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "functional_content_visibility": 0.5,
+      "quantitative_limit_explicitness": 0.0,
+      "temporal_prediction_explicitness": 0.5
+    },
+    "251:gold": {
+      "embedded_media_provenance": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5,
+      "specific_visual_instantiation": 0.5
+    },
+    "251:mislead": {
+      "embedded_media_provenance": 0.0,
+      "evidence_consistency": 0.0,
+      "evidence_specificity": 0.0
+    },
+    "255:gold": {
+      "comparative_attribute_granularity": 0.5,
+      "evidence_specificity": 1.0,
+      "visual_superlative_grounding": 0.5
+    },
+    "255:mislead": {
+      "comparative_attribute_granularity": 0.0,
+      "evidence_specificity": 0.5,
+      "visual_superlative_grounding": 0.0
+    },
+    "259:gold": {
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "superlative_grounding": 0.0
+    },
+    "259:mislead": {
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "superlative_grounding": 0.0
+    },
+    "266:gold": {
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "segment_content_mapping": 0.0,
+      "temporal_location_of_segments": 0.0
+    },
+    "266:mislead": {
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "segment_content_mapping": 0.0,
+      "temporal_location_of_segments": 0.0
+    },
+    "268:gold": {
+      "attribution_linkage": 0.5,
+      "evaluative_judgment_explicitness": 1.0
+    },
+    "268:mislead": {
+      "attribution_linkage": 0.5,
+      "evaluative_judgment_explicitness": 0.5,
+      "evidence_coverage": 0.5
+    },
+    "270:gold": {
+      "action_reason_explicitness": 0.0,
+      "evidence_consistency": 0.5,
+      "internal_state_explicitness": 0.0,
+      "specific_action_explicitness": 0.5,
+      "temporal_causal_bracketing": 0.5
+    },
+    "270:mislead": {
+      "action_reason_explicitness": 0.0,
+      "evidence_consistency": 0.5,
+      "internal_state_explicitness": 0.0,
+      "specific_action_explicitness": 0.0,
+      "temporal_causal_bracketing": 0.5
+    },
+    "282:gold": {
+      "activity_category_identification": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "temporal_alignment_with_query": 1.0
+    },
+    "282:mislead": {
+      "activity_category_identification": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "temporal_alignment_with_query": 0.5
+    },
+    "288:gold": {
+      "behavioral_pattern_consistency": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 1.0,
+      "internal_state_explicitness": 0.0,
+      "specific_action_explicitness": 1.0
+    },
+    "288:mislead": {
+      "behavioral_pattern_consistency": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "internal_state_explicitness": 0.5,
+      "specific_action_explicitness": 1.0,
+      "specific_visual_instantiation": 1.0
+    },
+    "291:gold": {
+      "event_instance_matching": 1.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "identity_resolution": 0.5,
+      "temporal_exhaustiveness": 0.0
+    },
+    "291:mislead": {
+      "event_instance_matching": 1.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "identity_resolution": 0.5,
+      "temporal_exhaustiveness": 0.5
+    },
+    "293:gold": {
+      "aggregate_resolution": 0.5,
+      "instance_enumeration": 1.0,
+      "marker_resolution": 1.0,
+      "temporal_completeness": 0.5
+    },
+    "293:mislead": {
+      "aggregate_resolution": 0.0,
+      "instance_enumeration": 0.0,
+      "marker_resolution": 0.0,
+      "temporal_completeness": 0.0
+    },
+    "295:gold": {
+      "category_label_explicitness": 0.0,
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0
+    },
+    "295:mislead": {
+      "category_label_explicitness": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5
+    },
+    "300:gold": {
+      "action_reason_explicitness": 0.0,
+      "causal_trigger_specificity": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "temporal_causal_bracketing": 0.0
+    },
+    "300:mislead": {
+      "action_reason_explicitness": 0.0,
+      "causal_trigger_specificity": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.5,
+      "temporal_causal_bracketing": 0.0
+    },
+    "302:gold": {
+      "action_reason_explicitness": 1.0,
+      "evidence_coverage": 1.0,
+      "intent_explicitness": 1.0,
+      "internal_state_explicitness": 0.5,
+      "target_outcome_explicitness": 1.0,
+      "temporal_causal_bracketing": 1.0
+    },
+    "302:mislead": {
+      "action_reason_explicitness": 0.5,
+      "evidence_coverage": 0.5,
+      "intent_explicitness": 0.5,
+      "internal_state_explicitness": 0.0,
+      "target_outcome_explicitness": 0.5,
+      "temporal_causal_bracketing": 0.0
+    },
+    "30:gold": {
+      "absence_verification_scope": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "temporal_alignment_with_query": 1.0
+    },
+    "30:mislead": {
+      "absence_verification_scope": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "temporal_alignment_with_query": 1.0
+    },
+    "316:gold": {
+      "behavioral_superlative_grounding": 0.5,
+      "comparative_content_grounding": 0.0,
+      "evaluative_judgment_explicitness": 0.0,
+      "superlative_verdict_explicitness": 0.0
+    },
+    "316:mislead": {
+      "behavioral_superlative_grounding": 0.0,
+      "comparative_content_grounding": 0.0,
+      "evaluative_judgment_explicitness": 0.5,
+      "superlative_verdict_explicitness": 0.0
+    },
+    "324:gold": {
+      "event_completion_vs_intent": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "temporal_interval_grounding": 1.0
+    },
+    "324:mislead": {
+      "event_completion_vs_intent": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "temporal_interval_grounding": 1.0
+    },
+    "326:gold": {
+      "attribute_resolution": 0.5,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0
+    },
+    "326:mislead": {
+      "attribute_resolution": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0
+    },
+    "329:gold": {
+      "attribution_linkage": 1.0,
+      "causal_source_explicitness": 0.5,
+      "entity_specific_causal_attribution": 0.0,
+      "evaluative_judgment_explicitness": 0.5,
+      "worldview_dichotomy_explicitness": 1.0
+    },
+    "329:mislead": {
+      "attribution_linkage": 0.0,
+      "causal_source_explicitness": 0.0,
+      "evaluative_judgment_explicitness": 0.0,
+      "stance_direction_explicitness": 0.0,
+      "worldview_dichotomy_explicitness": 0.0
+    },
+    "332:gold": {
+      "alternative_state_explicitness": 0.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "intent_explicitness": 0.5,
+      "target_outcome_explicitness": 0.5
+    },
+    "332:mislead": {
+      "alternative_state_explicitness": 0.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "intent_explicitness": 0.5,
+      "target_outcome_explicitness": 0.0
+    },
+    "336:gold": {
+      "entity_specific_quantitative_grounding": 0.0,
+      "evidence_specificity": 1.0,
+      "quantitative_comparison_explicitness": 0.0
+    },
+    "336:mislead": {
+      "entity_specific_quantitative_grounding": 0.5,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 0.5,
+      "quantitative_comparison_explicitness": 1.0
+    },
+    "341:gold": {
+      "evidence_consistency": 1.0,
+      "evidence_specificity": 1.0,
+      "explicit_label_grounding": 1.0,
+      "structural_position_localization": 1.0,
+      "thesis_scope_alignment": 1.0
+    },
+    "341:mislead": {
+      "evidence_specificity": 0.5,
+      "explicit_label_grounding": 0.5,
+      "structural_position_localization": 0.0,
+      "thesis_scope_alignment": 0.5
+    },
+    "346:gold": {
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "exception_explicitness": 1.0,
+      "specific_visual_instantiation": 0.5
+    },
+    "346:mislead": {
+      "behavioral_pattern_consistency": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "exception_explicitness": 1.0,
+      "specific_visual_instantiation": 1.0
+    },
+    "351:gold": {
+      "causal_source_explicitness": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0
+    },
+    "351:mislead": {
+      "causal_source_explicitness": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5
+    },
+    "354:gold": {
+      "action_reason_explicitness": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "group_vs_individual_motivation_resolution": 0.0,
+      "internal_state_explicitness": 0.5,
+      "temporal_causal_bracketing": 0.5
+    },
+    "354:mislead": {
+      "action_reason_explicitness": 0.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "group_vs_individual_motivation_resolution": 0.0,
+      "internal_state_explicitness": 0.0,
+      "temporal_causal_bracketing": 0.5
+    },
+    "355:gold": {
+      "action_reason_explicitness": 1.0,
+      "causal_trigger_specificity": 1.0,
+      "evidence_specificity": 1.0,
+      "internal_state_explicitness": 0.5,
+      "temporal_causal_bracketing": 1.0
+    },
+    "355:mislead": {
+      "action_reason_explicitness": 0.5,
+      "causal_trigger_specificity": 0.0,
+      "evidence_specificity": 0.5,
+      "internal_state_explicitness": 0.5,
+      "temporal_causal_bracketing": 0.5
+    },
+    "35:gold": {
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 1.0,
+      "internal_state_explicitness": 0.0,
+      "specific_visual_instantiation": 1.0
+    },
+    "35:mislead": {
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5,
+      "internal_state_explicitness": 0.5,
+      "specific_visual_instantiation": 0.5
+    },
+    "363:gold": {
+      "attribution_linkage": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5,
+      "stance_direction_explicitness": 0.0
+    },
+    "363:mislead": {
+      "attribution_linkage": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5,
+      "stance_direction_explicitness": 0.0
+    },
+    "365:gold": {
+      "attribution_linkage": 1.0,
+      "comparative_content_grounding": 0.5,
+      "evaluative_judgment_explicitness": 0.5,
+      "evidence_specificity": 1.0,
+      "stance_direction_explicitness": 1.0
+    },
+    "365:mislead": {
+      "attribution_linkage": 1.0,
+      "comparative_content_grounding": 0.5,
+      "evaluative_judgment_explicitness": 0.5,
+      "evidence_specificity": 1.0,
+      "stance_direction_explicitness": 0.5
+    },
+    "366:gold": {
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "visual_symbol_meaning_explicitness": 1.0
+    },
+    "366:mislead": {
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "visual_symbol_meaning_explicitness": 0.0
+    },
+    "370:gold": {
+      "attribution_linkage": 0.5,
+      "causal_source_explicitness": 1.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "relational_outcome_explicitness": 0.0
+    },
+    "370:mislead": {
+      "attribution_linkage": 0.5,
+      "causal_source_explicitness": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "relational_outcome_explicitness": 0.0
+    },
+    "377:gold": {
+      "action_vs_expressed_constraint_explicitness": 0.5,
+      "attribution_linkage": 0.5,
+      "entity_specific_causal_attribution": 0.0,
+      "evaluative_judgment_explicitness": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5
+    },
+    "377:mislead": {
+      "action_vs_expressed_constraint_explicitness": 0.0,
+      "attribution_linkage": 0.5,
+      "entity_specific_causal_attribution": 0.0,
+      "evaluative_judgment_explicitness": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 1.0
+    },
+    "378:gold": {
+      "authoritative_resolution": 0.5,
+      "causal_source_explicitness": 0.5,
+      "entity_specific_causal_attribution": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0
+    },
+    "378:mislead": {
+      "authoritative_resolution": 0.0,
+      "causal_source_explicitness": 0.0,
+      "entity_specific_causal_attribution": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0
+    },
+    "380:gold": {
+      "evidence_consistency": 0.0,
+      "evidence_specificity": 0.0,
+      "necessity_condition_explicitness": 0.0,
+      "provision_explicitness": 0.0
+    },
+    "380:mislead": {
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5,
+      "necessity_condition_explicitness": 0.0,
+      "provision_explicitness": 0.0
+    },
+    "381:gold": {
+      "alternative_state_explicitness": 1.0,
+      "causal_trigger_specificity": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "outcome_consequence_explicitness": 1.0
+    },
+    "381:mislead": {
+      "alternative_state_explicitness": 0.5,
+      "causal_trigger_specificity": 1.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "outcome_consequence_explicitness": 0.5
+    },
+    "393:gold": {
+      "evidence_specificity": 0.5,
+      "explicit_rule_articulation": 0.0,
+      "quantitative_superlative_grounding": 0.0
+    },
+    "393:mislead": {
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5,
+      "explicit_rule_articulation": 0.0,
+      "quantitative_superlative_grounding": 0.0
+    },
+    "407:gold": {
+      "categorical_attribute_explicitness": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "final_outcome_explicitness": 1.0
+    },
+    "407:mislead": {
+      "categorical_attribute_explicitness": 0.5,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.5,
+      "final_outcome_explicitness": 0.0
+    },
+    "413:gold": {
+      "category_label_explicitness": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5,
+      "identity_resolution": 0.5
+    },
+    "413:mislead": {
+      "category_label_explicitness": 0.5,
+      "evidence_consistency": 0.0,
+      "evidence_specificity": 0.5,
+      "identity_resolution": 0.0
+    },
+    "415:gold": {
+      "category_label_explicitness": 1.0,
+      "evidence_specificity": 1.0,
+      "identity_resolution": 1.0
+    },
+    "415:mislead": {
+      "category_label_explicitness": 0.0,
+      "evidence_consistency": 0.0,
+      "evidence_specificity": 0.0
+    },
+    "417:gold": {
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "temporal_alignment_with_query": 1.0
+    },
+    "417:mislead": {
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "temporal_alignment_with_query": 0.0
+    },
+    "425:gold": {
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.5,
+      "state_change_bracketing": 0.0
+    },
+    "425:mislead": {
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "state_change_bracketing": 0.0
+    },
+    "426:gold": {
+      "comparative_content_grounding": 0.0,
+      "evaluative_judgment_explicitness": 0.5,
+      "evidence_specificity": 0.5,
+      "superlative_verdict_explicitness": 0.0,
+      "visual_superlative_grounding": 0.0
+    },
+    "426:mislead": {
+      "comparative_content_grounding": 0.5,
+      "evaluative_judgment_explicitness": 0.5,
+      "evidence_specificity": 1.0,
+      "superlative_verdict_explicitness": 0.0,
+      "visual_superlative_grounding": 0.0
+    },
+    "437:gold": {
+      "behavioral_pattern_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.5,
+      "quantitative_sustained_sequence": 0.0,
+      "specific_action_explicitness": 0.0,
+      "task_criteria_explicitness": 0.5
+    },
+    "437:mislead": {
+      "behavioral_pattern_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.5,
+      "quantitative_sustained_sequence": 0.0,
+      "sequence_completeness": 0.0,
+      "specific_action_explicitness": 0.5,
+      "task_completion_status_explicitness": 0.5
+    },
+    "448:gold": {
+      "evidence_consistency": 0.0,
+      "evidence_specificity": 0.0,
+      "explicit_rule_articulation": 0.0,
+      "temporal_alignment_with_query": 0.0
+    },
+    "448:mislead": {
+      "evidence_consistency": 0.0,
+      "evidence_specificity": 0.0,
+      "explicit_rule_articulation": 0.0,
+      "temporal_alignment_with_query": 0.0
+    },
+    "451:gold": {
+      "aggregate_resolution": 0.0,
+      "evidence_coverage": 0.0,
+      "instance_enumeration": 0.0,
+      "marker_resolution": 0.0,
+      "temporal_completeness": 0.0
+    },
+    "451:mislead": {
+      "aggregate_resolution": 0.0,
+      "evidence_coverage": 0.0,
+      "instance_enumeration": 0.0,
+      "marker_resolution": 0.0,
+      "temporal_completeness": 0.5
+    },
+    "453:gold": {
+      "evidence_span_representativeness": 0.5,
+      "explicit_label_grounding": 0.5,
+      "intent_framing_explicitness": 0.5,
+      "named_entity_scope_explicitness": 1.0,
+      "primary_activity_dominance": 1.0,
+      "temporal_focus_orientation": 1.0,
+      "thesis_scope_alignment": 1.0
+    },
+    "453:mislead": {
+      "evidence_span_representativeness": 0.5,
+      "explicit_label_grounding": 0.0,
+      "intent_framing_explicitness": 0.0,
+      "named_entity_scope_explicitness": 1.0,
+      "primary_activity_dominance": 0.5,
+      "temporal_focus_orientation": 1.0,
+      "thesis_scope_alignment": 0.0
+    },
+    "468:gold": {
+      "activity_variant_explicitness": 1.0,
+      "explicit_label_grounding": 0.5,
+      "intent_framing_explicitness": 0.5,
+      "named_entity_scope_explicitness": 1.0,
+      "narrative_span_completeness": 0.5,
+      "temporal_focus_orientation": 0.5,
+      "thesis_scope_alignment": 0.5
+    },
+    "468:mislead": {
+      "activity_variant_explicitness": 1.0,
+      "explicit_label_grounding": 0.0,
+      "intent_framing_explicitness": 0.5,
+      "named_entity_scope_explicitness": 1.0,
+      "narrative_span_completeness": 1.0,
+      "temporal_focus_orientation": 1.0,
+      "thesis_scope_alignment": 0.5
+    },
+    "479:gold": {
+      "alternative_state_explicitness": 1.0,
+      "behavioral_pattern_consistency": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "quantitative_sustained_sequence": 1.0,
+      "specific_visual_instantiation": 1.0
+    },
+    "479:mislead": {
+      "alternative_state_explicitness": 0.0,
+      "behavioral_pattern_consistency": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "quantitative_sustained_sequence": 0.0,
+      "specific_visual_instantiation": 0.5
+    },
+    "494:gold": {
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.5,
+      "temporal_interval_grounding": 0.5
+    },
+    "494:mislead": {
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.5,
+      "temporal_interval_grounding": 0.5
+    },
+    "495:gold": {
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "identity_resolution": 0.0,
+      "temporal_exhaustiveness": 0.0
+    },
+    "495:mislead": {
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "identity_resolution": 0.5,
+      "temporal_exhaustiveness": 0.0
+    },
+    "496:gold": {
+      "behavioral_pattern_consistency": 0.5,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "rule_violation_explicitness": 0.5,
+      "spatial_deviation_explicitness": 1.0,
+      "specific_action_explicitness": 1.0,
+      "specific_visual_instantiation": 1.0
+    },
+    "496:mislead": {
+      "behavioral_pattern_consistency": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "rule_violation_explicitness": 0.0,
+      "spatial_deviation_explicitness": 0.5,
+      "specific_action_explicitness": 0.5,
+      "specific_visual_instantiation": 0.5
+    },
+    "511:gold": {
+      "comparative_metric_explicitness": 0.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "final_outcome_explicitness": 0.0,
+      "individual_result_quantification": 0.0
+    },
+    "511:mislead": {
+      "comparative_metric_explicitness": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "final_outcome_explicitness": 1.0,
+      "individual_result_quantification": 0.5
+    },
+    "515:gold": {
+      "evidence_consistency": 1.0,
+      "evidence_specificity": 1.0,
+      "functional_content_visibility": 1.0,
+      "interaction_type_explicitness": 1.0
+    },
+    "515:mislead": {
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5,
+      "functional_content_visibility": 0.0,
+      "functional_mechanism_explicitness": 0.0,
+      "interaction_type_explicitness": 0.5
+    },
+    "526:gold": {
+      "absence_verification_scope": 1.0,
+      "activity_category_identification": 1.0,
+      "specific_ritual_identification": 1.0,
+      "temporal_alignment_with_query": 1.0
+    },
+    "526:mislead": {
+      "absence_verification_scope": 0.0,
+      "activity_category_identification": 0.5,
+      "specific_ritual_identification": 0.5,
+      "temporal_alignment_with_query": 0.0
+    },
+    "531:gold": {
+      "evidence_span_representativeness": 0.5,
+      "explicit_label_grounding": 1.0,
+      "intent_framing_explicitness": 0.5,
+      "named_entity_scope_explicitness": 0.5,
+      "primary_activity_dominance": 1.0,
+      "temporal_focus_orientation": 1.0,
+      "thesis_scope_alignment": 1.0
+    },
+    "531:mislead": {
+      "evidence_span_representativeness": 1.0,
+      "explicit_label_grounding": 0.5,
+      "intent_framing_explicitness": 0.5,
+      "named_entity_scope_explicitness": 0.5,
+      "primary_activity_dominance": 1.0,
+      "temporal_focus_orientation": 1.0,
+      "thesis_scope_alignment": 1.0
+    },
+    "538:gold": {
+      "event_instance_matching": 0.0,
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "identity_resolution": 0.5
+    },
+    "538:mislead": {
+      "event_instance_matching": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "identity_resolution": 0.0
+    },
+    "540:gold": {
+      "composition_resolution": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0
+    },
+    "540:mislead": {
+      "composition_resolution": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5
+    },
+    "550:gold": {
+      "action_reason_explicitness": 0.0,
+      "evidence_consistency": 1.0,
+      "evidence_specificity": 1.0,
+      "sequence_completeness": 1.0,
+      "specific_action_explicitness": 1.0
+    },
+    "550:mislead": {
+      "action_reason_explicitness": 0.0,
+      "evidence_consistency": 0.0,
+      "evidence_specificity": 0.5,
+      "sequence_completeness": 0.5,
+      "specific_action_explicitness": 0.5
+    },
+    "570:gold": {
+      "complete_set_coverage": 0.0,
+      "explicit_sequential_relation": 0.5,
+      "ordinal_sequence_ranking": 0.0,
+      "temporal_location_of_segments": 0.5
+    },
+    "570:mislead": {
+      "complete_set_coverage": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5,
+      "explicit_sequential_relation": 0.0,
+      "temporal_location_of_segments": 0.5
+    },
+    "572:gold": {
+      "activity_variant_explicitness": 1.0,
+      "attribute_precision_explicitness": 1.0,
+      "entity_set_completeness": 1.0,
+      "evidence_span_representativeness": 1.0,
+      "intent_framing_explicitness": 1.0,
+      "primary_activity_dominance": 1.0,
+      "thesis_scope_alignment": 1.0
+    },
+    "572:mislead": {
+      "activity_variant_explicitness": 1.0,
+      "attribute_precision_explicitness": 0.5,
+      "entity_set_completeness": 0.0,
+      "evidence_span_representativeness": 0.5,
+      "intent_framing_explicitness": 1.0,
+      "primary_activity_dominance": 1.0,
+      "thesis_scope_alignment": 0.5
+    },
+    "573:gold": {
+      "aggregate_resolution": 0.0,
+      "instance_enumeration": 0.5,
+      "marker_resolution": 0.5,
+      "temporal_completeness": 0.5
+    },
+    "573:mislead": {
+      "aggregate_resolution": 0.0,
+      "instance_enumeration": 0.5,
+      "marker_resolution": 0.5,
+      "temporal_completeness": 0.0
+    },
+    "575:gold": {
+      "absence_verification_scope": 0.5,
+      "activity_category_identification": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_specificity": 1.0
+    },
+    "575:mislead": {
+      "absence_verification_scope": 0.0,
+      "activity_category_identification": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5
+    },
+    "581:gold": {
+      "causal_source_explicitness": 1.0,
+      "evaluative_judgment_explicitness": 0.0,
+      "functional_mechanism_explicitness": 1.0,
+      "instance_ordering_explicitness": 1.0,
+      "visual_symbol_meaning_explicitness": 0.0
+    },
+    "581:mislead": {
+      "causal_source_explicitness": 0.0,
+      "evaluative_judgment_explicitness": 0.0,
+      "functional_mechanism_explicitness": 0.0,
+      "instance_ordering_explicitness": 0.0,
+      "visual_symbol_meaning_explicitness": 0.0
+    },
+    "586:gold": {
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "temporal_exhaustiveness": 1.0
+    },
+    "586:mislead": {
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "temporal_exhaustiveness": 0.0
+    },
+    "589:gold": {
+      "comparative_attribute_granularity": 0.5,
+      "evaluative_judgment_explicitness": 0.0,
+      "evidence_specificity": 0.5,
+      "instance_ordering_explicitness": 0.0,
+      "multi_instance_commonality_grounding": 0.5
+    },
+    "589:mislead": {
+      "comparative_attribute_granularity": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5,
+      "instance_ordering_explicitness": 0.0,
+      "multi_instance_commonality_grounding": 0.5
+    },
+    "599:gold": {
+      "action_status_explicitness": 1.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5
+    },
+    "599:mislead": {
+      "action_status_explicitness": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0
+    },
+    "600:gold": {
+      "attribution_linkage": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "instrument_usage_explicitness": 1.0
+    },
+    "600:mislead": {
+      "attribution_linkage": 1.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "instrument_usage_explicitness": 0.0
+    },
+    "602:gold": {
+      "action_reason_explicitness": 0.5,
+      "sequence_completeness": 0.0,
+      "specific_action_explicitness": 0.5,
+      "specific_visual_instantiation": 0.5,
+      "target_outcome_explicitness": 0.0
+    },
+    "602:mislead": {
+      "action_reason_explicitness": 0.0,
+      "sequence_completeness": 0.0,
+      "specific_action_explicitness": 0.5,
+      "specific_visual_instantiation": 0.5,
+      "target_outcome_explicitness": 0.5
+    },
+    "603:gold": {
+      "attribute_precision_explicitness": 1.0,
+      "evidence_specificity": 1.0,
+      "internal_state_explicitness": 1.0,
+      "invariance_verification": 0.0,
+      "narrative_span_completeness": 1.0
+    },
+    "603:mislead": {
+      "attribute_precision_explicitness": 0.5,
+      "evidence_specificity": 1.0,
+      "internal_state_explicitness": 0.5,
+      "invariance_verification": 0.0,
+      "narrative_span_completeness": 0.5
+    },
+    "604:gold": {
+      "action_reason_explicitness": 1.0,
+      "alternative_state_explicitness": 1.0,
+      "group_vs_individual_motivation_resolution": 0.5,
+      "internal_state_explicitness": 0.0,
+      "target_outcome_explicitness": 1.0
+    },
+    "604:mislead": {
+      "action_reason_explicitness": 1.0,
+      "alternative_state_explicitness": 1.0,
+      "group_vs_individual_motivation_resolution": 0.5,
+      "internal_state_explicitness": 0.5,
+      "target_outcome_explicitness": 1.0
+    },
+    "605:gold": {
+      "attribute_precision_explicitness": 1.0,
+      "entity_set_completeness": 0.5,
+      "evidence_specificity": 1.0,
+      "invariance_verification": 0.0,
+      "subset_action_differentiation": 0.5
+    },
+    "605:mislead": {
+      "attribute_precision_explicitness": 0.5,
+      "entity_set_completeness": 0.5,
+      "evidence_specificity": 1.0,
+      "invariance_verification": 0.0,
+      "subset_action_differentiation": 0.5
+    },
+    "611:gold": {
+      "action_reason_explicitness": 0.5,
+      "causal_trigger_specificity": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "internal_state_explicitness": 0.5,
+      "temporal_causal_bracketing": 0.5
+    },
+    "611:mislead": {
+      "action_reason_explicitness": 0.5,
+      "causal_trigger_specificity": 0.5,
+      "evidence_coverage": 0.5,
+      "internal_state_explicitness": 0.5,
+      "temporal_causal_bracketing": 1.0
+    },
+    "615:gold": {
+      "action_status_explicitness": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "rule_logic_explicitness": 0.0
+    },
+    "615:mislead": {
+      "action_status_explicitness": 1.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "rule_logic_explicitness": 0.0
+    },
+    "619:gold": {
+      "categorical_attribute_explicitness": 0.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "media_content_category_explicitness": 1.0,
+      "ranking_order_explicitness": 0.5
+    },
+    "619:mislead": {
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "media_content_category_explicitness": 1.0,
+      "ranking_order_explicitness": 0.5
+    },
+    "620:gold": {
+      "attribution_linkage": 1.0,
+      "causal_source_explicitness": 0.0,
+      "comparative_attribute_granularity": 1.0,
+      "evaluative_judgment_explicitness": 1.0,
+      "evidence_coverage": 1.0,
+      "multi_instance_commonality_grounding": 1.0
+    },
+    "620:mislead": {
+      "attribution_linkage": 1.0,
+      "causal_source_explicitness": 0.5,
+      "comparative_attribute_granularity": 0.0,
+      "evaluative_judgment_explicitness": 0.5,
+      "evidence_coverage": 0.5,
+      "multi_instance_commonality_grounding": 0.0
+    },
+    "621:gold": {
+      "attribution_linkage": 0.0,
+      "event_type_explicitness": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5
+    },
+    "621:mislead": {
+      "attribution_linkage": 1.0,
+      "event_type_explicitness": 0.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0
+    },
+    "622:gold": {
+      "action_reason_explicitness": 0.5,
+      "categorical_attribute_explicitness": 0.5,
+      "intent_explicitness": 0.5,
+      "task_criteria_explicitness": 0.0,
+      "temporal_causal_bracketing": 1.0
+    },
+    "622:mislead": {
+      "action_reason_explicitness": 0.5,
+      "categorical_attribute_explicitness": 0.0,
+      "causal_trigger_specificity": 0.5,
+      "intent_explicitness": 0.5,
+      "task_criteria_explicitness": 0.5,
+      "temporal_causal_bracketing": 0.5
+    },
+    "623:gold": {
+      "action_reason_explicitness": 0.0,
+      "causal_trigger_specificity": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "internal_state_explicitness": 0.0,
+      "temporal_causal_bracketing": 0.5
+    },
+    "623:mislead": {
+      "action_reason_explicitness": 0.5,
+      "causal_trigger_specificity": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "internal_state_explicitness": 0.5,
+      "temporal_causal_bracketing": 0.5
+    },
+    "625:gold": {
+      "action_reason_explicitness": 0.0,
+      "behavioral_pattern_consistency": 0.0,
+      "evidence_specificity": 1.0,
+      "internal_state_explicitness": 0.5,
+      "specific_action_explicitness": 1.0
+    },
+    "625:mislead": {
+      "action_reason_explicitness": 0.0,
+      "behavioral_pattern_consistency": 0.0,
+      "evidence_specificity": 0.0,
+      "internal_state_explicitness": 0.0,
+      "specific_action_explicitness": 0.0
+    },
+    "630:gold": {
+      "aggregate_resolution": 0.0,
+      "instance_enumeration": 0.5,
+      "marker_resolution": 0.5,
+      "temporal_completeness": 0.5
+    },
+    "630:mislead": {
+      "aggregate_resolution": 0.0,
+      "instance_enumeration": 0.5,
+      "marker_resolution": 0.5,
+      "temporal_completeness": 0.5
+    },
+    "636:gold": {
+      "absence_verification_scope": 0.0,
+      "activity_category_identification": 1.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0
+    },
+    "636:mislead": {
+      "absence_verification_scope": 0.0,
+      "activity_category_identification": 1.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0
+    },
+    "639:gold": {
+      "absence_verification_scope": 0.0,
+      "activity_category_identification": 1.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0
+    },
+    "639:mislead": {
+      "absence_verification_scope": 0.0,
+      "activity_category_identification": 1.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0
+    },
+    "643:gold": {
+      "comparative_attribute_granularity": 0.5,
+      "instance_ordering_explicitness": 0.0,
+      "instrument_usage_explicitness": 1.0,
+      "multi_instance_commonality_grounding": 0.5
+    },
+    "643:mislead": {
+      "comparative_attribute_granularity": 0.0,
+      "instance_ordering_explicitness": 0.0,
+      "instrument_usage_explicitness": 1.0,
+      "multi_instance_commonality_grounding": 0.0
+    },
+    "649:gold": {
+      "behavioral_pattern_consistency": 1.0,
+      "categorical_attribute_explicitness": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "specific_visual_instantiation": 1.0
+    },
+    "649:mislead": {
+      "behavioral_pattern_consistency": 1.0,
+      "categorical_attribute_explicitness": 0.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "specific_visual_instantiation": 1.0
+    },
+    "653:gold": {
+      "activity_variant_explicitness": 1.0,
+      "attribute_precision_explicitness": 1.0,
+      "evidence_span_representativeness": 1.0,
+      "explicit_label_grounding": 1.0,
+      "narrative_span_completeness": 1.0,
+      "thesis_scope_alignment": 1.0
+    },
+    "653:mislead": {
+      "activity_variant_explicitness": 1.0,
+      "attribute_precision_explicitness": 1.0,
+      "evidence_span_representativeness": 1.0,
+      "explicit_label_grounding": 1.0,
+      "narrative_span_completeness": 1.0,
+      "thesis_scope_alignment": 1.0
+    },
+    "663:gold": {
+      "complete_set_coverage": 1.0,
+      "explicit_sequential_relation": 1.0,
+      "ordinal_sequence_ranking": 0.5,
+      "segment_content_mapping": 1.0,
+      "temporal_location_of_segments": 1.0
+    },
+    "663:mislead": {
+      "complete_set_coverage": 0.0,
+      "explicit_sequential_relation": 0.5,
+      "ordinal_sequence_ranking": 0.0,
+      "segment_content_mapping": 1.0,
+      "temporal_location_of_segments": 0.5
+    },
+    "66:gold": {
+      "evidence_consistency": 1.0,
+      "evidence_span_representativeness": 1.0,
+      "explicit_label_grounding": 1.0,
+      "primary_activity_dominance": 1.0,
+      "temporal_focus_orientation": 1.0,
+      "thesis_scope_alignment": 1.0
+    },
+    "66:mislead": {
+      "evidence_consistency": 1.0,
+      "evidence_span_representativeness": 1.0,
+      "explicit_label_grounding": 1.0,
+      "primary_activity_dominance": 1.0,
+      "temporal_focus_orientation": 1.0,
+      "thesis_scope_alignment": 1.0
+    },
+    "677:gold": {
+      "activity_variant_explicitness": 1.0,
+      "attribute_precision_explicitness": 1.0,
+      "evidence_span_representativeness": 1.0,
+      "explicit_label_grounding": 1.0,
+      "intent_framing_explicitness": 1.0,
+      "named_entity_scope_explicitness": 1.0,
+      "primary_activity_dominance": 1.0
+    },
+    "677:mislead": {
+      "activity_variant_explicitness": 0.5,
+      "attribute_precision_explicitness": 0.5,
+      "evidence_span_representativeness": 0.5,
+      "explicit_label_grounding": 0.5,
+      "intent_framing_explicitness": 0.5,
+      "named_entity_scope_explicitness": 0.5,
+      "primary_activity_dominance": 0.5
+    },
+    "679:gold": {
+      "complete_set_coverage": 0.0,
+      "evidence_specificity": 0.5,
+      "ordinal_time_unit_grounding": 0.0,
+      "temporal_frequency_explicitness": 0.0
+    },
+    "679:mislead": {
+      "complete_set_coverage": 0.0,
+      "evidence_specificity": 0.5,
+      "ordinal_time_unit_grounding": 0.0,
+      "temporal_frequency_explicitness": 0.0
+    },
+    "680:gold": {
+      "activity_variant_explicitness": 1.0,
+      "evidence_span_representativeness": 1.0,
+      "explicit_label_grounding": 1.0,
+      "named_entity_scope_explicitness": 0.0,
+      "primary_activity_dominance": 1.0,
+      "temporal_focus_orientation": 1.0,
+      "thesis_scope_alignment": 1.0
+    },
+    "680:mislead": {
+      "activity_variant_explicitness": 0.5,
+      "evidence_span_representativeness": 0.0,
+      "explicit_label_grounding": 0.5,
+      "named_entity_scope_explicitness": 0.5,
+      "primary_activity_dominance": 0.0,
+      "temporal_focus_orientation": 0.0,
+      "thesis_scope_alignment": 0.0
+    },
+    "693:gold": {
+      "behavioral_pattern_consistency": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "group_vs_individual_motivation_resolution": 0.0,
+      "superlative_claim_explicitness": 0.0
+    },
+    "693:mislead": {
+      "behavioral_pattern_consistency": 0.5,
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "group_vs_individual_motivation_resolution": 0.5,
+      "superlative_claim_explicitness": 0.0
+    },
+    "696:gold": {
+      "comparative_content_grounding": 0.0,
+      "evaluative_judgment_explicitness": 0.0,
+      "evidence_specificity": 0.5,
+      "superlative_verdict_explicitness": 0.0
+    },
+    "696:mislead": {
+      "attribution_linkage": 0.0,
+      "comparative_content_grounding": 0.0,
+      "evaluative_judgment_explicitness": 0.0,
+      "evidence_specificity": 0.5,
+      "superlative_verdict_explicitness": 0.0
+    },
+    "704:gold": {
+      "attribute_resolution": 1.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "superlative_explicitness": 0.0
+    },
+    "704:mislead": {
+      "attribute_resolution": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "superlative_explicitness": 0.0
+    },
+    "705:gold": {
+      "event_instance_matching": 0.0,
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "identity_resolution": 0.0
+    },
+    "705:mislead": {
+      "event_instance_matching": 0.0,
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "identity_resolution": 0.0
+    },
+    "708:gold": {
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "group_vs_individual_motivation_resolution": 0.5,
+      "superlative_claim_explicitness": 1.0
+    },
+    "708:mislead": {
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "group_vs_individual_motivation_resolution": 0.0,
+      "superlative_claim_explicitness": 0.5
+    },
+    "712:gold": {
+      "complete_set_coverage": 0.5,
+      "explicit_sequential_relation": 0.5,
+      "ordinal_sequence_ranking": 0.5,
+      "temporal_location_of_segments": 0.5
+    },
+    "712:mislead": {
+      "complete_set_coverage": 0.5,
+      "evidence_consistency": 1.0,
+      "explicit_sequential_relation": 1.0,
+      "ordinal_sequence_ranking": 0.5,
+      "temporal_location_of_segments": 1.0
+    },
+    "726:gold": {
+      "aggregate_resolution": 0.0,
+      "instance_enumeration": 0.5,
+      "marker_resolution": 0.5,
+      "temporal_completeness": 0.0
+    },
+    "726:mislead": {
+      "aggregate_resolution": 0.0,
+      "instance_enumeration": 0.5,
+      "marker_resolution": 0.5,
+      "temporal_completeness": 0.0
+    },
+    "751:gold": {
+      "action_reason_explicitness": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_specificity": 1.0,
+      "intent_explicitness": 1.0
+    },
+    "751:mislead": {
+      "action_reason_explicitness": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5,
+      "intent_explicitness": 0.0
+    },
+    "758:gold": {
+      "attribution_linkage": 0.0,
+      "enumeration_and_action_explicitness": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "interaction_type_explicitness": 0.5
+    },
+    "758:mislead": {
+      "attribution_linkage": 0.0,
+      "enumeration_and_action_explicitness": 0.0,
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "interaction_type_explicitness": 0.0
+    },
+    "760:gold": {
+      "comparative_attribute_granularity": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "multi_instance_commonality_grounding": 1.0
+    },
+    "760:mislead": {
+      "comparative_attribute_granularity": 0.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "multi_instance_commonality_grounding": 0.0
+    },
+    "761:gold": {
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "media_content_category_explicitness": 1.0,
+      "temporal_causal_bracketing": 1.0
+    },
+    "761:mislead": {
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "media_content_category_explicitness": 0.0,
+      "temporal_causal_bracketing": 0.0
+    },
+    "768:gold": {
+      "absence_verification_scope": 0.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "temporal_alignment_with_query": 0.5
+    },
+    "768:mislead": {
+      "absence_verification_scope": 0.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "temporal_alignment_with_query": 0.5
+    },
+    "779:gold": {
+      "attribution_linkage": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "instance_ordering_explicitness": 0.5,
+      "interaction_type_explicitness": 1.0
+    },
+    "779:mislead": {
+      "attribution_linkage": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "instance_ordering_explicitness": 1.0,
+      "interaction_type_explicitness": 1.0
+    },
+    "780:gold": {
+      "attribution_linkage": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5
+    },
+    "780:mislead": {
+      "attribution_linkage": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5
+    },
+    "783:gold": {
+      "attribution_linkage": 1.0,
+      "authoritative_resolution": 1.0,
+      "event_type_explicitness": 0.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0
+    },
+    "783:mislead": {
+      "attribution_linkage": 0.0,
+      "authoritative_resolution": 0.0,
+      "event_type_explicitness": 0.0,
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0
+    },
+    "784:gold": {
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "ordinal_time_unit_grounding": 1.0,
+      "temporal_scope_alignment": 1.0
+    },
+    "784:mislead": {
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.5,
+      "ordinal_time_unit_grounding": 0.0,
+      "temporal_scope_alignment": 0.0
+    },
+    "786:gold": {
+      "attribution_linkage": 1.0,
+      "authoritative_resolution": 1.0,
+      "evidence_specificity": 1.0,
+      "interaction_type_explicitness": 1.0
+    },
+    "786:mislead": {
+      "attribution_linkage": 0.5,
+      "authoritative_resolution": 0.0,
+      "evidence_specificity": 0.5,
+      "interaction_type_explicitness": 0.0
+    },
+    "790:gold": {
+      "action_reason_explicitness": 1.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "internal_state_explicitness": 0.0
+    },
+    "790:mislead": {
+      "action_reason_explicitness": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "internal_state_explicitness": 0.0
+    },
+    "794:gold": {
+      "aggregate_resolution": 0.0,
+      "instance_enumeration": 0.5,
+      "temporal_completeness": 0.0,
+      "threshold_metric_resolution": 0.5
+    },
+    "794:mislead": {
+      "aggregate_resolution": 0.0,
+      "instance_enumeration": 0.5,
+      "temporal_completeness": 0.0,
+      "threshold_metric_resolution": 0.5
+    },
+    "802:gold": {
+      "earliest_occurrence_grounding": 0.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "ordinal_time_unit_grounding": 0.0
+    },
+    "802:mislead": {
+      "earliest_occurrence_grounding": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "ordinal_time_unit_grounding": 0.0
+    },
+    "808:gold": {
+      "agent_based_sequencing": 0.5,
+      "complete_set_coverage": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "explicit_sequential_relation": 0.5,
+      "temporal_location_of_segments": 0.5
+    },
+    "808:mislead": {
+      "complete_set_coverage": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "explicit_sequential_relation": 0.0
+    },
+    "809:gold": {
+      "entity_specific_causal_attribution": 0.0,
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0
+    },
+    "809:mislead": {
+      "entity_specific_causal_attribution": 0.0,
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0
+    },
+    "811:gold": {
+      "behavioral_superlative_grounding": 0.0,
+      "comparative_content_grounding": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "superlative_verdict_explicitness": 0.0,
+      "visual_superlative_grounding": 0.0
+    },
+    "811:mislead": {
+      "behavioral_superlative_grounding": 0.0,
+      "comparative_content_grounding": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "visual_superlative_grounding": 0.0
+    },
+    "812:gold": {
+      "activity_variant_explicitness": 0.5,
+      "evidence_span_representativeness": 0.5,
+      "explicit_label_grounding": 0.0,
+      "intent_framing_explicitness": 0.0,
+      "primary_activity_dominance": 0.5,
+      "thesis_scope_alignment": 0.0
+    },
+    "812:mislead": {
+      "activity_variant_explicitness": 0.5,
+      "evidence_span_representativeness": 0.5,
+      "explicit_label_grounding": 0.0,
+      "intent_framing_explicitness": 0.0,
+      "primary_activity_dominance": 0.5,
+      "thesis_scope_alignment": 0.0
+    },
+    "837:gold": {
+      "categorical_attribute_explicitness": 0.0,
+      "causal_mechanism_explicitness": 0.5,
+      "causal_trigger_specificity": 0.0,
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "specific_visual_instantiation": 0.0,
+      "temporal_causal_bracketing": 0.0
+    },
+    "837:mislead": {
+      "categorical_attribute_explicitness": 0.0,
+      "causal_mechanism_explicitness": 0.0,
+      "causal_trigger_specificity": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "temporal_causal_bracketing": 0.0
+    },
+    "839:gold": {
+      "evidence_span_representativeness": 1.0,
+      "evidence_specificity": 1.0,
+      "explicit_label_grounding": 0.0,
+      "intent_framing_explicitness": 0.0,
+      "named_entity_scope_explicitness": 0.0,
+      "thesis_scope_alignment": 0.5
+    },
+    "839:mislead": {
+      "evidence_span_representativeness": 0.5,
+      "evidence_specificity": 0.5,
+      "explicit_label_grounding": 0.0,
+      "intent_framing_explicitness": 0.0,
+      "named_entity_scope_explicitness": 0.5,
+      "thesis_scope_alignment": 0.5
+    },
+    "840:gold": {
+      "category_label_explicitness": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "identity_resolution": 1.0,
+      "temporal_exhaustiveness": 1.0
+    },
+    "840:mislead": {
+      "category_label_explicitness": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.0,
+      "identity_resolution": 0.0,
+      "temporal_exhaustiveness": 0.5
+    },
+    "845:gold": {
+      "activity_variant_explicitness": 0.5,
+      "attribute_precision_explicitness": 0.5,
+      "evidence_consistency": 0.5,
+      "narrative_span_completeness": 0.0,
+      "structural_position_localization": 0.5,
+      "subset_action_differentiation": 0.5
+    },
+    "845:mislead": {
+      "activity_variant_explicitness": 0.5,
+      "attribute_precision_explicitness": 0.5,
+      "entity_set_completeness": 0.5,
+      "evidence_consistency": 0.5,
+      "structural_position_localization": 0.5,
+      "subset_action_differentiation": 0.5
+    },
+    "847:gold": {
+      "comparative_attribute_granularity": 0.0,
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0
+    },
+    "847:mislead": {
+      "comparative_attribute_granularity": 0.0,
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0
+    },
+    "848:gold": {
+      "complete_set_coverage": 0.0,
+      "evidence_consistency": 0.5,
+      "named_time_unit_grounding": 0.5,
+      "segment_content_mapping": 0.0,
+      "temporal_scope_alignment": 0.0
+    },
+    "848:mislead": {
+      "complete_set_coverage": 0.5,
+      "evidence_consistency": 0.5,
+      "explicit_sequential_relation": 0.5,
+      "named_time_unit_grounding": 0.5,
+      "segment_content_mapping": 0.5,
+      "temporal_scope_alignment": 0.5
+    },
+    "853:gold": {
+      "action_reason_explicitness": 0.5,
+      "causal_trigger_specificity": 0.5,
+      "evidence_specificity": 1.0,
+      "specific_visual_instantiation": 1.0,
+      "superlative_claim_explicitness": 0.0
+    },
+    "853:mislead": {
+      "action_reason_explicitness": 0.5,
+      "causal_trigger_specificity": 0.5,
+      "evidence_specificity": 1.0,
+      "specific_visual_instantiation": 1.0,
+      "superlative_claim_explicitness": 0.0
+    },
+    "856:gold": {
+      "complete_set_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "explicit_sequential_relation": 1.0,
+      "named_time_unit_grounding": 0.5,
+      "temporal_scope_alignment": 0.5
+    },
+    "856:mislead": {
+      "complete_set_coverage": 0.0,
+      "evidence_specificity": 0.5,
+      "explicit_sequential_relation": 0.0,
+      "named_time_unit_grounding": 0.5,
+      "temporal_scope_alignment": 0.0
+    },
+    "857:gold": {
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 1.0,
+      "named_time_unit_grounding": 1.0,
+      "temporal_scope_alignment": 0.5
+    },
+    "857:mislead": {
+      "evidence_consistency": 1.0,
+      "evidence_specificity": 1.0,
+      "named_time_unit_grounding": 1.0,
+      "temporal_scope_alignment": 1.0
+    },
+    "868:gold": {
+      "categorical_attribute_explicitness": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "final_outcome_explicitness": 1.0,
+      "individual_result_quantification": 1.0,
+      "task_completion_status_explicitness": 1.0
+    },
+    "868:mislead": {
+      "categorical_attribute_explicitness": 1.0,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "final_outcome_explicitness": 0.0,
+      "individual_result_quantification": 0.0,
+      "task_completion_status_explicitness": 0.0
+    },
+    "874:gold": {
+      "evidence_consistency": 0.0,
+      "evidence_coverage": 0.0,
+      "evidence_specificity": 0.0,
+      "temporal_interval_grounding": 0.0
+    },
+    "874:mislead": {
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 1.0,
+      "temporal_interval_grounding": 0.0
+    },
+    "879:gold": {
+      "attribute_precision_explicitness": 0.0,
+      "evidence_consistency": 0.5,
+      "explicit_label_grounding": 0.0,
+      "narrative_ontology_explicitness": 0.5,
+      "narrative_span_completeness": 0.0
+    },
+    "879:mislead": {
+      "attribute_precision_explicitness": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5,
+      "narrative_ontology_explicitness": 0.5,
+      "narrative_span_completeness": 0.5
+    },
+    "880:gold": {
+      "authoritative_resolution": 0.5,
+      "event_type_explicitness": 0.0,
+      "evidence_consistency": 1.0,
+      "evidence_coverage": 1.0,
+      "evidence_specificity": 1.0,
+      "interaction_type_explicitness": 0.0
+    },
+    "880:mislead": {
+      "authoritative_resolution": 0.0,
+      "event_type_explicitness": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "interaction_type_explicitness": 0.0
+    },
+    "887:gold": {
+      "activity_variant_explicitness": 1.0,
+      "evidence_span_representativeness": 1.0,
+      "explicit_label_grounding": 1.0,
+      "intent_framing_explicitness": 1.0,
+      "primary_activity_dominance": 1.0,
+      "thesis_scope_alignment": 1.0
+    },
+    "887:mislead": {
+      "activity_variant_explicitness": 0.5,
+      "evidence_span_representativeness": 1.0,
+      "explicit_label_grounding": 0.0,
+      "intent_framing_explicitness": 0.5,
+      "primary_activity_dominance": 1.0,
+      "thesis_scope_alignment": 0.5
+    },
+    "888:gold": {
+      "behavioral_pattern_consistency": 0.0,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "specific_visual_instantiation": 0.5,
+      "target_outcome_explicitness": 0.5
+    },
+    "888:mislead": {
+      "behavioral_pattern_consistency": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_coverage": 0.5,
+      "evidence_specificity": 0.5,
+      "specific_visual_instantiation": 0.5,
+      "target_outcome_explicitness": 0.5
+    },
+    "894:gold": {
+      "action_reason_explicitness": 1.0,
+      "categorical_attribute_explicitness": 1.0,
+      "evidence_consistency": 1.0,
+      "evidence_specificity": 1.0
+    },
+    "894:mislead": {
+      "action_reason_explicitness": 0.5,
+      "categorical_attribute_explicitness": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_specificity": 0.5
+    },
+    "899:gold": {
+      "evidence_consistency": 1.0,
+      "evidence_span_representativeness": 1.0,
+      "explicit_label_grounding": 1.0,
+      "intent_framing_explicitness": 1.0,
+      "primary_activity_dominance": 1.0,
+      "thesis_scope_alignment": 1.0
+    },
+    "899:mislead": {
+      "attribute_precision_explicitness": 0.5,
+      "evidence_consistency": 0.5,
+      "evidence_span_representativeness": 0.5,
+      "explicit_label_grounding": 0.0,
+      "intent_framing_explicitness": 0.0,
+      "primary_activity_dominance": 0.5,
+      "thesis_scope_alignment": 0.5
+    },
+    "93:gold": {
+      "complete_set_coverage": 0.0,
+      "explicit_sequential_relation": 0.0,
+      "ordinal_sequence_ranking": 0.0,
+      "segment_content_mapping": 0.0,
+      "temporal_location_of_segments": 0.0
+    },
+    "93:mislead": {
+      "complete_set_coverage": 0.5,
+      "explicit_sequential_relation": 0.0,
+      "ordinal_sequence_ranking": 0.0,
+      "segment_content_mapping": 0.5,
+      "temporal_location_of_segments": 0.5
+    }
+  },
+  "cid_score": {
+    "127:gold": 0.25,
+    "127:mislead": 0.5,
+    "129:gold": 0.8,
+    "129:mislead": 0.3,
+    "131:gold": 1.0,
+    "131:mislead": 0.375,
+    "144:gold": 0.9286,
+    "144:mislead": 0.4286,
+    "148:gold": 1.0,
+    "148:mislead": 0.5,
+    "153:gold": 0.4091,
+    "153:mislead": 0.2273,
+    "155:gold": 0.5,
+    "155:mislead": 0.0,
+    "160:gold": 0.2143,
+    "160:mislead": 0.0,
+    "162:gold": 0.7143,
+    "162:mislead": 0.3929,
+    "16:gold": 0.3846,
+    "16:mislead": 0.3846,
+    "171:gold": 1.0,
+    "171:mislead": 0.3333,
+    "183:gold": 1.0,
+    "183:mislead": 0.3462,
+    "184:gold": 0.75,
+    "184:mislead": 0.5,
+    "188:gold": 0.8636,
+    "188:mislead": 1.0,
+    "190:gold": 0.0,
+    "190:mislead": 0.375,
+    "191:gold": 0.0909,
+    "191:mislead": 0.0909,
+    "1:gold": 1.0,
+    "1:mislead": 1.0,
+    "206:gold": 0.5,
+    "206:mislead": 0.0,
+    "214:gold": 0.875,
+    "214:mislead": 0.125,
+    "220:gold": 0.9,
+    "220:mislead": 0.5,
+    "221:gold": 1.0,
+    "221:mislead": 0.0,
+    "227:gold": 0.4091,
+    "227:mislead": 0.3636,
+    "22:gold": 0.4167,
+    "22:mislead": 0.5417,
+    "242:gold": 0.1,
+    "242:mislead": 0.7333,
+    "247:gold": 0.25,
+    "247:mislead": 0.4583,
+    "251:gold": 0.5,
+    "251:mislead": 0.0,
+    "255:gold": 0.5714,
+    "255:mislead": 0.0714,
+    "259:gold": 0.3,
+    "259:mislead": 0.3,
+    "266:gold": 0.0,
+    "266:mislead": 0.0,
+    "268:gold": 0.75,
+    "268:mislead": 0.5,
+    "270:gold": 0.2692,
+    "270:mislead": 0.1538,
+    "282:gold": 0.5,
+    "282:mislead": 0.8333,
+    "288:gold": 0.5455,
+    "288:mislead": 0.9,
+    "291:gold": 0.4615,
+    "291:mislead": 0.6154,
+    "293:gold": 0.7143,
+    "293:mislead": 0.0,
+    "295:gold": 0.0,
+    "295:mislead": 0.25,
+    "300:gold": 0.0,
+    "300:mislead": 0.0455,
+    "302:gold": 0.9062,
+    "302:mislead": 0.3125,
+    "30:gold": 1.0,
+    "30:mislead": 0.9444,
+    "316:gold": 0.1333,
+    "316:mislead": 0.1,
+    "324:gold": 1.0,
+    "324:mislead": 0.7222,
+    "326:gold": 0.7,
+    "326:mislead": 1.0,
+    "329:gold": 0.6,
+    "329:mislead": 0.0,
+    "332:gold": 0.4091,
+    "332:mislead": 0.2727,
+    "336:gold": 0.1429,
+    "336:mislead": 0.75,
+    "341:gold": 1.0,
+    "341:mislead": 0.35,
+    "346:gold": 0.8333,
+    "346:mislead": 1.0,
+    "351:gold": 1.0,
+    "351:mislead": 0.25,
+    "354:gold": 0.3929,
+    "354:mislead": 0.1786,
+    "355:gold": 0.8846,
+    "355:mislead": 0.3846,
+    "35:gold": 0.5625,
+    "35:mislead": 0.5,
+    "363:gold": 0.125,
+    "363:mislead": 0.3125,
+    "365:gold": 0.75,
+    "365:mislead": 0.6429,
+    "366:gold": 1.0,
+    "366:mislead": 0.0,
+    "370:gold": 0.5,
+    "370:mislead": 0.375,
+    "377:gold": 0.2857,
+    "377:mislead": 0.2143,
+    "378:gold": 0.5417,
+    "378:mislead": 0.0,
+    "380:gold": 0.0,
+    "380:mislead": 0.125,
+    "381:gold": 1.0,
+    "381:mislead": 0.6364,
+    "393:gold": 0.0714,
+    "393:mislead": 0.125,
+    "407:gold": 1.0,
+    "407:mislead": 0.2222,
+    "413:gold": 0.5,
+    "413:mislead": 0.25,
+    "415:gold": 1.0,
+    "415:mislead": 0.0,
+    "417:gold": 1.0,
+    "417:mislead": 0.25,
+    "425:gold": 0.0714,
+    "425:mislead": 0.2857,
+    "426:gold": 0.1333,
+    "426:mislead": 0.3,
+    "437:gold": 0.1429,
+    "437:mislead": 0.1944,
+    "448:gold": 0.0,
+    "448:mislead": 0.0,
+    "451:gold": 0.0,
+    "451:mislead": 0.1333,
+    "453:gold": 0.7857,
+    "453:mislead": 0.4286,
+    "468:gold": 0.6429,
+    "468:mislead": 0.7143,
+    "479:gold": 1.0,
+    "479:mislead": 0.2,
+    "494:gold": 0.3333,
+    "494:mislead": 0.3333,
+    "495:gold": 0.0,
+    "495:mislead": 0.2778,
+    "496:gold": 0.8333,
+    "496:mislead": 0.3611,
+    "511:gold": 0.1071,
+    "511:mislead": 0.6786,
+    "515:gold": 1.0,
+    "515:mislead": 0.2273,
+    "526:gold": 1.0,
+    "526:mislead": 0.25,
+    "531:gold": 0.7857,
+    "531:mislead": 0.7857,
+    "538:gold": 0.1667,
+    "538:mislead": 0.0,
+    "540:gold": 1.0,
+    "540:mislead": 0.5,
+    "550:gold": 0.75,
+    "550:mislead": 0.3333,
+    "570:gold": 0.25,
+    "570:mislead": 0.2143,
+    "572:gold": 1.0,
+    "572:mislead": 0.6429,
+    "573:gold": 0.3571,
+    "573:mislead": 0.2143,
+    "575:gold": 0.8125,
+    "575:mislead": 0.125,
+    "581:gold": 0.6,
+    "581:mislead": 0.0,
+    "586:gold": 1.0,
+    "586:mislead": 0.25,
+    "589:gold": 0.2692,
+    "589:mislead": 0.3636,
+    "599:gold": 0.8,
+    "599:mislead": 0.6,
+    "600:gold": 1.0,
+    "600:mislead": 0.5625,
+    "602:gold": 0.2812,
+    "602:mislead": 0.2812,
+    "603:gold": 0.7692,
+    "603:mislead": 0.4231,
+    "604:gold": 0.7,
+    "604:mislead": 0.8,
+    "605:gold": 0.5385,
+    "605:mislead": 0.4231,
+    "611:gold": 0.5,
+    "611:mislead": 0.6154,
+    "615:gold": 0.3125,
+    "615:mislead": 0.5625,
+    "619:gold": 0.5,
+    "619:mislead": 0.6667,
+    "620:gold": 0.8125,
+    "620:mislead": 0.4062,
+    "621:gold": 0.3125,
+    "621:mislead": 0.5625,
+    "622:gold": 0.5,
+    "622:mislead": 0.4167,
+    "623:gold": 0.3,
+    "623:mislead": 0.5,
+    "625:gold": 0.4231,
+    "625:mislead": 0.0,
+    "630:gold": 0.3571,
+    "630:mislead": 0.3571,
+    "636:gold": 0.5625,
+    "636:mislead": 0.5625,
+    "639:gold": 0.5625,
+    "639:mislead": 0.5625,
+    "643:gold": 0.5,
+    "643:mislead": 0.25,
+    "649:gold": 1.0,
+    "649:mislead": 0.7273,
+    "653:gold": 1.0,
+    "653:mislead": 1.0,
+    "663:gold": 0.9,
+    "663:mislead": 0.4,
+    "66:gold": 1.0,
+    "66:mislead": 1.0,
+    "677:gold": 1.0,
+    "677:mislead": 0.5,
+    "679:gold": 0.0385,
+    "679:mislead": 0.0385,
+    "680:gold": 0.8571,
+    "680:mislead": 0.2143,
+    "693:gold": 0.1154,
+    "693:mislead": 0.3077,
+    "696:gold": 0.0417,
+    "696:mislead": 0.0333,
+    "704:gold": 0.5625,
+    "704:mislead": 0.3125,
+    "705:gold": 0.0,
+    "705:mislead": 0.0,
+    "708:gold": 0.85,
+    "708:mislead": 0.35,
+    "712:gold": 0.5,
+    "712:mislead": 0.7647,
+    "726:gold": 0.2143,
+    "726:mislead": 0.2143,
+    "751:gold": 1.0,
+    "751:mislead": 0.125,
+    "758:gold": 0.375,
+    "758:mislead": 0.0,
+    "760:gold": 1.0,
+    "760:mislead": 0.1875,
+    "761:gold": 1.0,
+    "761:mislead": 0.0,
+    "768:gold": 0.3125,
+    "768:mislead": 0.3125,
+    "779:gold": 0.8636,
+    "779:mislead": 1.0,
+    "780:gold": 0.5,
+    "780:mislead": 0.2,
+    "783:gold": 0.7692,
+    "783:mislead": 0.0,
+    "784:gold": 1.0,
+    "784:mislead": 0.05,
+    "786:gold": 1.0,
+    "786:mislead": 0.1818,
+    "790:gold": 0.5,
+    "790:mislead": 0.3125,
+    "794:gold": 0.2333,
+    "794:mislead": 0.2333,
+    "802:gold": 0.15,
+    "802:mislead": 0.3,
+    "808:gold": 0.3947,
+    "808:mislead": 0.1364,
+    "809:gold": 0.0,
+    "809:mislead": 0.0,
+    "811:gold": 0.0833,
+    "811:mislead": 0.1071,
+    "812:gold": 0.25,
+    "812:mislead": 0.25,
+    "837:gold": 0.0882,
+    "837:mislead": 0.1,
+    "839:gold": 0.3438,
+    "839:mislead": 0.3125,
+    "840:gold": 1.0,
+    "840:mislead": 0.2308,
+    "845:gold": 0.4062,
+    "845:mislead": 0.5,
+    "847:gold": 0.0,
+    "847:mislead": 0.0,
+    "848:gold": 0.1471,
+    "848:mislead": 0.5,
+    "853:gold": 0.5,
+    "853:mislead": 0.5,
+    "856:gold": 0.6471,
+    "856:mislead": 0.1471,
+    "857:gold": 0.75,
+    "857:mislead": 1.0,
+    "868:gold": 1.0,
+    "868:mislead": 0.25,
+    "874:gold": 0.0,
+    "874:mislead": 0.3333,
+    "879:gold": 0.1538,
+    "879:mislead": 0.5,
+    "880:gold": 0.3846,
+    "880:mislead": 0.1154,
+    "887:gold": 1.0,
+    "887:mislead": 0.5833,
+    "888:gold": 0.375,
+    "888:mislead": 0.5,
+    "894:gold": 1.0,
+    "894:mislead": 0.5,
+    "899:gold": 1.0,
+    "899:mislead": 0.3421,
+    "93:gold": 0.0,
+    "93:mislead": 0.3
+  }
+}

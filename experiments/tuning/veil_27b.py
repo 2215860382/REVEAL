@@ -111,16 +111,10 @@ def main():
     ap.add_argument("--vlm-gpu",        default="cuda:0")
     ap.add_argument("--bge-gpu",        default="cuda:3")
     ap.add_argument("--llm-gpu",        default="cuda:1")
-    ap.add_argument("--siglip-gpu",     default=None,
-                    help="GPU for SigLIP visual scoring; defaults to --bge-gpu")
     ap.add_argument("--embed-api-url",  default=None,
-                    help="Embedding service URL (BGE+SigLIP); skips loading locally")
-    ap.add_argument("--no-siglip",      action="store_true",
-                    help="Disable SigLIP dual-path fusion")
+                    help="Embedding service URL (BGE); skips loading locally")
     ap.add_argument("--no-keyframes",   action="store_true",
                     help="Do not load keyframe images for the answerer")
-    ap.add_argument("--text-alpha",     type=float, default=0.6,
-                    help="Weight of semantic (BGE) path in dual-path fusion")
     ap.add_argument("--vlm-model",      default=None)
     ap.add_argument("--vlm-api-url",    default=None,
                     help="vLLM API base URL(s); comma-separated = round-robin")
@@ -191,7 +185,7 @@ def main():
     config_path = Path(args.config)
     rubric_override = os.environ.get("VEIL_RUBRIC_PATH")
     rubric_path = Path(rubric_override).expanduser() if rubric_override else \
-        repo_root / "outputs" / "rubric" / "round2_merged_runtime.yaml"
+        repo_root / "outputs" / "rubric" / "rubric_contrastive.yaml"
     run_metadata = {
         "started_at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
         "cwd": str(Path.cwd().resolve()),
@@ -278,10 +272,7 @@ def main():
     log.info("already done: %d records", len(done_keys))
 
     # ── Model loading ──────────────────────────────────────────────────────────
-    needs_siglip  = not args.no_siglip
-    siglip_device = (args.siglip_gpu if args.siglip_gpu is not None else args.bge_gpu) if needs_siglip else None
-
-    vlm = embedder = llm = answerer = siglip = None
+    vlm = embedder = llm = answerer = None
 
     from src.clients.vlm_client import VLMClient
     from src.agents.answerer import Answerer
@@ -331,18 +322,6 @@ def main():
         )
         log.info("  LLM ready (%.1fs)", time.time() - t0)
 
-    if needs_siglip:
-        from src.clients.siglip_embedder import SigLIPEmbedder
-        if args.embed_api_url:
-            log.info("loading SigLIP via API %s ...", args.embed_api_url)
-            siglip = SigLIPEmbedder(api_url=args.embed_api_url)
-        elif siglip_device:
-            siglip_model = "/home2/ycj/Models/google/siglip-large-patch16-384"
-            log.info("loading SigLIP on %s ...", siglip_device)
-            t0 = time.time()
-            siglip = SigLIPEmbedder(model_path=siglip_model, device=siglip_device)
-            log.info("  SigLIP ready (%.1fs)", time.time() - t0)
-
     # ── Thread safety (GPU models are not thread-safe) ────────────────────────
     _gpu_lock = threading.Lock()
 
@@ -359,7 +338,6 @@ def main():
             return attr
 
     if embedder: embedder = _LockedModel(embedder)
-    if siglip:   siglip   = _LockedModel(siglip)
 
     # ── Bank cache ────────────────────────────────────────────────────────────
     _bank_cache:  dict = {}
@@ -397,7 +375,7 @@ def main():
             evidence_dedup_threshold=ev_dedup,
             query_evidence_dedup_threshold=q_ev_dedup,
             kf_dedup_threshold=kf_dedup_thresh,
-            siglip=siglip, text_alpha=args.text_alpha, keyframe_dir=kf_dir,
+            keyframe_dir=kf_dir,
             answer_evidence_cap=aek,
             answer_keyframe_cap=akk,
             verifier_evidence_cap=vek,

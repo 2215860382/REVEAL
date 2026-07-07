@@ -7,9 +7,9 @@ chain, answers correctly (majority over N samples) — the gold answer is the an
 Sources
   1. query retrieval : rank chunks for (question, options) under several configs
                        (query variant × modality weight) and cut nested top-k prefixes.
-  2. random          : random chunk chains → clean negatives (almost always wrong).
-  3. oracle          : chains supplied via --oracle-chains (chunk_ids picked by a
-                       strong reasoner / Claude offline), a clean positive source.
+  2. oracle          : chains supplied via --oracle-chains (chunk_ids picked by a
+                       strong reasoner / Claude offline), a clean positive source. (kept, inert
+                       unless --oracle-chains is passed)
 
 Output: one EvidenceChain row per candidate, with `sufficient` / `sufficient_votes`.
 Replaces the multi-round-trace `chains_from_result.py`.
@@ -17,7 +17,6 @@ Replaces the multi-round-trace `chains_from_result.py`.
 from __future__ import annotations
 
 import argparse
-import random
 import re
 from collections import Counter
 from pathlib import Path
@@ -30,6 +29,18 @@ from .io import read_jsonl, write_jsonl
 from .schema import EvidenceChain, EvidenceItem
 from experiments.core._keyframes import load_keyframes
 from experiments.tuning.veil_27b import load_samples
+
+
+def _multilayer_chain(bank, question, candidates, embedder, siglip, alpha):
+    """The full deployable text config: L1@16 + L2@16 + L3all (superset of any tested bestcfg).
+    This is the true SUFFICIENT positive for the 726 base-solved questions."""
+    from .retrieval_probe import _q_vecs, _layer_ids  # lazy: retrieval_probe imports from us
+    q = f"{question}\nChoices:\n" + _format_options(candidates)
+    q_vec, vq = _q_vecs(q, embedder, siglip, question, candidates)
+    l1 = _layer_ids(bank, "L1", q_vec, vq, alpha)[:16]
+    l2 = _layer_ids(bank, "L2", q_vec, vq, alpha)[:16]     # L2@16 (L2 has ~11, so usually all)
+    l3 = _layer_ids(bank, "L3", q_vec, vq, alpha)          # L3all (1-4 chunks)
+    return [int(x) for x in (l1 + l2 + l3)]
 
 
 # ── evidence formatting (mirrors answerer._PROMPT) ──────────────────────────────
@@ -137,7 +148,7 @@ def _label_chain(vlm, question, candidates, gold_text, cmap, ids,
     items = _evidence_items(cmap, ids)
     ev_texts = [it.text for it in items]
     chunks = [cmap[it.chunk_id] for it in items if it.chunk_id in cmap]
-    frames = load_keyframes(chunks, keyframe_dir, video_id, cap=kf_cap) if chunks else []
+    frames = load_keyframes(chunks, keyframe_dir, video_id, cap=kf_cap) if (chunks and keyframe_dir) else []
     votes = Counter()
     for _ in range(max(1, n_samples)):
         letter = _answer_once(vlm, question, candidates, ev_texts, frames, temperature)
@@ -172,16 +183,6 @@ def _query_chains(bank, cmap, question, candidates, embedder, siglip,
     return out
 
 
-def _random_chains(bank, ladder, k_random, rng) -> list[list[int]]:
-    all_ids = [c.chunk_id for c in bank.chunks]
-    if not all_ids:
-        return []
-    # size ≈ a middle rung of the ladder, so negatives are comparable in length.
-    mid = sorted(ladder)[len(ladder) // 2] if ladder else 4
-    size = min(max(mid, 1), len(all_ids))
-    return [rng.sample(all_ids, size) for _ in range(k_random)]
-
-
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/veil.yaml")
@@ -193,13 +194,18 @@ def main() -> None:
     ap.add_argument("--query-variants", default="q+opts,q", help="comma of: q+opts,q,per-opt")
     ap.add_argument("--alphas", default="0.6", help="comma of text_alpha values, e.g. 0.8,0.6,0.3")
     ap.add_argument("--budget-ladder", default="2,4,8,16")
-    ap.add_argument("--random-negatives", type=int, default=2)
-    ap.add_argument("--oracle-chains", default=None, help="jsonl: sample_idx + chunk_ids (+reason)")
+    ap.add_argument("--oracle-chains", default=None, help="jsonl: sample_idx + chunk_ids (+reason); "
+                    "kept for optional positive injection, inert unless passed")
     ap.add_argument("--no-siglip", action="store_true")
     ap.add_argument("--n-samples", type=int, default=3)
     ap.add_argument("--temperature", type=float, default=0.7)
     ap.add_argument("--answer-keyframe-k", type=int, default=32)
     ap.add_argument("--sample-limit", type=int, default=None, help="only first N questions (debug)")
+    ap.add_argument("--only-idxs", default=None, help="json list of sample_idx to restrict to")
+    ap.add_argument("--resume", action="store_true", help="keep rows already in --out, skip those idxs")
+    ap.add_argument("--no-keyframes", action="store_true",
+                    help="TEXT-ONLY labelling — no keyframes to the answerer (matches the text-anchored "
+                         "79%% mainline + text-only oracle/judge sufficiency). Recommended.")
     ap.add_argument("--workers", type=int, default=8, help="parallel questions (answers round-robin across --vlm-api-url)")
     ap.add_argument("--seed", type=int, default=17)
     ap.add_argument("--out", default="outputs/rubric/chains.jsonl")
@@ -208,11 +214,14 @@ def main() -> None:
     variants = [v.strip() for v in args.query_variants.split(",") if v.strip()]
     alphas = [float(a) for a in args.alphas.split(",") if a.strip()]
     ladder = [int(x) for x in args.budget_ladder.split(",") if x.strip()]
-    keyframe_dir = Path(args.keyframe_dir or args.memory_dir)
-    rng = random.Random(args.seed)
+    keyframe_dir = None if args.no_keyframes else Path(args.keyframe_dir or args.memory_dir)
 
     cfg = load_config(args.config)
     samples = load_samples(cfg)
+    if args.only_idxs and Path(args.only_idxs).is_file():
+        keep = set(int(x) for x in __import__("json").load(open(args.only_idxs)))
+        samples = [s for s in samples if int(s.sample_idx) in keep]
+        print(f"[filter] --only-idxs → {len(samples)} questions")
     if args.sample_limit:
         samples = samples[: args.sample_limit]
 
@@ -262,10 +271,13 @@ def main() -> None:
         for cfg_tag, k, ids in _query_chains(
             bank, cmap, s.question, s.candidates, embedder, siglip, variants, alphas, ladder):
             pool.append(("query", cfg_tag, k, ids))
-        # per-sample rng derived from seed+idx so parallel runs stay reproducible
-        srng = random.Random(args.seed + int(s.sample_idx))
-        for ids in _random_chains(bank, ladder, args.random_negatives, srng):
-            pool.append(("random", "random", None, ids))
+        # full deployable text config L1@16+L2@16+L3all — the SUFFICIENT positive for base-solved qs
+        try:
+            ml_ids = _multilayer_chain(bank, s.question, s.candidates, embedder, siglip, alphas[0])
+            if ml_ids:
+                pool.append(("multilayer", "ml:L1@16+L2@16+L3all", None, ml_ids))
+        except Exception as exc:
+            print(f"[warn] multilayer chain failed {s.sample_idx}: {exc}")
         if s.sample_idx in oracle_by_idx:
             pool.append(("oracle", "oracle", None, oracle_by_idx[s.sample_idx]))
 
@@ -294,17 +306,40 @@ def main() -> None:
               f"suff={sum(1 for r in out if r['sufficient'])}", flush=True)
         return out
 
-    rows = []
+    # resume: per-question rows already computed are kept; done idxs are skipped.
+    import threading
+    out_path = Path(args.out)
+    done_idxs: set[int] = set()
+    rows: list[dict] = []
+    if args.resume and out_path.is_file():
+        for r in read_jsonl(out_path):
+            rows.append(r)
+            done_idxs.add(int(r["sample_idx"]))
+        samples = [s for s in samples if int(s.sample_idx) not in done_idxs]
+        print(f"[resume] {len(done_idxs)} questions done, {len(samples)} remaining")
+
+    wlock = threading.Lock()
+    def _flush():
+        write_jsonl(out_path, rows)
+
     if args.workers > 1:
         from concurrent.futures import ThreadPoolExecutor, as_completed
         with ThreadPoolExecutor(max_workers=args.workers) as ex:
+            n = 0
             for f in as_completed([ex.submit(process, s) for s in samples]):
-                rows.extend(f.result())
+                res = f.result()
+                with wlock:
+                    rows.extend(res)
+                    n += 1
+                    if n % 10 == 0:
+                        _flush()
     else:
-        for s in samples:
+        for i, s in enumerate(samples):
             rows.extend(process(s))
+            if i % 10 == 0:
+                _flush()
 
-    write_jsonl(args.out, rows)
+    _flush()
     print(f"wrote {len(rows)} chains to {args.out}")
 
 

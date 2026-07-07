@@ -1,0 +1,2812 @@
+general:
+  rubric_criteria:
+  - name: evidence_coverage
+    description: Whether evidence covers the key event, time window, state change,
+      comparison target, or causal link needed to verify or exclude each option.
+    score_1: All aspects the options hinge on are present in the evidence.
+    score_half: Some required aspect present but at least one is missing.
+    score_0: A key aspect the options depend on is entirely absent.
+    weight: 1.0
+    failure_repair_action: refine_query
+  - name: evidence_specificity
+    description: Whether evidence explicitly grounds the relevant person, object,
+      action, scene, speaker, on-screen text, or spatial relation rather than a generic
+      scene.
+    score_1: The specific entity/relation an option asserts is explicitly grounded.
+    score_half: Related but generic evidence; the exact entity/relation is implicit.
+    score_0: Only unrelated or generic scene evidence; nothing specific to the options.
+    weight: 1.0
+    failure_repair_action: dense_sample
+  - name: evidence_consistency
+    description: Whether evidence is internally consistent and contains enough contrary
+      evidence to exclude options that conflict with the video.
+    score_1: Evidence is consistent and lets conflicting options be ruled out.
+    score_half: Partly consistent; some conflicting options cannot be ruled out yet.
+    score_0: Evidence is contradictory or cannot exclude any wrong option.
+    weight: 1.0
+    failure_repair_action: broadcast
+  scoring_rule: average
+  sufficient_threshold: 0.8
+type_aliases:
+  Information Synopsis: Information Synopsis
+  Object Reasoning: Object Reasoning
+  Action Reasoning: Action Reasoning
+  Counting Problem: Counting Problem
+  Object Recognition: Object Recognition
+  Temporal Reasoning: Temporal Reasoning
+  Temporal Perception: Temporal Perception
+  Attribute Perception: Attribute Perception
+  Action Recognition: Action Recognition
+  OCR Problems: OCR Problems
+  Spatial Reasoning: Spatial Reasoning
+templates:
+  Information Synopsis:
+    rubric_criteria:
+    - name: scope_completeness
+      description: Whether the evidence spans the full temporal, logical, or causal
+        range required by the option's proposition (e.g., covering both the beginning
+        and end of a process, or all components of a multi-part claim) rather than
+        only a subset.
+      score_1: Evidence explicitly covers all distinct phases, components, or endpoints
+        asserted in the option.
+      score_half: Evidence covers some but not all required phases or components of
+        the option's scope.
+      score_0: Evidence covers only a partial segment of the required scope, missing
+        critical phases or components.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: theme_primacy
+      description: Whether the evidence explicitly identifies the central theme or
+        primary subject matter of the content, rather than merely listing supporting
+        details, background context, or secondary topics mentioned in passing.
+      score_1: Evidence explicitly grounds the option as the main focus or central
+        narrative of the content.
+      score_half: Evidence mentions the option but does not clearly distinguish it
+        as the primary theme versus a supporting detail.
+      score_0: Evidence only supports the option as a minor detail, background fact,
+        or secondary topic, failing to establish it as the primary theme.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: narrative_trajectory
+      description: Whether the evidence explicitly grounds the full narrative trajectory
+        (initiation, progression, and resolution) of the event or process asserted
+        as the primary focus, rather than presenting isolated, disconnected, or static
+        snapshots of the topic.
+      score_1: Evidence explicitly traces the event from its start through key developments
+        to its conclusion or outcome, establishing a coherent narrative arc.
+      score_half: Evidence covers the start or the end, or key developments, but lacks
+        a clear connecting thread or misses a critical phase of the trajectory.
+      score_0: Evidence consists only of isolated, disconnected scenes or static facts
+        about the topic without establishing a temporal or causal progression.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: temporal_thematic_breadth
+      description: Whether the evidence spans the full temporal duration and thematic
+        range of the subject matter (e.g., covering preconditions, the event itself,
+        and long-term consequences) required to validate a synopsis or 'best title'
+        claim, rather than focusing on a single isolated moment or sub-event.
+      score_1: Evidence explicitly covers the beginning, middle, and end (or preconditions,
+        event, and consequences) of the subject's full scope, allowing exclusion of
+        titles limited to a single phase.
+      score_half: Evidence covers multiple phases but misses a critical temporal or
+        thematic boundary (e.g., only the event and consequences, but not the preconditions).
+      score_0: Evidence is restricted to a single isolated moment, event, or sub-topic,
+        failing to establish the full scope required for a comprehensive title.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: tone_atmosphere_grounding
+      description: Whether the evidence explicitly grounds the qualitative tone, emotional
+        atmosphere, or affective descriptor (e.g., terrifying, chaotic, triumphant,
+        tragic) asserted in the option, rather than merely describing the neutral
+        events or facts.
+      score_1: Evidence explicitly contains descriptions, visual cues, or narration
+        that establish the specific tone or atmosphere claimed in the option.
+      score_half: Evidence implies a tone through context but lacks explicit descriptors
+        or strong atmospheric cues matching the option's claim.
+      score_0: Evidence describes only neutral facts or events without establishing
+        the specific tone or atmosphere required to verify the option.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: framing_context_vs_content
+      description: Whether the evidence distinguishes the framing event or context
+        of the video (e.g., an exhibition, a documentary, a specific journey) from
+        the specific subject matter or details discussed within that context (e.g.,
+        the artworks shown, the historical facts mentioned).
+      score_1: Evidence explicitly identifies the framing event or context as the
+        primary subject, distinguishing it from the specific details or content discussed
+        within that frame.
+      score_half: Evidence mentions both the framing context and the internal content
+        but does not clearly establish which is the primary subject of the video.
+      score_0: Evidence focuses exclusively on the specific details, facts, or subject
+        matter discussed within the video, failing to identify the overarching framing
+        event or context.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: conflict_parties_explicitness
+      description: Whether the evidence explicitly identifies the specific opposing
+        parties, forces, or factions involved in a conflict or debate asserted in
+        the option, rather than merely mentioning the topic of the conflict or one
+        side in isolation.
+      score_1: Evidence explicitly names or describes both (or all) opposing sides/forces
+        central to the conflict.
+      score_half: Evidence identifies one side of the conflict or the general topic
+        of disagreement but fails to explicitly name the opposing force.
+      score_0: Evidence mentions the topic or context but provides no identification
+        of the specific parties or forces in conflict.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: contrasting_positions_explicitness
+      description: Whether the evidence explicitly articulates the specific opposing
+        arguments, stances, or ideological positions asserted in the option, rather
+        than merely identifying the parties involved or the general topic of disagreement.
+      score_1: Evidence explicitly states or describes the distinct content of the
+        opposing viewpoints (e.g., 'X argues A while Y argues B'), allowing the specific
+        nature of the contrast to be verified.
+      score_half: Evidence identifies the parties or the general topic of conflict
+        but leaves the specific arguments or positions of one or both sides implicit
+        or vague.
+      score_0: Evidence mentions the topic or context but fails to articulate the
+        specific opposing positions or arguments required to define the contrast.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: introductory_framing_explicitness
+      description: Whether the evidence explicitly includes the video's opening framing
+        device (e.g., title card, introductory narration, or thesis statement) that
+        defines the primary scope or main focus of the content, rather than only containing
+        internal details or supporting arguments.
+      score_1: Evidence explicitly contains the opening title, thesis, or framing
+        statement that establishes the video's main focus or scope.
+      score_half: Evidence contains internal details that imply a focus but lacks
+        the explicit opening framing device or thesis statement.
+      score_0: Evidence consists entirely of internal details, arguments, or scenes
+        without any opening framing device to establish the primary scope.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: stance_attribution_explicitness
+      description: Whether the evidence explicitly identifies the specific group,
+        faction, or individual holding the view, concern, or stance asserted in the
+        option, rather than merely describing the view in isolation or attributing
+        it to a generic 'market' or 'experts'.
+      score_1: Evidence explicitly names or describes the specific group/individual
+        and links them directly to the specific concern or stance in the option.
+      score_half: Evidence mentions the concern or the group separately, but the direct
+        link between this specific group and this specific stance is implicit or vague.
+      score_0: Evidence describes the concern or the group in isolation, failing to
+        establish that this specific group holds this specific view.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: causal_rationale_explicitness
+      description: Whether the evidence explicitly articulates the specific causal
+        mechanism, rationale, or underlying reason asserted in the option (e.g., 'bubbles',
+        'risk-taking', 'liquidity shortage'), rather than merely identifying the general
+        topic, the actor's stance, or the outcome without the specific cause.
+      score_1: Evidence explicitly states the specific causal mechanism or rationale
+        claimed in the option.
+      score_half: Evidence implies the rationale or mentions the general topic but
+        lacks the specific causal mechanism asserted in the option.
+      score_0: Evidence identifies the actor or the general topic but provides no
+        specific causal mechanism or rationale to verify the option's claim.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: structural_agenda_explicitness
+      description: Whether the evidence explicitly presents the video's structural
+        roadmap, agenda, or table of contents (e.g., a visual menu, list of topics,
+        or explicit outline) that defines the scope of the content, rather than relying
+        on implicit inference from scattered scenes.
+      score_1: Evidence explicitly displays or states the video's agenda, list of
+        topics, or structural outline, allowing direct verification of which themes
+        are covered.
+      score_half: Evidence implies a structure or lists some topics but lacks a clear,
+        comprehensive agenda or roadmap.
+      score_0: Evidence contains only isolated scenes or narration without an explicit
+        structural roadmap or agenda to define the video's scope.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: technical_subject_explicitness
+      description: Whether the evidence explicitly identifies the specific technical
+        instrument, mechanism, or specialized entity (e.g., a specific financial product,
+        scientific tool, or process) asserted as the primary subject, rather than
+        merely mentioning the general domain, the actors involved, or the outcome.
+      score_1: Evidence explicitly names and discusses the specific technical instrument
+        or mechanism claimed as the main focus.
+      score_half: Evidence mentions the general domain or related concepts but fails
+        to explicitly name the specific technical instrument or mechanism.
+      score_0: Evidence only describes the general context, actors, or outcomes without
+        identifying the specific technical subject matter.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: distractor_content_exclusion
+      description: Whether the evidence excludes content that supports a plausible
+        but secondary topic (e.g., reactions, consequences, or side-events) mentioned
+        in the video, thereby preventing the selection of options that mistake these
+        for the main focus.
+      score_1: Evidence contains no content that could plausibly support a secondary
+        topic as the main focus, isolating the primary theme.
+      score_half: Evidence contains some content related to a secondary topic, but
+        the primary theme is still clearly dominant or the secondary content is clearly
+        framed as minor.
+      score_0: Evidence includes significant content supporting a secondary topic
+        (e.g., a reaction or consequence) that could be mistaken for the main focus,
+        creating ambiguity or leading to a wrong selection.
+      weight: 1.0
+      failure_repair_action: refine_query
+    - name: outcome_implication_explicitness
+      description: Whether the evidence explicitly states the specific outcome, consequence,
+        or logical implication (e.g., a theory being challenged, a hypothesis confirmed,
+        a status change) asserted in the option, rather than merely describing the
+        event, discovery, or context that led to it.
+      score_1: Evidence explicitly articulates the specific outcome or implication
+        claimed in the option (e.g., 'theory is wrong', 'confirmed', 'challenged').
+      score_half: Evidence describes the event or discovery but leaves the specific
+        outcome or implication implicit or vague.
+      score_0: Evidence describes only the event, context, or discovery without stating
+        the specific outcome or implication required to verify the option.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: theoretical_impact_explicitness
+      description: Whether the evidence explicitly articulates the specific logical
+        relationship (e.g., challenge, confirmation, refutation, modification) between
+        a discovery/observation and a pre-existing theory, model, or hypothesis asserted
+        in the option, rather than merely mentioning the discovery or the theory in
+        isolation.
+      score_1: Evidence explicitly states the specific nature of the impact (e.g.,
+        'theory is challenged', 'hypothesis confirmed') linking the observation to
+        the theoretical framework.
+      score_half: Evidence mentions both the discovery and the theory but leaves the
+        specific nature of their relationship (challenge vs. confirmation) implicit
+        or vague.
+      score_0: Evidence mentions the discovery or the theory separately but provides
+        no explicit link or description of how the discovery affects the theory.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: origin_formation_explicitness
+      description: Whether the evidence explicitly grounds the origin, genesis, or
+        initial formation phase of the subject matter asserted in the option, rather
+        than only covering subsequent events, consequences, or the current state.
+      score_1: Evidence explicitly describes or depicts the beginning, creation, or
+        formation of the subject matter.
+      score_half: Evidence implies an origin or mentions the subject's history but
+        lacks explicit grounding of the initial formation phase.
+      score_0: Evidence covers only events occurring after the subject's formation,
+        consequences, or the current state, with no mention of the origin.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: narrative_unit_isolation
+      description: Whether the evidence is explicitly drawn from the specific narrative
+        unit, case, or segment referenced in the query (e.g., the 'second case', 'first
+        example', 'final scene'), rather than from a different narrative unit within
+        the same video that discusses a similar but distinct topic.
+      score_1: Evidence is strictly confined to the specific narrative unit or case
+        identified in the query, allowing verification of details unique to that unit.
+      score_half: Evidence mixes content from the target narrative unit with content
+        from other units, or the boundary between units is ambiguous.
+      score_0: Evidence is drawn entirely from a different narrative unit or case
+        than the one specified in the query, leading to verification of the wrong
+        subject.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: instructional_mode_explicitness
+      description: Whether the evidence explicitly establishes the content's primary
+        mode as an instructional or educational explanation of fundamental principles
+        (e.g., defining terms, explaining mechanisms, teaching concepts) rather than
+        merely demonstrating a specific application, narrating a story, or showing
+        a single use-case example.
+      score_1: Evidence explicitly frames the content as teaching fundamental concepts,
+        defining terms, or explaining underlying mechanisms, distinguishing it from
+        a mere demonstration or narrative.
+      score_half: Evidence contains some instructional elements (e.g., definitions)
+        but is mixed with or dominated by specific examples, demonstrations, or narrative
+        elements, making the primary mode ambiguous.
+      score_0: Evidence focuses exclusively on a specific example, demonstration,
+        or narrative event without establishing an overarching instructional or educational
+        intent to teach fundamentals.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: action_mode_explicitness
+      description: Whether the evidence explicitly depicts or describes the specific
+        action, function, or mode of operation asserted in the option (e.g., 'tutoring',
+        'coding', 'translating'), rather than merely describing a related outcome,
+        benefit, or general usage context.
+      score_1: Evidence explicitly shows or states the specific action or function
+        claimed in the option is being performed.
+      score_half: Evidence describes a related outcome, benefit, or general context
+        that implies the action but does not explicitly depict or state the specific
+        mode of operation.
+      score_0: Evidence describes only general usage, unrelated benefits, or outcomes
+        without grounding the specific action or function asserted in the option.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: quantitative_attribute_explicitness
+      description: Whether the evidence explicitly states the specific numerical value,
+        count, frequency, or magnitude asserted in the option (e.g., 'four children',
+        'three times', '50% increase'), rather than merely implying a quantity or
+        describing the entity without the specific number.
+      score_1: Evidence explicitly contains the exact number, count, or quantitative
+        measure claimed in the option.
+      score_half: Evidence implies a quantity or mentions the entity but lacks the
+        specific numerical value required to verify the option.
+      score_0: Evidence describes the entity or context but provides no numerical
+        information, making it impossible to verify the specific quantitative claim.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: competitive_context_explicitness
+      description: Whether the evidence explicitly grounds the competitive landscape,
+        rival entities, historical benchmarks, or 'race' dynamics asserted in the
+        option, rather than merely describing the subject's internal operations, technical
+        features, or isolated success.
+      score_1: Evidence explicitly identifies competitors, rivals, historical comparisons,
+        or the specific 'race' context that defines the option's claim.
+      score_half: Evidence mentions the subject's success or challenges but lacks
+        explicit reference to the competitive field, rivals, or the broader race context.
+      score_0: Evidence focuses exclusively on the subject's internal details, technical
+        specs, or isolated achievements without establishing the competitive or comparative
+        framework required to verify the option.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: strategic_pathway_explicitness
+      description: Whether the evidence explicitly articulates the specific method,
+        strategy, roadmap, or procedural mechanism asserted in the option as the means
+        to achieve a stated goal or outcome, rather than merely describing the goal,
+        the context, or isolated technical features without linking them to the overall
+        strategy.
+      score_1: Evidence explicitly states the specific plan, method, or strategic
+        steps claimed in the option as the way to achieve the outcome.
+      score_half: Evidence mentions the goal and some related technical details or
+        context but fails to explicitly articulate the specific strategic pathway
+        or 'how' claimed in the option.
+      score_0: Evidence describes the goal, context, or isolated features but provides
+        no explicit description of the method or strategy required to verify the option's
+        claim about 'how' the outcome is achieved.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: operational_mechanism_explicitness
+      description: Whether the evidence explicitly describes the specific functional
+        process, operational mechanism, or step-by-step procedure asserted in the
+        option (e.g., 'how it works', 'the method used'), rather than merely identifying
+        the entity, stating the outcome, or mentioning the general domain.
+      score_1: Evidence explicitly details the specific steps, components, or causal
+        chain that constitute the 'how' of the process or mechanism claimed in the
+        option.
+      score_half: Evidence mentions the entity or the general domain and implies a
+        process, but lacks the specific details of the operational mechanism or functional
+        steps required to verify the 'how'.
+      score_0: Evidence only identifies the entity, the outcome, or the general topic
+        without describing the specific mechanism or process by which it operates.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: framework_vs_illustration_distinction
+      description: Whether the evidence explicitly distinguishes the unifying explanatory
+        framework, mechanism, or thesis (e.g., 'how it works', 'the design process',
+        'the underlying principle') from the specific case studies, examples, or instances
+        used to illustrate that framework.
+      score_1: Evidence explicitly identifies the overarching framework or mechanism
+        and clearly presents specific instances as illustrations of that framework,
+        allowing the main focus to be distinguished from the examples.
+      score_half: Evidence mentions both the framework and examples but does not clearly
+        establish the hierarchical relationship, leaving ambiguity about whether the
+        examples or the framework is the primary focus.
+      score_0: Evidence focuses exclusively on specific examples, instances, or case
+        studies without identifying the unifying framework or mechanism that defines
+        the video's main focus.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: narrative_role_explicitness
+      description: Whether the evidence explicitly grounds the specific narrative
+        role, function, or relational dynamic of the subject (e.g., as a troublemaker,
+        a performer, a teacher, a victim) asserted in the option, rather than merely
+        showing the subject performing an action or existing in a scene without establishing
+        that specific role.
+      score_1: Evidence explicitly depicts or describes the subject acting in the
+        specific role or dynamic claimed in the option (e.g., causing trouble, performing
+        a show, teaching a lesson).
+      score_half: Evidence shows the subject performing actions that could imply the
+        role but lacks explicit cues or context to definitively establish the specific
+        narrative function claimed.
+      score_0: Evidence shows the subject performing actions or existing in a scene
+        but provides no grounding for the specific narrative role or dynamic asserted
+        in the option, making it impossible to verify the synopsis.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: interaction_mode_explicitness
+      description: Whether the evidence explicitly depicts or describes the specific
+        mode of interaction, relational dynamic, or type of engagement (e.g., combat,
+        debate, cooperation, deception) asserted in the option between the involved
+        parties, rather than merely showing the parties present or performing isolated,
+        non-interacting actions.
+      score_1: Evidence explicitly shows the specific type of interaction claimed
+        (e.g., physical struggle, verbal argument, collaborative work) occurring between
+        the relevant parties.
+      score_half: Evidence shows the parties together or performing related actions
+        but lacks explicit cues defining the specific mode of interaction (e.g., it
+        is unclear if they are fighting, talking, or working together).
+      score_0: Evidence shows the parties in isolation or performing unrelated actions,
+        failing to establish the specific interaction mode required to verify the
+        option.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: ranking_format_explicitness
+      description: Whether the evidence explicitly identifies the video's format as
+        a ranked list, countdown, or compilation (e.g., via title cards like 'Top
+        X', 'Best of', or explicit ranking labels) rather than merely showing the
+        content items that happen to be ranked.
+      score_1: Evidence explicitly displays or states the ranking format (e.g., 'Top
+        7', 'Greatest X') that defines the video's primary structure.
+      score_half: Evidence implies a list or collection through context (e.g., multiple
+        distinct items shown) but lacks the explicit ranking label or title card defining
+        the format.
+      score_0: Evidence shows only the content items or scenes without any indication
+        of a ranked list, countdown, or compilation structure.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: enumeration_completeness
+      description: Whether the evidence explicitly enumerates the full set of items,
+        reasons, causes, or factors asserted in the option (or the set from which
+        the option is drawn), rather than mentioning only a subset, a single instance,
+        or the general category without listing the specific components.
+      score_1: Evidence explicitly lists all distinct items, reasons, or factors required
+        to verify the option's claim about the set (e.g., confirming presence or absence
+        of a specific item within the enumerated list).
+      score_half: Evidence mentions some items or the general category but fails to
+        explicitly list all components, leaving ambiguity about whether a specific
+        item is part of the set.
+      score_0: Evidence mentions only a single instance, a vague generalization, or
+        a subset of the items, making it impossible to verify or exclude options based
+        on the completeness of the list.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: absence_verification_scope
+      description: Whether the evidence establishes the exhaustive thematic scope
+        or complete set of discussed topics required to verify that a specific option
+        was NOT mentioned, rather than merely listing a subset of topics present in
+        the video.
+      score_1: Evidence covers the full range of topics discussed in the content,
+        allowing the verifier to confirm that the option's specific proposition is
+        absent from the entire scope.
+      score_half: Evidence covers a significant portion of the topics but leaves gaps
+        in the thematic scope, making it impossible to definitively confirm the option
+        was not mentioned in the missing segments.
+      score_0: Evidence only lists a few topics or scenes, providing no basis to determine
+        whether the option's proposition was mentioned elsewhere in the content.
+      weight: 3.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Object Reasoning:
+    rubric_criteria:
+    - name: symbolic_meaning_explicitness
+      description: Whether the evidence explicitly states the definition, meaning,
+        or symbolic significance of a specific mark, code, term, or gesture required
+        to verify or exclude an option, rather than merely showing the symbol or implying
+        its existence.
+      score_1: The evidence explicitly defines the meaning or significance of the
+        symbol/code/term in question.
+      score_half: The symbol/code/term is present or implied, but its specific definition
+        or meaning is not explicitly stated.
+      score_0: The symbol/code/term is absent, or its meaning is entirely unstated
+        and cannot be inferred from the evidence.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: belief_attribution_explicitness
+      description: Whether the evidence explicitly attributes a specific belief, opinion,
+        stance, or claim to the named person or institution required to verify or
+        exclude an option, rather than merely mentioning the entity or the topic in
+        isolation.
+      score_1: The evidence explicitly states that the specific named entity holds
+        the specific belief or stance in question.
+      score_half: The entity and the topic are present, but the specific link (that
+        this entity holds this specific view) is implied or ambiguous.
+      score_0: The entity is mentioned without any attributed belief, or the attributed
+        belief does not match the option's claim.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: quantitative_status_explicitness
+      description: Whether the evidence explicitly states the specific numerical value,
+        measurement, count, or definitive status (e.g., 'reconstructed', 'destroyed',
+        'completed') required to verify or exclude an option, rather than merely mentioning
+        the attribute generally, using metaphors, or citing unverified anecdotes.
+      score_1: The evidence explicitly provides the specific number, measurement,
+        or definitive status asserted or denied by the option.
+      score_half: The evidence mentions the attribute (e.g., height, size, status)
+        but only vaguely, metaphorically, or via unverified stories without a specific
+        value or confirmation.
+      score_0: The evidence fails to address the specific quantitative or status claim,
+        or only provides unrelated general descriptions.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: legal_provision_explicitness
+      description: Whether the evidence explicitly states the specific content, rule,
+        right, or restriction within a code, law, treaty, or set of regulations required
+        to verify or exclude an option, rather than merely mentioning the existence
+        of the code, the author, or the general topic of legislation.
+      score_1: The evidence explicitly details the specific provision, right, or restriction
+        asserted or denied by the option.
+      score_half: The evidence mentions the code, law, or legislative act and its
+        general purpose, but the specific provision or rule in question is not explicitly
+        stated.
+      score_0: The evidence fails to address the specific content of the code or law,
+        or only mentions the existence of the code/author without detailing any rules.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: causal_mechanism_explicitness
+      description: Whether the evidence explicitly states the specific cause, reason,
+        mechanism, or rationale asserted by an option to explain a phenomenon, outcome,
+        or name, rather than merely mentioning the phenomenon, outcome, or name in
+        isolation.
+      score_1: The evidence explicitly details the specific cause, reason, or mechanism
+        that the option claims is responsible for the event or state.
+      score_half: The evidence mentions the event, outcome, or name and implies a
+        cause, but the specific mechanism or rationale asserted by the option is not
+        explicitly stated.
+      score_0: The evidence mentions the event, outcome, or name but provides no information
+        about its cause, reason, or mechanism, or the stated cause differs from the
+        option's claim.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: belief_content_completeness
+      description: Whether the evidence fully states the specific content, proposition,
+        or conclusion of a belief, opinion, or claim attributed to an entity, rather
+        than merely introducing the attribution or leaving the statement incomplete.
+      score_1: The evidence explicitly states the full content of the attributed belief
+        or claim required to verify or exclude the option.
+      score_half: The evidence attributes a belief to an entity but the specific content
+        is truncated, ambiguous, or only partially stated.
+      score_0: The evidence mentions an entity holding a belief but provides no content,
+        or the content is entirely absent.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: belief_scope_explicitness
+      description: Whether the evidence explicitly states the specific population,
+        demographic, group, or scope to which a belief, statistic, or claim applies,
+        rather than merely stating the belief or statistic in a general or ambiguous
+        context.
+      score_1: The evidence explicitly identifies the specific group or scope (e.g.,
+        'white people', 'northern Europeans') that the option's claim or belief targets.
+      score_half: The evidence mentions the belief or statistic but the specific population
+        or scope is implied, vague, or not explicitly linked to the claim.
+      score_0: The evidence states the belief or statistic but provides no information
+        about the specific group or scope to which it applies.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: temporal_explicitness
+      description: Whether the evidence explicitly states the specific date, time,
+        duration, or chronological sequence required to verify or exclude an option,
+        rather than merely mentioning the event occurred or providing a vague timeframe.
+      score_1: The evidence explicitly provides the specific date, time, or duration
+        asserted or denied by the option.
+      score_half: The evidence mentions the event and a general timeframe (e.g., 'in
+        the morning', 'later that year') but lacks the specific date or time required
+        to verify the option.
+      score_0: The evidence mentions the event but provides no specific temporal information,
+        or the provided time contradicts the option.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: visual_label_explicitness
+      description: Whether the evidence explicitly provides an on-screen text label,
+        caption, or title that directly identifies the specific visual element (e.g.,
+        a line on a map, a highlighted region, a chart bar, a diagram component) required
+        to verify or exclude an option, rather than merely showing the visual element
+        without its identity.
+      score_1: The specific visual element is accompanied by an explicit on-screen
+        text label or caption that identifies it as the option claims.
+      score_half: The visual element is present, but its specific identity is not
+        explicitly labeled on-screen (e.g., only described in narration or implied
+        by context).
+      score_0: The visual element is absent, or it is shown without any on-screen
+        text label identifying its specific identity.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: solution_proposal_explicitness
+      description: Whether the evidence explicitly states the specific solution, policy,
+        course of action, or approach proposed to address a problem or achieve a goal,
+        rather than merely describing the problem, existing conditions, or unrelated
+        actions.
+      score_1: The evidence explicitly details the specific solution, policy, or approach
+        asserted or denied by the option.
+      score_half: The evidence mentions the problem or general actions but the specific
+        proposed solution or approach is implied, vague, or not explicitly stated.
+      score_0: The evidence describes the problem or context but provides no information
+        about a specific proposed solution, policy, or approach.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: universal_scope_explicitness
+      description: Whether the evidence explicitly confirms or denies that the option's
+        claim applies to the entire set, group, or sequence specified by a universal
+        quantifier (e.g., 'all', 'every', 'universally'), rather than merely showing
+        the claim is true for some instances or is a general possibility.
+      score_1: The evidence explicitly states that the option applies to all members
+        of the set or explicitly excludes other options as universal solutions.
+      score_half: The evidence shows the option applies to some members or implies
+        universality without an explicit statement covering the whole set.
+      score_0: The evidence only shows the option applies to specific instances, or
+        provides no information about whether it applies to the entire set.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: conclusion_absence_explicitness
+      description: Whether the evidence explicitly demonstrates that the video discusses
+        the queried topic without providing a definitive answer, conclusion, or resolution,
+        rather than merely presenting the topic, a question, or a partial/ambiguous
+        snippet that could imply an answer exists.
+      score_1: The evidence explicitly shows the topic is discussed but no definitive
+        answer or conclusion is provided, or the video explicitly states that no answer
+        exists.
+      score_half: The evidence discusses the topic but the absence of a conclusion
+        is implied or ambiguous; it is unclear if the video intends to provide an
+        answer later or if the answer is simply missing.
+      score_0: The evidence only presents the topic or a question, or provides a partial
+        snippet that could be interpreted as an answer, without demonstrating the
+        absence of a definitive conclusion.
+      weight: 1.0
+      failure_repair_action: refine_query
+    - name: entity_identification_explicitness
+      description: Whether the evidence explicitly identifies the specific names,
+        titles, or unique identifiers of the entities (people, groups, organizations)
+        required to verify or exclude an option, rather than merely referring to them
+        with generic terms or descriptions.
+      score_1: The evidence explicitly states the specific names or unique identifiers
+        of the entities asserted or denied by the option.
+      score_half: The evidence refers to the entities using generic terms (e.g., 'the
+        families', 'the man') or descriptions without providing their specific names
+        or identifiers.
+      score_0: The evidence fails to identify the entities or refers to them in a
+        way that makes it impossible to link them to the option's claim.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: stance_explicitness
+      description: Whether the evidence explicitly records the specific stance (agreement,
+        disagreement, or explicit uncertainty/ambiguity) of the target entity regarding
+        the specific proposition asserted by an option, rather than merely discussing
+        the topic or the views of others.
+      score_1: The evidence explicitly states the target entity's specific stance
+        (e.g., 'I agree', 'I disagree', 'it's complicated', 'I don't know') on the
+        proposition in question.
+      score_half: The evidence discusses the topic or the views of others, and the
+        target entity is present, but their specific stance on the proposition is
+        implied, ambiguous, or not directly recorded.
+      score_0: The evidence discusses the topic or the views of others but provides
+        no information about the target entity's specific stance on the proposition.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: thematic_scope_explicitness
+      description: Whether the evidence explicitly states the comprehensive scope,
+        unifying theme, or full range of topics covered by the video (e.g., 'covers
+        everything from X to Y', 'the video is about Z') required to verify or exclude
+        an option, rather than merely presenting isolated facts, examples, or fragments
+        of the content.
+      score_1: The evidence explicitly defines the video's overall theme, scope, or
+        the complete set of topics it addresses.
+      score_half: The evidence presents multiple relevant facts or examples but does
+        not explicitly state the unifying theme or the full scope of the video's content.
+      score_0: The evidence only provides isolated facts, single examples, or fragments
+        without any indication of the video's overall theme or comprehensive scope.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: functional_role_explicitness
+      description: Whether the evidence explicitly states the specific function, purpose,
+        operational capacity, or intended role of the target entity required to verify
+        or exclude an option, rather than merely describing the entity's physical
+        attributes, location, context, or implying its role through surrounding events.
+      score_1: The evidence explicitly defines the specific function, purpose, or
+        role (e.g., 'triggers lightning', 'measures radiation', 'serves as a bridge')
+        asserted or denied by the option.
+      score_half: The evidence describes the entity's physical state, location, or
+        context, and implies a function, but does not explicitly state the specific
+        operational capacity or purpose asserted by the option.
+      score_0: The evidence mentions the entity or its context but provides no information
+        about its specific function, purpose, or operational role.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: structural_transformation_explicitness
+      description: Whether the evidence explicitly states a specific change, shift,
+        or transformation in an entity's business model, operational strategy, structural
+        role, or fundamental approach required to verify or exclude an option, rather
+        than merely describing the entity's static state, a single action, or the
+        event that triggered the change.
+      score_1: The evidence explicitly details the specific transformation (e.g.,
+        'shifted from X to Y', 'adopted a new model', 'changed its focus') asserted
+        or denied by the option.
+      score_half: The evidence mentions the event or a single action by the entity,
+        and implies a change, but does not explicitly state the specific nature of
+        the structural or strategic transformation.
+      score_0: The evidence describes the entity's static state, the triggering event,
+        or isolated actions without any information about a change in the entity's
+        business model, strategy, or operational structure.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: classification_methodology_explicitness
+      description: Whether the evidence explicitly states the specific criteria, rules,
+        methodology, or system used to classify, categorize, or group the entities
+        in question, rather than merely mentioning the existence of categories, the
+        act of naming, or the entities themselves.
+      score_1: The evidence explicitly details the specific criteria, rules, or methodology
+        (e.g., 'based on spectral characteristics', 'using light curves') used to
+        classify or group the entities.
+      score_half: The evidence mentions the categories, the act of classification,
+        or the entities, but the specific criteria or methodology used to distinguish
+        them is implied, vague, or not explicitly stated.
+      score_0: The evidence mentions the entities or the existence of categories but
+        provides no information about the specific criteria, rules, or methodology
+        used for classification.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: likelihood_judgment_explicitness
+      description: Whether the evidence explicitly states a specific judgment regarding
+        the probability, likelihood, plausibility, or certainty of an event or state
+        (e.g., 'likely', 'plausible', 'certain', 'impossible') required to verify
+        or exclude an option, rather than merely discussing the possibility, potential,
+        or consequences of the event.
+      score_1: The evidence explicitly contains a statement quantifying or qualifying
+        the likelihood (e.g., 'quite plausible', 'highly likely', 'impossible') of
+        the event or state in question.
+      score_half: The evidence discusses the possibility, potential, or consequences
+        of the event, but lacks an explicit judgment on its probability or plausibility.
+      score_0: The evidence mentions the event or topic but provides no information
+        regarding its likelihood, probability, or plausibility.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: prediction_timeline_explicitness
+      description: Whether the evidence explicitly states a specific future time horizon,
+        deadline, or duration predicted for an event to occur, rather than merely
+        discussing the possibility of the event, its general timeframe, or the consequences
+        of its occurrence.
+      score_1: The evidence explicitly states a specific predicted time horizon (e.g.,
+        'in 20 years', 'by 2050', 'within a decade') for the event in question.
+      score_half: The evidence mentions a general timeframe (e.g., 'soon', 'in the
+        future', 'within a generation') or discusses the event's possibility without
+        a specific predicted duration or deadline.
+      score_0: The evidence discusses the event, its possibility, or its consequences
+        but provides no information about when it is predicted to occur.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: ordinal_position_explicitness
+      description: Whether the evidence explicitly states the specific ordinal position
+        (e.g., 'first', 'second', 'last'), rank, or sequence order of an item within
+        a list, series, or set required to verify or exclude an option, rather than
+        merely mentioning the item's existence or the set as a whole.
+      score_1: The evidence explicitly identifies the specific ordinal position (e.g.,
+        'the second line of evidence', 'the first step') of the item asserted or denied
+        by the option.
+      score_half: The evidence mentions the item and implies a sequence or order,
+        but the specific ordinal position (e.g., 'second' vs 'third') is not explicitly
+        stated or is ambiguous.
+      score_0: The evidence mentions the item or the set but provides no information
+        about its specific position, rank, or order within the sequence.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: physical_transformation_explicitness
+      description: Whether the evidence explicitly states a specific physical change,
+        structural alteration, or morphological transformation (e.g., splitting, rifting,
+        expanding, merging, eroding) of a target object, landscape, or entity required
+        to verify or exclude an option, rather than merely mentioning general change,
+        evolution, or unrelated events.
+      score_1: The evidence explicitly details the specific physical or structural
+        transformation (e.g., 'split', 'rift', 'expand') asserted or denied by the
+        option.
+      score_half: The evidence mentions general change, evolution, or a related event
+        but does not explicitly state the specific nature of the physical or structural
+        transformation asserted by the option.
+      score_0: The evidence describes the entity's static state, mentions unrelated
+        events, or provides no information about a specific physical or structural
+        transformation.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: analytical_method_explicitness
+      description: Whether the evidence explicitly states the specific scientific
+        method, analytical technique, or testing procedure used to derive a finding,
+        status, or conclusion required to verify or exclude an option, rather than
+        merely mentioning the object analyzed, the general topic, or the result in
+        isolation.
+      score_1: The evidence explicitly names the specific method or technique (e.g.,
+        'dental plaque analysis', 'carbon dating', 'DNA sequencing') used to obtain
+        the finding asserted or denied by the option.
+      score_half: The evidence mentions the object analyzed or the general topic of
+        analysis but does not explicitly state the specific technique or method used
+        to derive the conclusion.
+      score_0: The evidence mentions the result or the object but provides no information
+        about the specific analytical method or technique used to obtain it.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: narrative_phase_explicitness
+      description: Whether the evidence explicitly locates the event, conflict, or
+        state change within the specific narrative segment, phase, or temporal portion
+        (e.g., 'second half', 'climax', 'opening', 'final scene') required to verify
+        or exclude an option, rather than merely describing the event in a general
+        or ambiguous context.
+      score_1: The evidence explicitly states or clearly indicates (via markers like
+        'later', 'finally', 'in the second half', or specific time jumps) that the
+        event occurs in the specific narrative segment asserted or denied by the option.
+      score_half: The evidence describes the event but the specific narrative phase
+        is implied, ambiguous, or not explicitly linked to the queried segment.
+      score_0: The evidence describes the event but provides no information about
+        its location within the narrative structure or timeline, making it impossible
+        to verify the specific phase.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: counter_evidence_explicitness
+      description: Whether the evidence explicitly presents a specific contradictory
+        fact, alternative explanation, or new piece of information that directly invalidates
+        or undermines the primary evidence or claim asserted by an opposing party,
+        rather than merely discussing the weakness of the claim in general terms or
+        describing procedural objections.
+      score_1: The evidence explicitly states a specific fact, alternative scenario,
+        or new information that directly contradicts or invalidates the opposing claim
+        or evidence.
+      score_half: The evidence suggests the opposing claim is weak or discusses general
+        doubts, but does not explicitly state a specific contradictory fact or alternative
+        explanation.
+      score_0: The evidence discusses the claim or procedural aspects but provides
+        no specific contradictory fact, alternative explanation, or new information
+        to invalidate the opposing evidence.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: procedural_verdict_explicitness
+      description: Whether the evidence explicitly states the final ruling, verdict,
+        determination, or official outcome of a procedure, trial, or decision-making
+        process required to verify or exclude an option, rather than merely presenting
+        the question, the participants, the arguments, or the context of the decision.
+      score_1: The evidence explicitly states the specific final outcome, ruling,
+        or determination (e.g., 'it has been determined that X is the father', 'the
+        court ruled in favor of Y').
+      score_half: The evidence presents the question, the participants, or the arguments
+        leading to a decision, but the specific final ruling or outcome is not explicitly
+        stated.
+      score_0: The evidence only provides context, the question being asked, or unrelated
+        details without any indication of the final procedural outcome.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: motivation_attribution_explicitness
+      description: Whether the evidence explicitly states the specific motivation,
+        intent, or personal rationale attributed to a named entity for performing
+        a specific action, rather than merely describing the action, the context,
+        or the consequences.
+      score_1: The evidence explicitly states the specific reason, motivation, or
+        intent (e.g., 'to avoid X', 'because she wanted Y') that the entity had for
+        the action in question.
+      score_half: The evidence describes the action and context, and implies a motivation,
+        but the specific rationale or intent is not explicitly stated or is ambiguous.
+      score_0: The evidence describes the action or context but provides no information
+        about the entity's specific motivation, intent, or rationale for performing
+        it.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: event_role_explicitness
+      description: Whether the evidence explicitly states the specific role, status,
+        or function (e.g., 'witness', 'victim', 'assassin', 'defendant') of a target
+        entity within a specific event or interaction required to verify or exclude
+        an option, rather than merely showing the entity's presence or implying the
+        role through context.
+      score_1: The evidence explicitly states the specific role or status of the entity
+        in the event (e.g., 'he was the witness', 'she was the victim').
+      score_half: The evidence shows the entity participating in the event but the
+        specific role is implied, ambiguous, or not explicitly stated.
+      score_0: The evidence shows the entity or the event but provides no information
+        about the specific role or status of the entity within that event.
+      weight: 3.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Action Reasoning:
+    rubric_criteria:
+    - name: inference_basis
+      description: Whether the evidence provides the specific visual cue, textual
+        source, or explicit mechanism that justifies the inference, attribution, or
+        'guess' made in the option, rather than just the topic itself.
+      score_1: The specific cue (e.g., a mural, a quote, a gesture) that grounds the
+        option's inference is explicitly present and linked to the claim.
+      score_half: The topic is present, but the specific cue or mechanism justifying
+        the inference is missing or ambiguous.
+      score_0: The evidence discusses the topic but lacks the specific cue required
+        to validate or exclude the inference mechanism.
+      weight: 3.0
+      failure_repair_action: dense_sample
+    - name: spatial_scope_grounding
+      description: Whether the evidence explicitly visualizes or states the full spatial
+        extent, geographic boundaries, or comparative scope required to verify or
+        exclude an option's claim about territory, reach, or distribution.
+      score_1: The evidence explicitly shows or states the complete spatial scope
+        (e.g., a map showing all relevant regions, a list of all territories) needed
+        to confirm or deny the option's geographic claim.
+      score_half: The evidence shows part of the scope or implies the extent, but
+        does not explicitly cover all regions or boundaries mentioned in the option.
+      score_0: The evidence lacks any visualization or statement of the spatial scope,
+        making it impossible to verify or exclude claims about the entity's geographic
+        reach.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: process_chain_grounding
+      description: Whether the evidence explicitly visualizes or states the complete
+        sequence of steps, transport route, or causal mechanism linking the source
+        entity to the target outcome or destination asserted in the option.
+      score_1: The evidence explicitly shows or states every critical link in the
+        chain (e.g., source, specific transport method, intermediate steps, final
+        destination) required to verify or exclude the option's claim about the process.
+      score_half: The evidence shows the source or the destination, or implies a connection,
+        but the specific mechanism or intermediate steps linking them are missing
+        or ambiguous.
+      score_0: The evidence mentions the entities involved but provides no information
+        about the process, route, or mechanism connecting them, making it impossible
+        to verify or exclude claims about how they are linked.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: deviation_from_norm_grounding
+      description: Whether the evidence explicitly visualizes or states the specific
+        attribute, action, or element that deviates from a known standard, myth, tradition,
+        or expected norm asserted in the option, rather than merely identifying the
+        subject.
+      score_1: The evidence explicitly shows or states the specific deviation (e.g.,
+        an object replaced, an action altered, an extra element added) and the context
+        of the standard it deviates from, allowing verification or exclusion of the
+        claim about the difference.
+      score_half: The evidence identifies the subject and the standard, but the specific
+        visual or textual detail of the deviation is ambiguous, missing, or only implied.
+      score_0: The evidence identifies the subject or the standard but provides no
+        information about the specific deviation, making it impossible to verify or
+        exclude claims about how the subject differs from the norm.
+      weight: 3.0
+      failure_repair_action: dense_sample
+    - name: origin_vs_meaning_distinction
+      description: Whether the evidence explicitly distinguishes between the historical
+        origin/lineage of a visual motif and the specific symbolic meaning, character
+        trait, or intent it conveys in the current context, rather than conflating
+        the two or providing evidence for only one when the option requires the other.
+      score_1: The evidence explicitly separates the motif's historical source from
+        its current symbolic meaning, allowing verification of the meaning claim and
+        exclusion of the origin claim (or vice versa).
+      score_half: The evidence provides information about either the origin or the
+        meaning, but does not explicitly distinguish between them, leaving ambiguity
+        about which aspect the option refers to.
+      score_0: The evidence conflates the origin and meaning, or provides evidence
+        for one aspect (e.g., origin) while the option asserts the other (e.g., meaning),
+        making it impossible to verify or exclude the option based on the specific
+        claim type.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: main_idea_vs_detail_distinction
+      description: Whether the evidence explicitly grounds the general principle,
+        thesis, or main idea asserted in the option, rather than merely providing
+        a specific example, detail, or supporting instance mentioned within the discourse.
+      score_1: The evidence explicitly states or visualizes the general principle
+        or main idea that encompasses the specific details, allowing verification
+        of the 'main idea' claim and exclusion of options that mistake a detail for
+        the main point.
+      score_half: The evidence mentions the general topic and specific details, but
+        does not explicitly link them or distinguish the main idea from the supporting
+        examples, leaving ambiguity about the scope of the claim.
+      score_0: The evidence only provides specific examples, details, or instances
+        without stating the overarching principle or main idea, making it impossible
+        to verify or exclude options that assert a general main idea versus a specific
+        detail.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: misconception_vs_reality_grounding
+      description: Whether the evidence explicitly identifies the specific erroneous
+        belief, assumption, or misunderstanding held by the subject and contrasts
+        it with the factual reality or correction required to verify or exclude the
+        option.
+      score_1: The evidence explicitly states or visualizes both the subject's specific
+        misconception and the factual correction, allowing the exact nature of the
+        misunderstanding to be verified or excluded.
+      score_half: The evidence identifies the subject and the topic, or implies a
+        misunderstanding, but does not explicitly state the specific content of the
+        erroneous belief or the factual correction.
+      score_0: The evidence discusses the topic or the subject but provides no information
+        about what the subject specifically misunderstood or how their belief differs
+        from reality.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: epistemic_state_grounding
+      description: Whether the evidence explicitly grounds the subject's epistemic
+        state (knowledge, belief, ignorance, or intent) regarding a specific fact,
+        allowing verification of claims about what the subject knew or believed versus
+        what was objectively true.
+      score_1: The evidence explicitly provides cues (e.g., dialogue, internal monologue,
+        specific reactions) that establish the subject's knowledge or belief state,
+        enabling the verification or exclusion of options based on what the subject
+        knew or thought.
+      score_half: The evidence provides the objective facts or implies a belief state,
+        but lacks explicit cues to definitively determine the subject's specific knowledge
+        or belief regarding the critical fact.
+      score_0: The evidence provides only objective facts or the subject's actions
+        without any information about their internal knowledge, belief, or intent,
+        making it impossible to verify or exclude options that hinge on what the subject
+        knew or thought.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: objective_truth_vs_belief_grounding
+      description: Whether the evidence provides an objective verification artifact
+        (e.g., test result, document, physical proof) that establishes the factual
+        reality of a specific claim, allowing the verifier to distinguish between
+        a subject acting on confirmed knowledge versus acting on a misconception or
+        assumption.
+      score_1: The evidence explicitly presents the objective proof (e.g., a positive/negative
+        test result, a signed document) that confirms the factual reality, enabling
+        the verification of whether the subject knew this fact or was mistaken.
+      score_half: The evidence implies the factual reality or discusses the subject's
+        belief, but lacks the specific objective artifact required to definitively
+        confirm the truth value of the claim.
+      score_0: The evidence only provides the subject's statements or actions without
+        any objective proof of the underlying fact, making it impossible to distinguish
+        between knowledge and misconception.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: visual_instantiation_vs_description
+      description: Whether the evidence provides the direct visual instantiation of
+        the specific action, device output, or phenomenon asserted in the option,
+        rather than merely containing a verbal description, comparison, or meta-discussion
+        about it.
+      score_1: The evidence explicitly shows the specific instance (e.g., the device
+        in use, the generated output, the action occurring) required to verify or
+        exclude the option.
+      score_half: The evidence discusses the topic or describes the instance verbally
+        but does not visually display the specific instance or output itself.
+      score_0: The evidence only contains meta-discussion or unrelated visuals, with
+        no visual instantiation of the specific action or output claimed in the option.
+      weight: 3.0
+      failure_repair_action: dense_sample
+    - name: subject_self_attribution_vs_third_party
+      description: Whether the evidence provides the subject's own direct verbalization,
+        reaction, or action confirming or denying the specific internal state, relationship
+        status, or intent asserted in the option, rather than relying solely on a
+        third party's description or interpretation of that state.
+      score_1: The evidence explicitly shows or states the subject's own words, reactions,
+        or actions that directly confirm or deny the specific state or relationship
+        claimed in the option.
+      score_half: The evidence provides a third party's description of the subject's
+        state or relationship, but lacks the subject's own direct confirmation or
+        denial, leaving the claim as an external interpretation.
+      score_0: The evidence only contains third-party descriptions or meta-discussion
+        about the subject's state without any direct input, reaction, or action from
+        the subject themselves.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: explicit_assertion_vs_inference
+      description: Whether the evidence explicitly asserts the specific relationship
+        status, internal state, or intent claimed in the option, rather than providing
+        only actions, descriptions, or third-party summaries that require inference
+        to determine that status.
+      score_1: The evidence contains a direct statement or explicit confirmation of
+        the specific status, state, or intent asserted in the option (e.g., 'they
+        love you', 'they support me').
+      score_half: The evidence provides actions, descriptions, or third-party summaries
+        that strongly imply the status, but lacks a direct explicit assertion of the
+        specific claim.
+      score_0: The evidence only provides unrelated actions, generic descriptions,
+        or ambiguous summaries that do not allow the specific status, state, or intent
+        to be verified or excluded.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: explicit_intent_grounding
+      description: Whether the evidence explicitly states or visualizes the subject's
+        specific goal, motive, or reason for an action, rather than merely showing
+        the action itself or requiring inference of the intent from context.
+      score_1: The evidence contains a direct statement (e.g., dialogue, internal
+        monologue) or explicit visual cue that articulates the specific reason or
+        goal driving the subject's action.
+      score_half: The evidence shows the action and context that strongly implies
+        a motive, but lacks a direct statement or explicit cue confirming the specific
+        reason.
+      score_0: The evidence only shows the action or the outcome without any information
+        about the subject's underlying goal or reason, making it impossible to verify
+        or exclude claims about 'why' the action occurred.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: temporal_bracketing_of_trigger_and_response
+      description: Whether the evidence explicitly covers the specific moment a causal
+        trigger (e.g., an alarm, a command, a sudden event) occurs AND the immediate
+        subsequent action or reaction of the subject, rather than only showing the
+        pre-trigger state or the post-trigger outcome.
+      score_1: The evidence includes the exact moment the trigger event happens and
+        the subject's immediate action/reaction directly following it, establishing
+        the causal link.
+      score_half: The evidence shows the trigger event or the immediate reaction,
+        but not both in a connected sequence, or the reaction shown is delayed/ambiguous.
+      score_0: The evidence only shows the state before the trigger or the outcome
+        long after the trigger, missing the critical moment of the trigger and the
+        immediate response required to explain the 'why'.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    - name: pre_action_context_grounding
+      description: Whether the evidence explicitly visualizes the state, context,
+        or specific moment immediately preceding the action (or the action itself)
+        where the reason or motive for the action is established, rather than only
+        showing the post-action outcome or unrelated scenes.
+      score_1: The evidence includes the specific pre-action state or the action itself
+        that reveals the reason/motive, allowing verification or exclusion of the
+        'why' claim.
+      score_half: The evidence shows the action or the outcome, but the specific pre-action
+        context containing the reason is missing, ambiguous, or only implied.
+      score_0: The evidence only shows the outcome of the action or unrelated scenes,
+        with no access to the pre-action state or the action itself, making it impossible
+        to verify or exclude claims about the reason for the action.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    - name: cessation_moment_grounding
+      description: Whether the evidence explicitly captures the specific moment an
+        ongoing action ceases and the immediate context revealing the reason for stopping,
+        rather than only showing the action in progress or the state after it has
+        already stopped.
+      score_1: The evidence includes the exact moment the action stops and the immediate
+        visual or textual cues (e.g., a reaction, a realization, a new event) that
+        explain why it stopped.
+      score_half: The evidence shows the action stopping or the reason for stopping,
+        but not both in a connected sequence, or the moment of cessation is ambiguous.
+      score_0: The evidence only shows the action in progress or the state long after
+        it has stopped, missing the critical transition moment required to verify
+        or exclude claims about why the action ceased.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    - name: interaction_nature_grounding
+      description: Whether the evidence explicitly visualizes the specific type of
+        interaction (e.g., aggression, cooperation, indifference, submission) between
+        the entities that defines the relationship status asserted in the option,
+        rather than merely showing the entities in proximity or engaging in neutral
+        activity.
+      score_1: The evidence explicitly shows the specific interaction behavior (e.g.,
+        fighting, helping, ignoring) that directly confirms or excludes the relationship
+        status claimed in the option.
+      score_half: The evidence shows the entities interacting, but the specific nature
+        of the interaction is ambiguous, neutral, or insufficient to distinguish between
+        conflicting relationship statuses (e.g., friendly vs. hostile).
+      score_0: The evidence shows the entities separately, or only in neutral proximity
+        without any defining interaction behavior, making it impossible to verify
+        or exclude claims about their relationship status.
+      weight: 3.0
+      failure_repair_action: dense_sample
+    - name: interaction_valence_grounding
+      description: Whether the evidence explicitly visualizes the emotional tone,
+        affective reaction, or valence (e.g., joy vs. distress, affection vs. aggression)
+        of the interaction between entities, rather than merely showing the physical
+        actions or proximity.
+      score_1: The evidence explicitly shows the emotional reactions (e.g., facial
+        expressions, body language indicating distress or joy) that define the positive
+        or negative nature of the interaction, allowing verification or exclusion
+        of relationship status options based on tone.
+      score_half: The evidence shows the physical interaction but the emotional tone
+        is ambiguous, neutral, or mixed, making it difficult to definitively distinguish
+        between conflicting relationship statuses (e.g., friendly vs. hostile).
+      score_0: The evidence only shows physical proximity or generic actions without
+        any clear emotional cues or reactions, making it impossible to determine the
+        valence of the relationship.
+      weight: 3.0
+      failure_repair_action: dense_sample
+    - name: temporal_scope_alignment
+      description: Whether the evidence is restricted to the specific moment, interval,
+        or event context explicitly queried (e.g., 'when they meet X', 'during the
+        fight'), rather than aggregating interactions from unrelated times that might
+        contradict the status at the queried moment.
+      score_1: The evidence covers only the specific temporal window or event context
+        defined in the question, allowing the relationship status at that exact moment
+        to be verified or excluded without interference from prior or subsequent interactions.
+      score_half: The evidence includes the queried moment but also mixes in interactions
+        from other times, creating ambiguity about whether the status applies specifically
+        to the queried moment or is an average of the whole video.
+      score_0: The evidence focuses on interactions occurring at times other than
+        the queried moment, or fails to isolate the specific event context, making
+        it impossible to determine the relationship status specifically at the time
+        asked.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    - name: deceptive_content_grounding
+      description: Whether the evidence explicitly contains the specific content of
+        the subject's deceptive, evasive, or misleading communication (e.g., the specific
+        lie told, the omission made, the false claim asserted) required to verify
+        or exclude the reason for their internal state or action, rather than merely
+        showing the context of the situation or third-party descriptions of the deception.
+      score_1: The evidence explicitly presents the specific words, actions, or omissions
+        constituting the subject's deception, allowing the verifier to confirm the
+        reason for their state (e.g., fear of exposure) or exclude options based on
+        the actual content of the lie.
+      score_half: The evidence implies the subject is being deceptive or shows the
+        context of the deception, but lacks the specific content of the deceptive
+        act (the actual lie or evasion) required to verify the precise reason for
+        their state.
+      score_0: The evidence only provides the context of the situation, third-party
+        descriptions of the deception, or the subject's general behavior without the
+        specific content of the deceptive communication, making it impossible to verify
+        or exclude reasons based on the specific nature of the lie or evasion.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: concealed_reality_grounding
+      description: Whether the evidence explicitly establishes the specific factual
+        reality, situation, or truth that the subject is concealing, misrepresenting,
+        or lying about, rather than merely showing the deceptive act or the subject's
+        internal state.
+      score_1: The evidence explicitly reveals the specific fact or situation being
+        hidden (e.g., the true identity, the actual event, the real danger) that the
+        subject is attempting to obscure, allowing verification of the reason for
+        the deception.
+      score_half: The evidence shows the subject is deceptive or implies a hidden
+        truth, but the specific content of the reality being concealed is ambiguous,
+        missing, or only partially revealed.
+      score_0: The evidence only shows the deceptive act or the subject's reaction
+        without revealing the specific factual reality or situation that is being
+        concealed, making it impossible to verify the reason for the deception.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: dual_grounding_of_deception_and_truth
+      description: Whether the evidence explicitly provides both the specific content
+        of the subject's deceptive act (the lie, omission, or false claim) AND the
+        specific factual reality being concealed, allowing verification of reasons
+        based on the fear of exposure or the mechanics of the deception.
+      score_1: The evidence explicitly presents the specific words/actions constituting
+        the deception AND the specific factual truth that contradicts it, enabling
+        verification of the reason for the subject's state (e.g., fear of the lie
+        being exposed).
+      score_half: The evidence provides either the specific content of the deception
+        OR the specific factual reality, but not both, leaving the causal link between
+        the lie and the subject's internal state ambiguous.
+      score_0: The evidence lacks either the specific content of the deception or
+        the specific factual reality (or both), making it impossible to verify or
+        exclude reasons based on the fear of exposure or the specific nature of the
+        lie.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: explicit_reasoning_articulation
+      description: Whether the evidence explicitly contains the speaker's verbal articulation
+        of the specific reason, lesson, or rationale for their advice, caution, or
+        instruction, rather than merely showing the context of the advice or the subject's
+        reaction to it.
+      score_1: The evidence includes the specific dialogue or statement where the
+        speaker explicitly states the reason or lesson (e.g., 'because...', 'you should...',
+        'there is always...') that justifies the advice or caution.
+      score_half: The evidence shows the speaker giving advice or the context of the
+        situation, but the specific verbal articulation of the reason or lesson is
+        cut off, ambiguous, or missing.
+      score_0: The evidence only shows the context, the subject's reaction, or the
+        fact that advice was given, without any explicit statement of the reason or
+        rationale behind it.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: queried_life_stage_grounding
+      description: Whether the evidence explicitly visualizes or states the subject's
+        state, actions, or attributes during the specific life stage, developmental
+        period, or age range queried (e.g., childhood, adolescence, adulthood), rather
+        than providing evidence from a different time period in the subject's life.
+      score_1: The evidence explicitly shows or describes the subject during the specific
+        life stage queried, allowing verification or exclusion of options based on
+        traits specific to that period.
+      score_half: The evidence shows the subject but the specific life stage is ambiguous,
+        or the evidence mixes the queried stage with other stages without clear distinction.
+      score_0: The evidence only shows the subject at a different life stage (e.g.,
+        adulthood when childhood is queried) or lacks any temporal markers to establish
+        the subject's age, making it impossible to verify or exclude options about
+        the queried period.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    - name: descriptor_lexical_match
+      description: Whether the evidence explicitly contains the specific descriptor,
+        adjective, or term asserted in the option to characterize the subject, rather
+        than providing evidence that implies the trait or uses a different, non-equivalent
+        term.
+      score_1: The evidence explicitly states or visualizes the exact descriptor or
+        term used in the option (e.g., the specific word 'naught' or 'quiet') applied
+        to the subject.
+      score_half: The evidence provides strong evidence of the trait or uses a related
+        but non-identical term, requiring inference to map it to the option's specific
+        descriptor.
+      score_0: The evidence discusses the subject or implies the trait but lacks the
+        specific descriptor or term asserted in the option, making it impossible to
+        verify or exclude options that hinge on that specific characterization.
+      weight: 3.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Counting Problem:
+    rubric_criteria:
+    - name: unique_entity_enumeration
+      description: Whether the evidence identifies every distinct instance of the
+        target entity type across the entire relevant duration and distinguishes them
+        to support a precise count.
+      score_1: Evidence explicitly identifies all unique instances of the target entity,
+        allowing for a definitive total count without ambiguity or missing items.
+      score_half: Evidence identifies some unique instances but misses others, or
+        fails to clearly distinguish between distinct instances, leaving the total
+        count uncertain.
+      score_0: Evidence only identifies a subset of instances, conflates distinct
+        entities, or provides no basis for determining the total number of unique
+        entities.
+      weight: 4.0
+      failure_repair_action: time_sorted
+    - name: temporal_exhaustiveness
+      description: Whether the evidence spans the entire relevant duration of the
+        video to ensure no instances of the target entity are missed due to temporal
+        gaps.
+      score_1: Evidence covers the full time window required to locate all potential
+        instances of the target entity.
+      score_half: Evidence covers a significant portion of the time window but leaves
+        gaps where instances could plausibly exist.
+      score_0: Evidence is restricted to a short segment or disjointed clips that
+        do not cover the full duration, making a complete count impossible.
+      weight: 4.0
+      failure_repair_action: time_sorted
+    - name: entity_activation_verification
+      description: Whether the evidence confirms that each counted instance of the
+        target entity is actively used, applied, or realized in the process, rather
+        than merely present as a material, tool, or potential option.
+      score_1: Evidence explicitly shows every counted instance being actively used,
+        applied, or realized, distinguishing them from unused materials or tools.
+      score_half: Evidence shows some instances being used but leaves the status of
+        others ambiguous (e.g., shown as materials but not clearly applied).
+      score_0: Evidence only shows materials or tools present without confirming their
+        active use, or conflates potential options with actualized instances.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: temporal_attribute_verification
+      description: Whether the evidence explicitly verifies that each counted instance
+        satisfies the specific temporal constraint (e.g., a specific decade, year,
+        or relative time) required by the query, rather than just confirming the entity's
+        presence at some point.
+      score_1: Evidence explicitly links every counted instance to the specific time
+        period or temporal condition specified in the query.
+      score_half: Evidence links some instances to the required time period, but the
+        temporal status of other counted instances is ambiguous or unverified.
+      score_0: Evidence identifies the entity but fails to verify the specific temporal
+        constraint for the instances, or the temporal context is entirely missing.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: action_role_verification
+      description: Whether the evidence explicitly confirms that the target entity
+        is performing the specific action, role, or behavior required by the query,
+        rather than merely being present or identified.
+      score_1: Evidence explicitly shows or states the target entity performing the
+        specific action or fulfilling the specific role defined in the query.
+      score_half: Evidence identifies the entity and shows related activity, but the
+        specific action or role required by the query is ambiguous or not fully confirmed.
+      score_0: Evidence only identifies the entity's presence or name without confirming
+        they are performing the specific action or role required.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: explicit_count_assertion
+      description: Whether the evidence explicitly states the numerical count, quantity,
+        or specific number of instances required by the query, rather than requiring
+        the verifier to infer the count solely from visual enumeration or partial
+        examples.
+      score_1: Evidence explicitly states the specific number or quantity (e.g., 'two',
+        'three', 'a dozen') that matches or excludes the options.
+      score_half: Evidence implies a count through partial enumeration or vague quantifiers
+        (e.g., 'several', 'many') but does not state the exact number required to
+        verify the specific options.
+      score_0: Evidence provides no numerical information, only visual examples or
+        generic descriptions, making it impossible to determine the exact count.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: citation_grounding
+      description: Whether the evidence explicitly identifies specific instances as
+        the cited examples or cases required by the query, rather than merely showing
+        the general phenomenon or mentioning the entity type without specific attribution.
+      score_1: Evidence explicitly names or points to the specific instances that
+        are cited as examples, distinguishing them from general mentions or background
+        visuals.
+      score_half: Evidence shows the general phenomenon or mentions the entity type
+        but fails to clearly identify which specific instances are the cited examples.
+      score_0: Evidence only provides generic visuals or descriptions of the phenomenon
+        without identifying any specific cited instances.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: instance_delimitation
+      description: Whether the evidence explicitly identifies the boundaries or completion
+        markers that distinguish one counted instance from the next, rather than showing
+        a continuous or ambiguous stream of activity.
+      score_1: Evidence clearly marks the end of one instance and the start of another
+        (e.g., via completion actions, transitions, or explicit statements of moving
+        to a new item), allowing distinct instances to be separated and counted.
+      score_half: Evidence shows multiple instances but the boundaries between them
+        are ambiguous, or completion markers are missing for some instances, making
+        the total count uncertain.
+      score_0: Evidence shows activity related to the target entity but provides no
+        markers to distinguish separate instances, making it impossible to determine
+        if multiple distinct items were processed or just one.
+      weight: 4.0
+      failure_repair_action: time_sorted
+    - name: process_completion_verification
+      description: Whether the evidence explicitly confirms that the target process
+        or action on each counted instance has reached a completion state, rather
+        than merely showing the process in progress or the entity being manipulated.
+      score_1: Evidence explicitly shows or states the completion of the process for
+        every counted instance (e.g., via 'apply' actions, transitions to new items,
+        or explicit statements of finishing), allowing a definitive count of completed
+        instances.
+      score_half: Evidence shows the process being performed on some instances but
+        lacks clear completion markers for all, leaving ambiguity about whether the
+        count includes only finished items or also items in progress.
+      score_0: Evidence only shows the process in progress or the entity being manipulated
+        without any indication that the action was finalized, making it impossible
+        to distinguish completed instances from ongoing work.
+      weight: 4.0
+      failure_repair_action: time_sorted
+    - name: grouping_aggregation_verification
+      description: Whether the evidence explicitly confirms the classification rule
+        or grouping logic required to merge multiple distinct instances (e.g., variants,
+        sub-models) into a single countable unit, rather than treating them as separate
+        items.
+      score_1: Evidence explicitly states or demonstrates the rule that specific variants
+        or sub-types constitute a single unit for the count, allowing for correct
+        aggregation.
+      score_half: Evidence lists the variants or sub-types but the rule for grouping
+        them into a single unit is implied or ambiguous, leaving the aggregation uncertain.
+      score_0: Evidence identifies individual instances but provides no basis for
+        grouping them, leading to a count of variants rather than the required aggregated
+        units.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: threshold_value_verification
+      description: Whether the evidence explicitly confirms that the target attribute
+        value for each candidate instance satisfies the specific numerical threshold,
+        inequality, or range constraint defined in the query, rather than merely stating
+        the attribute value without comparison.
+      score_1: Evidence explicitly states the specific value for each candidate and
+        confirms whether it meets, exceeds, or falls short of the query's threshold/range,
+        allowing definitive inclusion or exclusion.
+      score_half: Evidence states the specific values for candidates but does not
+        explicitly link them to the query's threshold condition, requiring the verifier
+        to perform the comparison without explicit confirmation in the text.
+      score_0: Evidence fails to provide the specific numerical values for the candidates
+        or provides values that cannot be compared to the query's threshold, making
+        it impossible to verify if the condition is met.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: attribute_verification
+      description: Whether the evidence explicitly confirms that each counted instance
+        satisfies the specific categorical, functional, or descriptive attribute required
+        by the query, rather than merely identifying the physical object or entity
+        type.
+      score_1: Evidence explicitly links every counted instance to the required attribute
+        (e.g., confirms an object is 'audio-like', 'red', 'broken', or 'used for X'),
+        allowing definitive inclusion or exclusion based on that attribute.
+      score_half: Evidence identifies the physical instances but the specific attribute
+        required by the query is only implied, ambiguous, or confirmed for only some
+        instances.
+      score_0: Evidence identifies physical objects or entities but provides no information
+        confirming they possess the specific attribute required by the query, making
+        it impossible to distinguish target instances from non-targets.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: structural_boundary_verification
+      description: Whether the evidence explicitly identifies the structural markers
+        (e.g., title cards, logos, specific intro/outro sequences, or distinct scene
+        transitions) that define the start and end of each counted segment or unit,
+        rather than merely showing content that resembles the target type.
+      score_1: Evidence explicitly shows the defining structural markers for every
+        counted instance, clearly distinguishing separate segments from continuous
+        content or background mentions.
+      score_half: Evidence shows structural markers for some instances but relies
+        on content similarity or implicit transitions for others, leaving the total
+        count of distinct segments uncertain.
+      score_0: Evidence only shows content resembling the target type without any
+        explicit structural markers to define segment boundaries, making it impossible
+        to distinguish distinct segments from a continuous stream or partial mentions.
+      weight: 4.0
+      failure_repair_action: time_sorted
+    - name: entity_type_signature_verification
+      description: Whether the evidence confirms the specific visual, auditory, or
+        textual signature that uniquely identifies the target entity type, distinguishing
+        it from other entity types that share generic features or structural similarities.
+      score_1: Evidence explicitly identifies the unique signature (e.g., specific
+        intro sequence, logo placement, audio cue) that definitively classifies the
+        instance as the target entity type, ruling out similar but distinct types.
+      score_half: Evidence shows features consistent with the target type but lacks
+        the unique signature to definitively distinguish it from similar entity types,
+        leaving classification ambiguous.
+      score_0: Evidence relies on generic features or structural elements common to
+        multiple entity types, failing to distinguish the target type from look-alikes
+        or related types.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: segment_scope_verification
+      description: Whether the evidence explicitly confirms that the observed segment,
+        scene, or time window corresponds to the specific structural or temporal scope
+        (e.g., 'final round', 'first half', 'session 2') required by the query, rather
+        than merely showing the target entity performing the action in an unverified
+        or different segment.
+      score_1: Evidence explicitly identifies the segment as the specific scope required
+        by the query (e.g., via title cards, explicit statements of 'final', or clear
+        structural markers), ensuring the count applies to the correct window.
+      score_half: Evidence shows the target entity performing the action but the specific
+        scope (e.g., which round or session) is ambiguous, implied, or not explicitly
+        confirmed to match the query's constraint.
+      score_0: Evidence shows the target entity performing the action in a segment
+        that is either unverified regarding the query's scope or explicitly identified
+        as a different segment (e.g., a previous round), making it impossible to verify
+        the count for the required scope.
+      weight: 4.0
+      failure_repair_action: time_sorted
+    - name: agent_action_attribution
+      description: Whether the evidence explicitly attributes the counted action or
+        event to the specific target entity required by the query, distinguishing
+        it from other entities present in the scene that might be performing similar
+        actions or are merely bystanders.
+      score_1: Evidence explicitly links the action to the specific target entity
+        (e.g., via visual confirmation of the entity performing the action, or unambiguous
+        textual attribution), ruling out other entities present in the scene.
+      score_half: Evidence shows the action occurring and the target entity is present,
+        but the link between the specific entity and the action is ambiguous or could
+        apply to another entity in the scene.
+      score_0: Evidence shows the action occurring but fails to identify which entity
+        performed it, or explicitly attributes the action to a different entity than
+        the one required by the query.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: aggregate_list_verification
+      description: Whether the evidence provides an explicit list, summary, or enumeration
+        of all instances of the target event or entity type, allowing the count to
+        be verified by tallying the entries in that list rather than relying on visual
+        enumeration of individual occurrences.
+      score_1: Evidence explicitly lists or summarizes all instances of the target
+        event/entity (e.g., a goalscorer list, a table of results), allowing a definitive
+        count by tallying the entries.
+      score_half: Evidence provides a partial list or summary that covers some but
+        not all instances, or the list is ambiguous regarding the target entity's
+        inclusion.
+      score_0: Evidence shows individual instances but lacks any explicit list or
+        summary to verify the total count, requiring reliance on potentially incomplete
+        visual enumeration.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: outcome_state_verification
+      description: Whether the evidence explicitly confirms the specific outcome,
+        state change, or final status (e.g., elimination, failure, completion, victory)
+        for each candidate instance, rather than merely confirming the instance met
+        a prerequisite condition or was present during the event.
+      score_1: Evidence explicitly states or shows the specific outcome (e.g., 'eliminated',
+        'failed', 'finished') for every candidate instance that satisfies the query's
+        conditions.
+      score_half: Evidence confirms the outcome for some candidates but leaves the
+        status of others ambiguous (e.g., shows they attempted the condition but not
+        whether they succeeded or failed).
+      score_0: Evidence only confirms candidates met the prerequisite condition or
+        were present, without confirming the specific outcome required by the query.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: outcome_attribute_coupling
+      description: Whether the evidence explicitly links the specific outcome state
+        (e.g., elimination, failure, victory) to the specific attribute value, threshold,
+        or condition required by the query, rather than confirming the outcome in
+        a general context or the attribute value without the outcome.
+      score_1: Evidence explicitly states or shows that the specific outcome occurred
+        at the specific attribute value or condition defined in the query for every
+        counted instance.
+      score_half: Evidence confirms the outcome and the attribute value separately,
+        or links them ambiguously, leaving uncertainty about whether the outcome occurred
+        specifically at the required condition.
+      score_0: Evidence confirms the outcome in a general context or the attribute
+        value without the outcome, failing to establish that the outcome occurred
+        specifically at the required condition.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: outcome_event_verification
+      description: Whether the evidence explicitly confirms that the specific outcome
+        event (e.g., breaking a record, winning a title, achieving a milestone) actually
+        occurred for the counted instance, rather than merely indicating the instance
+        was close to, attempted, or had the potential for that outcome.
+      score_1: Evidence explicitly states or shows the specific outcome event (e.g.,
+        'record broken', 'champion declared') occurred for every counted instance.
+      score_half: Evidence indicates the instance was close to, attempted, or had
+        the potential for the outcome, but does not explicitly confirm the event actually
+        occurred.
+      score_0: Evidence provides no information about the outcome event, or explicitly
+        states the outcome did not occur.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: explicit_status_label_verification
+      description: Whether the evidence explicitly asserts the specific status label
+        or event type (e.g., 'match point', 'set point', 'timeout', 'foul') required
+        by the query, rather than requiring the verifier to infer the status solely
+        from raw data, scores, or context.
+      score_1: Evidence explicitly states or displays the specific status label (e.g.,
+        'match point', 'set point') and its count, allowing direct verification of
+        the option's proposition.
+      score_half: Evidence displays the raw data (e.g., score, time) from which the
+        status can be inferred, but the specific status label itself is not explicitly
+        stated or displayed.
+      score_0: Evidence provides neither the status label nor sufficient raw data
+        to infer the status, or the status is ambiguous.
+      weight: 4.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Object Recognition:
+    rubric_criteria:
+    - name: causal_attribution_explicitness
+      description: Whether the evidence explicitly asserts or denies the causal link
+        between the option's factor and the target event, rather than merely mentioning
+        both in proximity.
+      score_1: The evidence explicitly states that the factor caused (or did not cause)
+        the event.
+      score_half: The evidence mentions the factor and the event together but the
+        causal relationship is implied or ambiguous.
+      score_0: The evidence mentions the factor or the event, but no causal link is
+        established or the link is missing.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: state_transition_explicitness
+      description: Whether the evidence explicitly asserts a shift, change, or transition
+        from one state, status, or perception to another, rather than merely describing
+        the states in isolation.
+      score_1: The evidence explicitly states that a specific state or perception
+        changed, shifted, or was replaced by another.
+      score_half: The evidence describes the before and after states but the transition
+        between them is implied or not explicitly linked.
+      score_0: The evidence describes only one state or mentions the states without
+        indicating any change or transition occurred.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: set_enumeration_explicitness
+      description: Whether the evidence explicitly lists or enumerates the specific
+        set of items (consequences, attributes, members, etc.) that the options compare,
+        rather than mentioning a single item or a generic category.
+      score_1: The evidence explicitly lists the specific items that constitute the
+        set in the correct option, allowing wrong options with different items to
+        be excluded.
+      score_half: The evidence mentions some items in the set but not all, or mentions
+        the category without listing the specific members required to distinguish
+        options.
+      score_0: The evidence mentions only a single item, a generic category, or no
+        items from the set, making it impossible to verify the specific composition
+        of the options.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: frequency_comparison_explicitness
+      description: Whether the evidence provides sufficient instances, counts, or
+        temporal distribution to verify or exclude a superlative frequency claim (e.g.,
+        'most frequently', 'least often') across the compared options.
+      score_1: The evidence explicitly shows or states the relative frequency or count
+        of each option, allowing the superlative to be verified or excluded.
+      score_half: The evidence shows multiple instances of some options but lacks
+        sufficient data to compare frequencies across all options or to confirm the
+        superlative.
+      score_0: The evidence shows only isolated instances or mentions options without
+        establishing any frequency or count, making a 'most/least' comparison impossible.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    - name: topic_explicitness
+      description: Whether the evidence explicitly asserts the specific topic, subject
+        matter, or central activity discussed in the video, rather than merely mentioning
+        related entities, background context, or peripheral concepts.
+      score_1: The evidence explicitly states the specific topic or activity that
+        constitutes the video's main subject, allowing options with different topics
+        to be excluded.
+      score_half: The evidence mentions related concepts, entities, or background
+        context but does not explicitly define the central topic or activity.
+      score_0: The evidence mentions only generic or unrelated concepts, making it
+        impossible to determine the specific topic of the video.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: activity_methodology_explicitness
+      description: Whether the evidence explicitly describes the specific activity,
+        procedure, method, or 'how-to' process that the option asserts, rather than
+        merely mentioning the general domain, goal, or outcome.
+      score_1: The evidence explicitly details the specific steps, challenges, or
+        nature of the activity/methodology asserted by the option.
+      score_half: The evidence mentions the general domain or goal related to the
+        activity but does not explicitly describe the specific method or process itself.
+      score_0: The evidence mentions only the general topic or outcome without any
+        reference to the specific activity or methodology.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: attribution_explicitness
+      description: Whether the evidence explicitly attributes the specific opinion,
+        stance, claim, or view asserted in the option to the specific entity (person,
+        group, or source) identified in the question, rather than presenting the content
+        as general narration, background context, or an unattributed statement.
+      score_1: The evidence explicitly links the specific view or claim to the target
+        entity (e.g., via direct speech, clear reporting, or visual confirmation of
+        the entity expressing it).
+      score_half: The evidence mentions the view and the entity in the same context
+        but the link is ambiguous, implied, or the view is presented as general knowledge
+        rather than the entity's specific stance.
+      score_0: The evidence presents the view as general narration, background information,
+        or an unattributed statement, making it impossible to verify that the specific
+        target entity holds that view.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: stance_qualification_explicitness
+      description: Whether the evidence explicitly captures the specific qualifier,
+        limitation, condition, or nuance attached to the entity's opinion or stance,
+        rather than merely stating the general topic or a binary position.
+      score_1: The evidence explicitly states the specific modifier (e.g., 'theoretically',
+        'limited', 'speculative', 'conditional') that defines the entity's precise
+        stance, allowing options with different nuances to be excluded.
+      score_half: The evidence mentions the general topic or a broad position but
+        lacks the specific qualifier or nuance required to distinguish between similar
+        options.
+      score_0: The evidence presents only a generic topic or a binary stance without
+        any qualifying details, making it impossible to verify the specific nuance
+        of the option.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: topic_presence_absence_explicitness
+      description: Whether the evidence explicitly confirms the presence or absence
+        of the specific topic, subject, or concept asserted in the option, rather
+        than merely discussing related general themes or failing to address the specific
+        concept.
+      score_1: The evidence explicitly states that the specific topic was discussed
+        (verifying presence) or explicitly states/implies it was not discussed (verifying
+        absence), allowing the option to be definitively verified or excluded.
+      score_half: The evidence discusses related general themes or mentions the domain
+        but does not explicitly confirm whether the specific topic in the option was
+        covered or omitted.
+      score_0: The evidence is silent on the specific topic or only provides generic
+        context, making it impossible to determine if the topic was discussed or not.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: item_usage_negation_explicitness
+      description: Whether the evidence explicitly asserts the absence, non-usage,
+        or non-occurrence of the specific item, method, or entity asserted in the
+        option, rather than merely failing to mention it or discussing related items.
+      score_1: The evidence explicitly states that the specific item/method was not
+        used, did not occur, or is absent, allowing the option to be definitively
+        excluded.
+      score_half: The evidence mentions the item in a different context or discusses
+        related items but does not explicitly confirm its absence or non-usage in
+        the target scenario.
+      score_0: The evidence is silent on the specific item or only provides generic
+        context, making it impossible to verify whether the item was used or not.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: entity_status_explicitness
+      description: Whether the evidence explicitly confirms the specific status, presence,
+        or retention of the target entity (e.g., 'remained', 'did not leave', 'is
+        still present') rather than only describing the status of other entities or
+        the general event.
+      score_1: The evidence explicitly states or clearly implies the specific status
+        of the target entity (e.g., that they remained, did not quit, or are still
+        present), allowing options with different statuses to be excluded.
+      score_half: The evidence describes the status of other entities or the general
+        event but leaves the specific status of the target entity ambiguous or implied
+        only by omission.
+      score_0: The evidence only describes the status of other entities or the event
+        itself, with no information confirming or denying the specific status of the
+        target entity.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: action_explicitness
+      description: Whether the evidence explicitly describes the specific action,
+        behavior, or physical movement performed by the target entity asserted in
+        the option, rather than merely mentioning the entity's presence or a generic
+        scene.
+      score_1: The evidence explicitly details the specific action or behavior of
+        the target entity, allowing options asserting different actions to be verified
+        or excluded.
+      score_half: The evidence mentions the entity and a general context but the specific
+        action or behavior is implied, ambiguous, or not clearly linked to the entity.
+      score_0: The evidence mentions the entity's presence or a generic scene but
+        provides no description of the specific action or behavior performed by the
+        entity.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: ranked_order_explicitness
+      description: Whether the evidence explicitly provides the specific rank, order,
+        or position of the target entity within a comparative list (e.g., 'number
+        one', 'top', 'first') required to verify or exclude a superlative or ordinal
+        claim, rather than merely listing the set of candidates without their relative
+        standing.
+      score_1: 'The evidence explicitly states or displays the specific rank or order
+        of the target entity (e.g., #1, top, first), allowing the superlative or ordinal
+        claim to be verified or excluded.'
+      score_half: The evidence lists the candidates or mentions the existence of a
+        ranking but does not explicitly state the specific rank or order of the target
+        entity, leaving the superlative claim ambiguous.
+      score_0: The evidence mentions the candidates or the topic of comparison but
+        provides no information about their relative order, rank, or position, making
+        it impossible to verify or exclude superlative or ordinal claims.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: procedure_scope_isolation
+      description: Whether the evidence isolates the specific procedure, demonstration,
+        or scenario asserted in the option, distinguishing items/actions used in that
+        specific context from those used in other concurrent or adjacent demonstrations
+        within the same video.
+      score_1: The evidence clearly delineates the specific procedure in question,
+        allowing items present in other parts of the video to be correctly excluded
+        from this specific procedure.
+      score_half: The evidence mentions the specific procedure but also includes items
+        from other demonstrations without clearly distinguishing which items belong
+        to which procedure, creating ambiguity about usage in the target context.
+      score_0: The evidence conflates multiple demonstrations or procedures, making
+        it impossible to determine which items were used specifically in the target
+        procedure versus others.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: temporal_phase_explicitness
+      description: Whether the evidence explicitly locates the event, state, or action
+        within the specific temporal phase, turn, or game stage (e.g., 'start', 'end',
+        'turn 1', 'opening') asserted in the option, rather than merely describing
+        the event in a generic or different phase.
+      score_1: The evidence explicitly identifies the specific phase or time window
+        (e.g., via UI labels like 'Starting Hand', 'Turn 1', or explicit narration)
+        matching the option's temporal claim.
+      score_half: The evidence shows the event occurring but the specific phase is
+        ambiguous, implied, or not explicitly linked to the option's temporal constraint.
+      score_0: The evidence describes the event in a different phase (e.g., mid-game
+        vs. start) or provides no temporal context, making it impossible to verify
+        the phase-specific claim.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    - name: rule_requirement_explicitness
+      description: Whether the evidence explicitly states a rule, requirement, or
+        mandatory condition for a specific phase, action, or state asserted in the
+        option, rather than merely describing observed instances, outcomes, or optional
+        choices.
+      score_1: The evidence explicitly states the rule or requirement (e.g., 'must
+        start with', 'requires', 'rule is') that defines the option's claim.
+      score_half: The evidence describes instances that align with the rule or implies
+        the requirement through context, but does not explicitly state the rule itself.
+      score_0: The evidence only describes observed events or outcomes without establishing
+        any rule or requirement, making it impossible to verify what is mandatory.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: class_identity_explicitness
+      description: Whether the evidence explicitly asserts or displays the specific
+        class, role, category, or identity label of the target entity required to
+        verify or exclude the options, rather than merely showing the entity performing
+        actions or existing in a generic context.
+      score_1: The evidence explicitly states or displays the specific class/role
+        label (e.g., via UI text, narration, or direct speech) that matches or contradicts
+        the option's claim.
+      score_half: The evidence shows the entity performing actions or in a context
+        that implies a role, but the specific class/role label is not explicitly stated
+        or displayed.
+      score_0: The evidence shows the entity or generic actions but provides no information
+        about the specific class, role, or identity label, making it impossible to
+        verify or exclude options based on identity.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: comparative_evaluation_explicitness
+      description: Whether the evidence explicitly asserts or displays a comparative
+        evaluation (e.g., 'stronger', 'better', 'weaker', 'superior') between the
+        specific entities, groups, or options asserted, rather than merely describing
+        the entities' individual states or actions without a direct comparison.
+      score_1: The evidence explicitly states or displays a direct comparison (e.g.,
+        'A is stronger than B', 'A outperforms B') that verifies or excludes the option's
+        comparative claim.
+      score_half: The evidence describes the individual states or actions of the compared
+        entities but the comparative relationship is implied, ambiguous, or not explicitly
+        linked.
+      score_0: The evidence describes the entities in isolation or provides generic
+        context without any explicit comparative evaluation, making it impossible
+        to verify which is stronger/better.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: exception_pattern_explicitness
+      description: Whether the evidence explicitly confirms a pattern of occurrence
+        (or non-occurrence) across a set of instances while explicitly identifying
+        a specific exception (e.g., 'all except the first', 'every time but once'),
+        rather than merely listing instances without establishing the universal rule
+        and its specific deviation.
+      score_1: The evidence explicitly establishes the pattern for the set and explicitly
+        identifies the specific instance that deviates from it, allowing the 'all
+        except X' claim to be verified or excluded.
+      score_half: The evidence shows multiple instances and mentions a deviation,
+        but the link between the specific instance and the exception status is ambiguous,
+        or the pattern for the rest of the set is not fully established.
+      score_0: The evidence lists instances or mentions a deviation in isolation but
+        fails to establish the universal pattern for the set or the specific nature
+        of the exception, making it impossible to verify the 'all except' claim.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    - name: affiliation_status_explicitness
+      description: Whether the evidence explicitly asserts the specific affiliation
+        status (e.g., 'neutral', 'independent', 'unattached', 'representing a specific
+        nation') of the target entity, rather than merely showing the entity in a
+        generic context or implying a standard national team representation.
+      score_1: The evidence explicitly states or displays the specific affiliation
+        status (e.g., 'competing as a neutral athlete', 'representing Team X') that
+        matches or contradicts the option's claim.
+      score_half: The evidence shows the entity in a context that implies a status
+        (e.g., wearing a generic uniform) but does not explicitly state the specific
+        affiliation status required to distinguish between national and neutral options.
+      score_0: The evidence shows the entity or generic actions but provides no information
+        about their specific affiliation status, making it impossible to verify or
+        exclude options based on whether they are neutral or national representatives.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: identity_label_explicitness
+      description: Whether the evidence explicitly displays or states the specific
+        identity label (e.g., name, number, unique identifier) of the target entity
+        required to distinguish between options that differ by identity, rather than
+        merely describing the entity's appearance, actions, or generic attributes.
+      score_1: The evidence explicitly shows or states the specific name, number,
+        or unique identifier of the target entity, allowing options with different
+        identities to be definitively verified or excluded.
+      score_half: The evidence describes the entity's appearance, actions, or context
+        in a way that implies an identity, but the specific name, number, or unique
+        identifier is not explicitly displayed or stated.
+      score_0: The evidence describes the entity's actions or generic attributes without
+        any specific name, number, or unique identifier, making it impossible to distinguish
+        between options that differ only by identity.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: comparative_scope_completeness
+      description: Whether the evidence provides performance data, rankings, or evaluation
+        metrics for the complete set of entities or options required to verify a superlative
+        or comparative claim, rather than only covering a subset of the candidates.
+      score_1: The evidence explicitly includes data or rankings for all entities
+        involved in the comparison, allowing the superlative claim to be verified
+        or excluded across the full set.
+      score_half: The evidence provides data for some but not all entities in the
+        comparison set, leaving the superlative claim ambiguous for the missing options.
+      score_0: The evidence provides data for only a subset of the entities or focuses
+        on a single entity, making it impossible to determine the relative standing
+        of all options to verify a superlative.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: event_instance_explicitness
+      description: Whether the evidence explicitly identifies the specific event instance,
+        round, heat, or final category (e.g., 'A final', 'B final', 'Heat 1', 'Round
+        2') asserted in the question, rather than merely describing a generic event
+        or a different instance within the same broader context.
+      score_1: The evidence explicitly states or displays the specific event instance
+        label (e.g., 'A final', 'Heat 3') that matches the question's scope, allowing
+        outcomes from other instances to be excluded.
+      score_half: The evidence describes an event in the same broader context (e.g.,
+        'a final', 'a heat') but the specific instance label is ambiguous, implied,
+        or refers to a different instance (e.g., 'B final' when 'A final' is queried).
+      score_0: The evidence describes a generic event or a clearly different instance
+        without any link to the specific event instance required by the question,
+        making it impossible to verify the outcome for the target instance.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: ordinal_sequence_explicitness
+      description: Whether the evidence establishes the chronological order or relative
+        sequence of multiple distinct events, actions, or demonstrations to verify
+        or exclude an ordinal claim (e.g., 'first', 'second', 'last', 'before', 'after'),
+        rather than merely describing the events in isolation without temporal relation.
+      score_1: The evidence explicitly provides the temporal order or sequence of
+        the events, allowing the specific ordinal position (e.g., 'first') to be verified
+        or excluded.
+      score_half: The evidence describes multiple events but the relative order is
+        ambiguous, implied, or not explicitly linked, making it impossible to definitively
+        determine which occurred first or last.
+      score_0: The evidence describes the events in isolation or without any temporal
+        context, making it impossible to establish their sequence or verify any ordinal
+        claim.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Temporal Reasoning:
+    rubric_criteria:
+    - name: temporal_explicitness
+      description: Whether the evidence explicitly states the specific time, date,
+        year, or reign period for the events or entities mentioned in the options,
+        rather than implying a timeframe or providing only relative ordering.
+      score_1: The evidence explicitly provides the specific date, year, or time interval
+        for the event/entity in question, allowing direct comparison to the query's
+        temporal constraint.
+      score_half: The evidence provides a relative timeframe (e.g., 'later', 'after')
+        or a vague period without specific dates, making precise verification difficult.
+      score_0: The evidence mentions the event or entity but provides no temporal
+        information (dates, years, or periods) to determine when it occurred.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: explicit_self_report
+      description: Whether the evidence explicitly contains the subject's own statement,
+        quote, or narration describing their specific habit, preference, routine,
+        or intended action, rather than relying solely on visual depiction of the
+        activity or third-party description.
+      score_1: The evidence includes a direct statement from the subject explicitly
+        asserting the specific habit, preference, or action in question.
+      score_half: The evidence includes a third-party description or visual depiction
+        of the activity, but lacks the subject's own explicit confirmation or denial
+        of the habit.
+      score_0: The evidence relies entirely on visual inference or unrelated context
+        without any explicit statement from the subject regarding the specific habit
+        or action.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: temporal_sequence_verification
+      description: Whether the evidence explicitly establishes the relative order
+        (before/after) of the anchor event and the target event required by the query,
+        rather than merely confirming the existence of both events at unspecified
+        times.
+      score_1: The evidence clearly demonstrates the chronological sequence (e.g.,
+        Event A occurs, then Event B occurs) satisfying the query's temporal constraint
+        (e.g., 'after', 'before', 'between').
+      score_half: The evidence confirms both events exist but the relative order is
+        ambiguous, implied only by context, or the timestamps are too close to definitively
+        establish the sequence.
+      score_0: The evidence mentions the events but provides no information to determine
+        their relative order, or the established order contradicts the query's constraint.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    - name: narrative_continuity
+      description: Whether the evidence explicitly demonstrates the immediate visual
+        or narrative transition from the anchor event to the target event, confirming
+        they are consecutive topics in the video's flow, rather than merely establishing
+        a loose temporal order via timestamps or disjointed clips.
+      score_1: The evidence shows a continuous sequence or explicit transition (e.g.,
+        scene cut, narrator bridge) linking the anchor event directly to the target
+        event.
+      score_half: The evidence confirms both events exist and their relative order
+        via timestamps, but the immediate narrative or visual link between them is
+        missing or ambiguous.
+      score_0: The evidence lists the events but provides no information about their
+        sequence, or the events are presented as disjointed clips with no established
+        order.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    - name: sequence_completeness
+      description: Whether the evidence explicitly contains temporal markers for every
+        distinct item or event listed in the options required to construct the full
+        sequence, rather than only covering a subset of the items.
+      score_1: The evidence provides temporal information for all items/events mentioned
+        in the options, allowing the complete sequence to be verified or excluded.
+      score_half: The evidence provides temporal information for some but not all
+        items/events in the options, leaving the full sequence unverifiable.
+      score_0: The evidence is missing temporal information for one or more critical
+        items/events, making it impossible to determine the order of the full set.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: causal_explicitness
+      description: Whether the evidence explicitly asserts the causal, influential,
+        or mechanistic link between the entities or factors mentioned in the option,
+        rather than merely mentioning the entities in proximity or within the same
+        general topic.
+      score_1: The evidence explicitly states or demonstrates the specific causal/influential
+        relationship (e.g., 'A causes B', 'A influences B') required to verify or
+        exclude the option.
+      score_half: The evidence mentions the relevant entities or factors but the specific
+        causal link is implied, ambiguous, or only partially described.
+      score_0: The evidence mentions the entities or factors but provides no information
+        about their causal or influential relationship, making the specific claim
+        unverifiable.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: entity_role_explicitness
+      description: Whether the evidence explicitly identifies the specific role, category,
+        profession, or identity of the entities involved in the sequence, rather than
+        merely showing the entities visually or mentioning them without defining their
+        specific classification required by the options.
+      score_1: The evidence explicitly states or clearly implies the specific role/category
+        (e.g., 'neuroscientist', 'spiritual leader') for each entity in the sequence,
+        allowing direct matching to the options.
+      score_half: The evidence shows the entities or mentions them but the specific
+        role/category is ambiguous, implied only by context, or partially stated,
+        making precise matching difficult.
+      score_0: The evidence shows the entities or mentions them but provides no information
+        about their specific roles, categories, or identities, making it impossible
+        to verify the sequence of roles.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: structural_marker_explicitness
+      description: Whether the evidence explicitly identifies structural markers,
+        chapter titles, or meta-narrative signposts (e.g., 'Intermission', 'Part 1',
+        'Conclusion') that define the video's sequence, rather than relying solely
+        on the chronological order of content topics.
+      score_1: The evidence explicitly contains the specific structural label or signpost
+        required to verify the position of the segment in the sequence.
+      score_half: The evidence implies a structural break or transition but lacks
+        the explicit label or signpost needed to definitively order the segment.
+      score_0: The evidence describes the content of the segment but provides no structural
+        markers or signposts to determine its position in the overall sequence.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: interval_content_coverage
+      description: Whether the evidence explicitly covers the content occurring within
+        the entire temporal interval between the two anchor events defined by the
+        query, rather than only confirming the existence and order of the anchors
+        themselves.
+      score_1: The evidence provides specific content, events, or statements for the
+        full duration or sequence of items located between the start and end anchors.
+      score_half: The evidence confirms the anchors and their order, but the content
+        strictly between them is missing, sparse, or inferred rather than explicitly
+        presented.
+      score_0: The evidence only identifies the start and end anchors with no information
+        about what occurs in the interval between them.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    - name: first_occurrence_verification
+      description: Whether the evidence explicitly captures the first appearance or
+        introduction of the target entities/events required by the query, rather than
+        merely capturing a subsequent mention, detailed discussion, or recurrence
+        of those entities.
+      score_1: The evidence explicitly shows or states the initial introduction/first
+        appearance of the entity, allowing verification that no prior occurrence exists
+        in the relevant scope.
+      score_half: The evidence shows the entity but it is unclear if this is the first
+        occurrence or a later recurrence; the start of the sequence is ambiguous.
+      score_0: The evidence only captures a later mention, detailed discussion, or
+        recurrence of the entity, failing to establish when it was first introduced.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    - name: entity_identity_explicitness
+      description: Whether the evidence explicitly identifies the specific name, proper
+        noun, or unique label of the entities involved in the sequence, rather than
+        merely describing their visual appearance, generic category, or referring
+        to them as 'a planet'/'an object'.
+      score_1: The evidence explicitly states or displays the specific name/label
+        (e.g., 'Venus', 'Jupiter') for each entity required to verify the sequence.
+      score_half: The evidence describes the entity visually or by generic category
+        (e.g., 'the red planet', 'a gas giant') but does not explicitly state its
+        specific name, making precise matching to options ambiguous.
+      score_0: The evidence mentions or shows entities but provides no specific names
+        or labels, making it impossible to determine which specific entities are in
+        the sequence.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: topic_introduction_explicitness
+      description: Whether the evidence explicitly captures the specific segment where
+        the option's topic is formally introduced as a distinct subject of discussion,
+        rather than merely containing a passing mention, general reference, or background
+        context about the topic.
+      score_1: The evidence clearly shows the specific moment or segment where the
+        topic is introduced as a primary subject (e.g., a dedicated section, a specific
+        'how-to' explanation, or a distinct narrative focus).
+      score_half: The evidence contains a mention or reference to the topic, but it
+        is unclear if this is the formal introduction or just a passing comment/background
+        context.
+      score_0: The evidence only contains general references, background context,
+        or passing mentions of the topic without capturing the specific segment where
+        it is introduced as a distinct subject.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: event_vs_commentary_distinction
+      description: Whether the evidence captures the actual occurrence, visual depiction,
+        or direct presentation of the event/scene required by the option, rather than
+        merely containing a third-party analysis, discussion, or commentary about
+        that event.
+      score_1: The evidence explicitly shows the event happening, the scene taking
+        place, or the direct action described in the option.
+      score_half: The evidence contains a discussion or analysis of the event, but
+        the actual occurrence or direct visual depiction of the event is missing or
+        ambiguous.
+      score_0: The evidence consists entirely of commentary, analysis, or abstract
+        discussion about the event without any direct presentation or visual confirmation
+        of the event itself.
+      weight: 3.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Temporal Perception:
+    rubric_criteria:
+    - name: temporal_alignment
+      description: Whether the evidence's timestamp falls within or immediately brackets
+        the specific time window queried in the question.
+      score_1: The evidence timestamp is strictly within the queried time window or
+        directly adjacent to it, confirming the content belongs to that period.
+      score_half: The evidence timestamp is near the queried window but not clearly
+        inside it, or the window boundaries are ambiguous.
+      score_0: The evidence timestamp is clearly outside the queried time window,
+        making the content irrelevant to the specific temporal query.
+      weight: 4.0
+      failure_repair_action: time_sorted
+    - name: thematic_stance_verification
+      description: Whether the evidence explicitly captures the specific qualitative
+        stance, sentiment, or narrative frame (e.g., praise vs. criticism, summary
+        vs. analysis, cause vs. effect) asserted by the option, rather than merely
+        mentioning the topic.
+      score_1: The evidence explicitly contains the specific stance or frame (e.g.,
+        explicit praise, explicit criticism, explicit summary) required to verify
+        or exclude the option.
+      score_half: The evidence mentions the topic but the specific stance or frame
+        is ambiguous, implied, or only partially present.
+      score_0: The evidence mentions the topic but lacks the specific stance or frame,
+        or presents a conflicting stance that cannot be resolved.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: narrative_scope_alignment
+      description: Whether the evidence captures the specific narrative scope or function
+        (e.g., introduction, summary, overview, conclusion) required by the queried
+        time window, rather than merely containing specific details or events that
+        may occur elsewhere in the video.
+      score_1: The evidence explicitly reflects the narrative function (e.g., an overview
+        or introduction) that characterizes the queried time window, allowing verification
+        of options describing that scope.
+      score_half: The evidence contains the topic but mixes narrative functions (e.g.,
+        some overview mixed with specific details) or the scope is ambiguous.
+      score_0: The evidence contains specific details or events but lacks the broader
+        narrative scope (e.g., introduction/summary) required to verify the option
+        for the queried time window.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: action_state_explicitness
+      description: Whether the evidence explicitly asserts or describes the specific
+        action, pose, state, or event named in the option, rather than showing a generic
+        activity or a different specific action.
+      score_1: The evidence explicitly names or clearly describes the exact action/state
+        asserted by the option.
+      score_half: The evidence shows a similar or related action but does not explicitly
+        name or fully describe the specific action/state in the option.
+      score_0: The evidence shows a different action/state or only generic activity,
+        failing to verify or exclude the specific option claim.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: comparative_magnitude_grounding
+      description: Whether the evidence provides the comparative data (e.g., relative
+        duration, frequency, explicit superlative language, or direct comparison)
+        required to verify or exclude options asserting a superlative (e.g., 'most',
+        'least', 'primary') or comparative (e.g., 'more', 'less') relationship.
+      score_1: The evidence explicitly states the superlative/comparative claim or
+        provides sufficient quantitative/qualitative data (e.g., duration, count,
+        explicit ranking) to determine which option holds the extreme or comparative
+        position.
+      score_half: The evidence mentions the entities involved in the comparison but
+        lacks the specific data or explicit language needed to definitively rank them
+        or confirm the superlative.
+      score_0: The evidence lists the entities or events but provides no basis for
+        comparison, making it impossible to verify which option is 'most' or 'more'
+        significant.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: state_transition_explicitness
+      description: Whether the evidence explicitly captures the dynamic transition
+        or state change (e.g., a lead change, a status flip, a phase shift) asserted
+        by the option, rather than merely showing static states before or after the
+        change.
+      score_1: The evidence explicitly shows the moment or sequence where the state
+        changes (e.g., the exact moment the score flips, the transition from one phase
+        to another), allowing verification of the change event.
+      score_half: The evidence shows the state before and after the change but misses
+        the actual transition moment, or the transition is implied but not explicitly
+        shown.
+      score_0: The evidence only shows static states (e.g., only the pre-change or
+        only the post-change state) or unrelated states, making it impossible to verify
+        when or if the transition occurred.
+      weight: 4.0
+      failure_repair_action: time_sorted
+    - name: state_change_bracketing
+      description: Whether the evidence provides distinct states before and after
+        a queried transition (e.g., a lead change, status flip, or phase shift) that
+        logically bracket the event, even if the exact moment of transition is not
+        explicitly shown.
+      score_1: The evidence explicitly shows the state prior to the change and the
+        state after the change, allowing the transition to be verified as occurring
+        within the interval between them.
+      score_half: The evidence shows only one side of the transition (either pre-change
+        or post-change) or the states are ambiguous, making the timing of the transition
+        uncertain.
+      score_0: The evidence shows only static states that do not demonstrate a change,
+        or the states shown are consistent with no transition occurring in the queried
+        interval.
+      weight: 4.0
+      failure_repair_action: time_sorted
+    - name: narrative_arc_explicitness
+      description: Whether the evidence explicitly links distinct states or events
+        into a coherent narrative sequence (e.g., a comeback, a reversal, a progression)
+        required to verify options describing a story arc, rather than merely presenting
+        isolated states or events.
+      score_1: The evidence explicitly connects the initial state and the final state
+        with a narrative of change (e.g., 'from X to Y', 'turned things around'),
+        allowing verification of the arc.
+      score_half: The evidence shows the initial and final states but the connection
+        is implied or the narrative link is weak/ambiguous.
+      score_0: The evidence presents isolated states or events without a clear narrative
+        link, making it impossible to verify a specific story arc or sequence of change.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: temporal_event_label_explicitness
+      description: Whether the evidence explicitly asserts the specific temporal label
+        (e.g., day of week, date, time of day) and the specific event type (e.g.,
+        meal, activity, phase) required to verify or exclude the option's compound
+        claim, rather than implying them or providing disjoint evidence.
+      score_1: The evidence explicitly states both the specific temporal label and
+        the specific event type asserted by the option (or explicitly denies the combination).
+      score_half: The evidence explicitly states one component (temporal label or
+        event type) but the other is implied, ambiguous, or derived from disjoint
+        segments without explicit linkage.
+      score_0: The evidence lacks explicit assertion of the specific temporal label
+        or event type, or provides evidence for a different combination (e.g., wrong
+        day or wrong meal).
+      weight: 4.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Attribute Perception:
+    rubric_criteria:
+    - name: ordinal_instance_resolution
+      description: Whether the evidence explicitly resolves the specific ordinal instance
+        (e.g., first, last, nth) of an event sequence required by the option, rather
+        than merely confirming the event type or later instances.
+      score_1: The evidence explicitly states the outcome or status of the specific
+        ordinal instance (e.g., 'first attempt') mentioned in the option.
+      score_half: The evidence mentions the event sequence but the specific ordinal
+        instance is ambiguous or inferred from context.
+      score_0: The evidence confirms the event type or later instances but provides
+        no information about the specific ordinal instance required.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: negative_claim_grounding
+      description: Whether the evidence explicitly asserts the absence, denial, or
+        lack of support for a proposition when an option claims such a negative status,
+        rather than merely failing to show the positive or offering ambiguous opinions.
+      score_1: The evidence explicitly states the absence, denial, or insufficiency
+        of evidence for the specific claim mentioned in the option.
+      score_half: The evidence suggests the claim is unlikely or presents conflicting
+        views, but does not explicitly assert the absence or denial required by the
+        option.
+      score_0: The evidence only shows the positive event or is silent on the specific
+        negative claim, making it impossible to verify the option's assertion of absence/denial.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: visual_comparative_grounding
+      description: Whether the evidence explicitly presents multiple instances of
+        the target entity or design to verify or exclude claims about their visual
+        similarity, uniformity, or difference, rather than showing a single instance
+        or unrelated scenes.
+      score_1: The evidence displays multiple instances of the target entity/design,
+        allowing direct visual comparison to verify or exclude claims about their
+        similarity or uniformity.
+      score_half: The evidence shows multiple instances but they are too brief, obscured,
+        or lack the necessary detail to reliably compare their visual attributes.
+      score_0: The evidence shows only a single instance, a generic scene, or unrelated
+        content, making it impossible to verify or exclude claims about visual similarity
+        or uniformity across instances.
+      weight: 3.0
+      failure_repair_action: dense_sample
+    - name: causal_mechanism_explicitness
+      description: Whether the evidence explicitly names the specific causal agent,
+        mechanism, or process step asserted in an option, rather than merely describing
+        the general outcome or context of the event.
+      score_1: The evidence explicitly states the specific mechanism, agent, or step
+        (e.g., 'solar wind', 'gravity', 'collision') required to verify or exclude
+        the option.
+      score_half: The evidence describes the general process or outcome but the specific
+        mechanism or agent is only implied or not clearly distinguished from other
+        factors.
+      score_0: The evidence describes the event or outcome but provides no mention
+        of the specific mechanism or agent asserted in the option.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: entity_attribution_grounding
+      description: Whether the evidence explicitly links the specific theory, mechanism,
+        belief, or action asserted in an option to the specific named entity (e.g.,
+        organization, person, group) required by the question, rather than describing
+        the concept generally or attributing it to a different or unspecified source.
+      score_1: The evidence explicitly states that the specific named entity mentioned
+        in the option holds the belief, uses the mechanism, or performs the action.
+      score_half: The evidence describes the mechanism or belief generally or attributes
+        it to a generic group (e.g., 'scientists') without explicitly confirming the
+        specific named entity's stance.
+      score_0: The evidence discusses the topic but provides no link between the specific
+        named entity and the asserted theory, mechanism, or action.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: attribute_presence_grounding
+      description: Whether the evidence explicitly presents the specific physical
+        attribute, design feature, or visual characteristic asserted in an option
+        on the target entity, rather than merely identifying the entity or describing
+        unrelated properties.
+      score_1: The evidence explicitly shows or states the presence of the specific
+        attribute (e.g., a roof, a color, a shape) on the target entity required by
+        the option.
+      score_half: The evidence identifies the target entity but the specific attribute
+        is ambiguous, implied, or not clearly visible/stated.
+      score_0: The evidence identifies the target entity but provides no information
+        regarding the specific attribute asserted in the option.
+      weight: 3.0
+      failure_repair_action: dense_sample
+    - name: temporal_precedence_grounding
+      description: Whether the evidence explicitly provides the specific timestamps,
+        dates, or chronological sequence required to verify or exclude claims about
+        which entity or event occurred first, last, or in a specific order, rather
+        than merely listing entities or describing attributes without temporal context.
+      score_1: The evidence explicitly states the dates, years, or relative order
+        of occurrence for the entities involved, allowing the 'first' or 'last' claim
+        to be verified or excluded by comparison.
+      score_half: The evidence provides dates for some but not all relevant entities,
+        or provides relative order (e.g., 'before', 'after') without specific timestamps,
+        making the verification of the specific ordinal claim ambiguous.
+      score_0: The evidence describes the entities or attributes but provides no dates,
+        years, or chronological sequence, making it impossible to determine which
+        occurred first.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: stated_motivation_vs_context
+      description: Whether the evidence explicitly presents the option's proposition
+        as the stated reason, motivation, or cause for the target action, rather than
+        merely confirming the proposition as a true fact, attribute, or contextual
+        detail about the entities involved.
+      score_1: The evidence explicitly links the option's proposition to the decision/action
+        as the reason (e.g., 'because', 'due to', 'in order to') or quotes the agent
+        stating it as their motivation.
+      score_half: The evidence confirms the proposition is true or relevant to the
+        context but does not explicitly state it as the cause or motivation for the
+        specific action.
+      score_0: The evidence does not confirm the proposition, or the proposition is
+        presented as unrelated to the decision-making process.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: method_success_grounding
+      description: Whether the evidence explicitly grounds the claimed method, key,
+        or rule for success in the successful outcome or general procedure, rather
+        than a single instance of action that may be a failure, anomaly, or distractor.
+      score_1: The evidence explicitly links the claimed method to a successful outcome
+        or states it as the general rule for winning.
+      score_half: The evidence shows the method being used but the outcome is ambiguous,
+        or the method is shown in a context that could be a failure or anomaly without
+        clear confirmation of success.
+      score_0: The evidence only shows a single instance of the action (which may
+        be a failure or anomaly) or shows the action without any link to success or
+        the general rule, making it impossible to verify the method as the key to
+        winning.
+      weight: 3.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Action Recognition:
+    rubric_criteria:
+    - name: appearance_vs_reality_resolution
+      description: Whether the evidence explicitly distinguishes between a visual
+        appearance/illusion and the actual physical state or factual reality required
+        to verify or exclude the option.
+      score_1: The evidence explicitly states what is merely apparent versus what
+        is actually true, resolving any visual ambiguity or illusion relevant to the
+        option.
+      score_half: The evidence describes the appearance or the reality separately
+        but does not explicitly link them to resolve the ambiguity (e.g., mentions
+        the illusion but not the truth, or vice versa).
+      score_0: The evidence only describes the visual appearance or the general context
+        without addressing the underlying reality, leaving the distinction between
+        appearance and fact unresolved.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: mechanism_explicitness
+      description: Whether the evidence explicitly states the causal mechanism, physical
+        process, or internal action that produces the observed state change or outcome,
+        rather than merely describing the visual result or final state.
+      score_1: The evidence explicitly describes the process or mechanism (e.g., 'gas
+        escaped', 'cooling prevented crystals') that explains the state change or
+        outcome.
+      score_half: The evidence describes the visual result or final state clearly
+        but leaves the specific mechanism or internal process implicit or inferred.
+      score_0: The evidence only describes the general context or unrelated visuals
+        without addressing the specific process or mechanism required to verify the
+        option.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: topic_explicitness
+      description: Whether the evidence explicitly asserts the presence or absence
+        of the specific topic or subject matter mentioned in the option as a distinct
+        item of discussion, rather than merely showing related visuals or incidental
+        keywords.
+      score_1: The evidence explicitly states that the topic is being discussed (or
+        explicitly states it is not discussed), resolving the option's claim about
+        the agenda.
+      score_half: The evidence shows visuals or keywords related to the topic but
+        does not explicitly confirm it as a subject of discussion or explicitly deny
+        it.
+      score_0: The evidence contains no explicit mention of the topic as a subject
+        of discussion, leaving its inclusion or exclusion ambiguous.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: scope_completeness_for_negation
+      description: Whether the evidence covers the complete scope of the enumeration,
+        list, or discussion period required to verify a negative claim (that an item
+        was not mentioned/present), or explicitly states the absence of the item.
+      score_1: The evidence either explicitly states the item was not mentioned/present,
+        or covers the entire relevant scope (e.g., the full introduction, the complete
+        list) allowing the absence to be logically confirmed.
+      score_half: The evidence covers a significant portion of the scope or mentions
+        related items but leaves gaps where the item could have been mentioned, making
+        the negative claim unverifiable.
+      score_0: The evidence covers only a fragment of the scope or unrelated content,
+        providing no basis to confirm the item was absent.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: metaphor_to_literal_grounding
+      description: Whether the evidence distinguishes between a character's metaphorical,
+        hyperbolic, or subjective claim about an effect and the literal, visual realization
+        of that effect required to verify the option.
+      score_1: The evidence provides literal visual confirmation of the effect described
+        metaphorically or hyperbolically by a character, or explicitly clarifies that
+        the claim was purely figurative with no literal realization.
+      score_half: The evidence contains the character's metaphorical claim but lacks
+        clear visual confirmation of the literal effect, or shows the literal effect
+        without the character's claim, leaving the link between the two ambiguous.
+      score_0: The evidence only contains the character's metaphorical or hyperbolic
+        claim without any visual evidence of the literal effect, or only shows unrelated
+        visuals, making it impossible to verify if the claim was realized literally.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: temporal_scope_alignment
+      description: Whether the evidence is temporally located within the specific
+        time window, phase, or sequence explicitly queried (e.g., 'at the beginning',
+        'after the explosion', 'during the interview'), rather than occurring at a
+        different time in the video.
+      score_1: The evidence explicitly covers the specific time window or phase requested
+        by the question.
+      score_half: The evidence covers a time window adjacent to or partially overlapping
+        the requested phase, but the specific moment is not clearly resolved.
+      score_0: The evidence covers a different time window entirely (e.g., the end
+        of the video when the beginning is queried), making it impossible to verify
+        the specific temporal claim.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    - name: meta_vs_diegetic_grounding
+      description: Whether the evidence explicitly grounds the option in the meta-narrative
+        context (e.g., the act of filming, watching, or producing) rather than merely
+        describing the diegetic narrative content (the story being shown or watched).
+      score_1: The evidence explicitly shows or states the meta-narrative activity
+        (e.g., cameras, screens, audience reactions, production equipment) required
+        to verify or exclude the option.
+      score_half: The evidence shows the narrative content clearly but only implies
+        the meta-narrative context without explicit visual or textual confirmation
+        of the production/viewing activity.
+      score_0: The evidence only describes the narrative content (the story events)
+        without any indication of the meta-narrative context, making it impossible
+        to distinguish between the story and the act of creating/watching it.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: superlative_frequency_grounding
+      description: Whether the evidence explicitly grounds a superlative, frequency,
+        or comparative claim (e.g., 'most', 'mostly', 'always', 'never', 'more than')
+        with sufficient scope (e.g., multiple instances, a stated rule, or an explicit
+        frequency statement) rather than relying on a single instance or isolated
+        observation.
+      score_1: The evidence explicitly states the frequency/ranking or provides a
+        comprehensive set of instances that logically confirms the superlative/comparative
+        claim.
+      score_half: The evidence provides multiple instances or a partial trend but
+        lacks the explicit confirmation or complete scope needed to definitively verify
+        the superlative (e.g., shows 'often' but not 'most').
+      score_0: The evidence relies on a single instance, an isolated observation,
+        or a generic description that cannot support a claim of frequency, ranking,
+        or superlative status.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: temporal_completion_for_non_action
+      description: Whether the evidence covers the complete duration of the specific
+        action window or turn required to verify that an action did not occur (e.g.,
+        a timer expiring without a selection, a turn ending without a move), rather
+        than only showing the context or potential for the action.
+      score_1: The evidence explicitly covers the entire relevant time window or turn,
+        showing the conclusion (e.g., timer expiry, turn end) without the action occurring,
+        or explicitly states the action was not taken.
+      score_half: The evidence covers a significant portion of the action window or
+        shows the context but cuts off before the window concludes, leaving it ambiguous
+        whether the action occurred in the remaining time.
+      score_0: The evidence only shows the context, setup, or potential for the action
+        without covering the conclusion of the window, making it impossible to verify
+        the non-occurrence.
+      weight: 3.0
+      failure_repair_action: time_sorted
+    - name: spatial_location_grounding
+      description: Whether the evidence explicitly confirms the specific spatial location,
+        terrain feature, or map region asserted in the option (e.g., 'high ground',
+        'bot lane', 'nexus') rather than merely describing the action occurring in
+        a generic or unspecified area.
+      score_1: The evidence explicitly identifies the specific location or terrain
+        feature mentioned in the option, allowing the spatial claim to be verified
+        or excluded.
+      score_half: The evidence describes the action occurring in a general area or
+        implies a location but does not explicitly confirm the specific terrain feature
+        or region required by the option.
+      score_0: The evidence describes the action without any reference to the specific
+        location or terrain feature, making it impossible to verify or exclude options
+        that hinge on that spatial detail.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: agent_action_attribution
+      description: Whether the evidence explicitly attributes the specific action,
+        outcome, or state change to the specific named agent asserted in the option,
+        rather than attributing it to a group, a different agent, or leaving the agent
+        ambiguous.
+      score_1: The evidence explicitly links the specific named agent in the option
+        to the specific action or outcome (e.g., 'Agent X performed Action Y').
+      score_half: The evidence mentions the agent and the action separately or attributes
+        the action to a group/team containing the agent, but does not explicitly confirm
+        the specific agent performed it.
+      score_0: The evidence attributes the action to a different agent, a generic
+        group, or fails to identify the agent performing the action, making the specific
+        attribution unverifiable.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: activity_name_explicitness
+      description: Whether the evidence explicitly states the specific name, title,
+        or formal definition of the game, challenge, or activity asserted in the option,
+        rather than merely showing visuals of the activity or describing it generically.
+      score_1: The evidence explicitly names the specific game, challenge, or activity
+        (e.g., via on-screen text, dialogue, or title card) matching the option's
+        claim.
+      score_half: The evidence shows visuals of the activity or describes its mechanics
+        but does not explicitly state the specific name or title required to verify
+        the option.
+      score_0: The evidence shows unrelated activities, generic scenes, or fails to
+        identify the specific game/challenge name, making the option unverifiable.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: action_technique_specificity
+      description: Whether the evidence explicitly identifies the specific sub-type,
+        technique, or manner of the action asserted in the option (e.g., 'smash' vs.
+        'drop shot' vs. 'return'), rather than describing a generic action or a different
+        specific technique.
+      score_1: The evidence explicitly confirms the specific action technique or manner
+        claimed in the option, distinguishing it from other possible techniques.
+      score_half: The evidence describes the action but uses a generic term (e.g.,
+        'hit', 'move') or a different specific technique that does not confirm the
+        option's specific claim.
+      score_0: The evidence describes a completely different action, a generic action
+        without technique details, or fails to show the action at all, making the
+        specific technique unverifiable.
+      weight: 1.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  OCR Problems:
+    rubric_criteria:
+    - name: exclusion_scope_coverage
+      description: Whether the evidence covers the specific domain, context, or logical
+        scope where the option's entity or concept would necessarily appear if it
+        were present, enabling the verification of its absence.
+      score_1: Evidence explicitly covers the relevant scope/context, allowing the
+        option to be definitively excluded due to the entity's absence within that
+        scope.
+      score_half: Evidence covers a related but incomplete scope, making the exclusion
+        of the option uncertain or requiring external assumptions.
+      score_0: Evidence fails to cover the relevant scope/context, making it impossible
+        to determine if the option is absent or merely unmentioned in the provided
+        clips.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: proposition_explicitness
+      description: Whether the evidence explicitly asserts or denies the specific
+        proposition of the option (e.g., a causal role, a definition, a status) rather
+        than merely presenting related context, generic scenes, or implied associations.
+      score_1: The evidence explicitly states or visually/textually confirms the specific
+        claim made by the option.
+      score_half: The evidence presents related concepts or context that imply the
+        claim but do not explicitly assert the specific proposition.
+      score_0: The evidence is unrelated or only provides generic context that neither
+        asserts nor denies the specific proposition.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: inventory_completeness
+      description: Whether the evidence provides a complete enumeration, list, or
+        framework definition that explicitly includes or excludes the specific entity
+        or concept in question, enabling the verification of its absence from the
+        described set.
+      score_1: The evidence presents a comprehensive list, model, or framework that
+        explicitly names the components, allowing the option to be excluded because
+        the specific entity is absent from this complete set.
+      score_half: The evidence presents a partial list or framework, or mentions related
+        concepts without a definitive enumeration, making the exclusion of the option
+        uncertain.
+      score_0: The evidence lacks any comprehensive list or framework, presenting
+        only isolated concepts without a structure that would confirm the absence
+        of the option's entity.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: on_screen_label_resolution
+      description: Whether the evidence visually resolves and explicitly displays
+        the specific on-screen text label (e.g., title card, timestamp, episode identifier,
+        status tag) required to verify or exclude the option's specific claim.
+      score_1: The evidence clearly displays the exact text label asserted by the
+        option (or a label that definitively excludes it) within the relevant context.
+      score_half: The evidence displays on-screen text, but it is ambiguous, partially
+        obscured, or refers to a different context/label than the one required to
+        verify the option.
+      score_0: The evidence lacks any visible on-screen text label, or the text present
+        is unrelated to the specific identifier required by the option.
+      weight: 4.0
+      failure_repair_action: asr_match
+    - name: status_rank_resolution
+      description: Whether the evidence explicitly identifies the specific status,
+        rank, title, or standing (e.g., winner, silver medalist, leader, finalist)
+        of the entity required to satisfy the query's filtering condition.
+      score_1: The evidence explicitly states or visually confirms the specific status/rank
+        of the entity mentioned in the option or query.
+      score_half: The evidence mentions the entity and related performance metrics
+        but does not explicitly confirm the specific status/rank required to filter
+        the correct candidate.
+      score_0: The evidence fails to identify the status/rank of any entity, making
+        it impossible to determine which candidate the query refers to.
+      weight: 4.0
+      failure_repair_action: refine_query
+    - name: temporal_superlative_grounding
+      description: Whether the evidence explicitly establishes the temporal sequence
+        or ordering of the compared items required to verify a superlative claim (e.g.,
+        'best', 'worst', 'first', 'last') tied to a specific position in that sequence.
+      score_1: The evidence explicitly confirms the temporal order of the items and
+        links the superlative attribute to the specific position asserted by the option.
+      score_half: The evidence mentions the items and the superlative attribute but
+        does not explicitly confirm the temporal sequence or the link between the
+        attribute and the specific position.
+      score_0: The evidence lacks information about the temporal sequence of the items
+        or fails to link the superlative attribute to any specific position in the
+        sequence.
+      weight: 4.0
+      failure_repair_action: time_sorted
+    - name: ordinal_instance_grounding
+      description: Whether the evidence explicitly links the specific attribute or
+        outcome asserted by the option to the specific ordinal instance (e.g., first,
+        second, last) of the action or event for the target entity, rather than merely
+        showing the entity performing the action or showing the attribute in a different
+        context.
+      score_1: The evidence explicitly confirms the specific attribute/outcome occurred
+        at the specific ordinal position (e.g., 'first attempt') for the target entity.
+      score_half: The evidence shows the entity performing the action and the attribute
+        occurring, but the link to the specific ordinal position is ambiguous, implied,
+        or refers to a different instance.
+      score_0: The evidence fails to establish the sequence of attempts or link the
+        specific attribute to the required ordinal position for the target entity.
+      weight: 4.0
+      failure_repair_action: time_sorted
+    - name: temporal_boundary_resolution
+      description: Whether the evidence explicitly resolves the state, value, or outcome
+        at the specific temporal boundary, phase transition, or endpoint (e.g., 'end
+        of half', 'final score', 'start of match') required by the query, rather than
+        merely showing the state at an arbitrary point within the interval.
+      score_1: The evidence explicitly displays or states the value/state at the exact
+        temporal boundary or phase transition marker (e.g., a 'Half Time' label, a
+        'Final' score graphic) asserted or implied by the query.
+      score_half: The evidence shows the state near the boundary or implies the boundary
+        has been reached, but lacks an explicit marker or confirmation that the state
+        holds exactly at the transition point.
+      score_0: The evidence shows the state at an arbitrary point within the interval
+        or fails to establish the temporal boundary, making it impossible to verify
+        the value at the specific endpoint.
+      weight: 4.0
+      failure_repair_action: time_sorted
+    - name: quantitative_value_explicitness
+      description: Whether the evidence explicitly displays or states the specific
+        numerical value (e.g., count, score, price, calorie count, measurement) required
+        to verify or exclude the option, rather than merely discussing the concept
+        of the value or showing unrelated numbers.
+      score_1: The evidence explicitly shows or states the exact numerical value asserted
+        by the option (or a value that definitively excludes it) in direct association
+        with the target entity.
+      score_half: The evidence mentions the concept of the value or shows related
+        numbers, but the specific numerical value for the target entity is not explicitly
+        displayed or stated.
+      score_0: The evidence lacks any explicit numerical value for the target entity,
+        making it impossible to verify or exclude the specific quantitative claim.
+      weight: 4.0
+      failure_repair_action: asr_match
+    scoring_rule: average
+    sufficient_threshold: 0.8
+  Spatial Reasoning:
+    rubric_criteria:
+    - name: attribute_precision
+      description: Whether the evidence explicitly resolves the specific quantitative
+        (count) or categorical (type) attribute that distinguishes the options, rather
+        than merely confirming the presence of a related generic entity.
+      score_1: The evidence explicitly states or visually confirms the exact count
+        or specific type required to distinguish between options (e.g., 'one shoe'
+        vs 'two shoes', 'shoe' vs 'bag').
+      score_half: The evidence confirms the presence of the object class but leaves
+        the distinguishing attribute (count or specific type) ambiguous or implicit.
+      score_0: The evidence fails to confirm the specific object or attribute, or
+        only confirms a different, unrelated object.
+      weight: 3.0
+      failure_repair_action: dense_sample
+    - name: spatial_provenance
+      description: Whether the evidence explicitly confirms the specific spatial location
+        or container (e.g., 'in the car', 'on the table', 'in the pocket') asserted
+        by the option, rather than merely confirming the object's existence in a generic
+        or different scene.
+      score_1: The evidence explicitly visualizes or states the object is located
+        in the specific place/container required by the option.
+      score_half: The evidence shows the object but the specific location is ambiguous,
+        implied, or shown in a different context.
+      score_0: The evidence shows the object in a different location or fails to establish
+        any specific location for the object.
+      weight: 3.0
+      failure_repair_action: dense_sample
+    - name: temporal_rate_grounding
+      description: Whether the evidence explicitly grounds the specific rate, speed,
+        or state change to the queried time interval (or a specific moment within
+        it) required to verify or exclude the option, rather than providing only total
+        event duration or generic pace.
+      score_1: The evidence explicitly states or visually confirms the rate/speed/distance
+        specifically associated with the queried time window or a moment within it.
+      score_half: The evidence provides a rate or distance but the temporal link to
+        the queried window is ambiguous, implied, or refers to a different time segment.
+      score_0: The evidence provides only total event duration, start/end times, or
+        generic pace without linking a specific rate to the queried interval.
+      weight: 3.0
+      failure_repair_action: refine_query
+    - name: landmark_identification
+      description: Whether the evidence explicitly identifies a unique geographic
+        landmark, named location, or distinctive architectural feature required to
+        distinguish between the location options, rather than merely describing generic
+        scene elements.
+      score_1: The evidence explicitly names or visually resolves a unique landmark
+        or location identifier that definitively distinguishes the correct option
+        from the others.
+      score_half: The evidence shows distinctive features but does not explicitly
+        name the landmark, leaving the specific location ambiguous among the options.
+      score_0: The evidence only describes generic scene elements (e.g., stairs, plaza,
+        crowd) that do not uniquely identify the location.
+      weight: 4.0
+      failure_repair_action: refine_query
+    scoring_rule: average
+    sufficient_threshold: 0.8

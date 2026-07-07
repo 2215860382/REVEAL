@@ -148,11 +148,9 @@ def _query_retrieve(
     coarse_top_k: int,
     final_top_k: int,
     exclude_ids: Set[int],
-    siglip=None,
-    text_alpha: float = 0.6,
-    vis_query: str = "",
 ) -> tuple[List[str], List[int], List[List[float]]]:
-    """Return (evidence_texts, chunk_ids, v_text_vecs), skipping already-seen chunks."""
+    """Return (evidence_texts, chunk_ids, v_text_vecs), skipping already-seen chunks.
+    Text-only BGE retrieval."""
     texts    = bank.memory_texts()
     texts_ev = bank.memory_texts(with_time=True, with_asr=True)
     q_vec  = embedder.encode([query])[0]
@@ -161,12 +159,6 @@ def _query_retrieve(
     else:
         doc_vecs = embedder.encode(texts)
     scores = doc_vecs @ q_vec
-
-    if siglip is not None and vis_query and bank.chunks[0].v_visual:
-        vq_vec     = siglip.encode_text([vis_query])[0]
-        vis_vecs   = np.array([c.v_visual for c in bank.chunks], dtype=np.float32)
-        vis_scores = vis_vecs @ vq_vec
-        scores = text_alpha * scores + (1 - text_alpha) * vis_scores
 
     k      = min(coarse_top_k, len(scores))
     coarse = np.argpartition(-scores, k - 1)[:k]
@@ -222,16 +214,12 @@ def _coarse_to_fine_retrieve(
     coarse_top_k: int,
     final_top_k: int,
     exclude_ids: Set[int],
-    siglip=None,
-    text_alpha: float = 0.6,
-    vis_query: str = "",
     l3_top_k: int = 2,
 ) -> tuple[List[str], List[int], List[List[float]]]:
     """Mode A: use top-2 L3 windows to filter L1 candidates, then fine retrieve."""
     if not bank.l3_chunks:
         return _query_retrieve(query, bank, embedder, coarse_top_k, final_top_k,
-                               exclude_ids, siglip=siglip, text_alpha=text_alpha,
-                               vis_query=vis_query)
+                               exclude_ids)
 
     q_vec = embedder.encode([query])[0]
     l3_vecs = np.array([c.v_text for c in bank.l3_chunks], dtype=np.float32)
@@ -420,8 +408,6 @@ def run_veil(
     final_top_k:   int           = 8,
     max_iter:      int           = 3,
     query_history_dedup_threshold:  float = 0.9,
-    siglip                       = None,
-    text_alpha:    float         = 0.6,
     keyframe_dir                 = None,
     kf_dedup_threshold:    float = 0.9,
     evidence_dedup_threshold:    float = 0.9,
@@ -446,8 +432,6 @@ def run_veil(
     verifier = Verifier(llm)
     planner  = Planner(llm)
     rubric   = get_rubric_dict(question, task_type)
-
-    vis_query = f"A video frame showing {question} Possible answers: {' or '.join(candidates)}"
 
     all_evidence_texts: List[str]         = []
     all_chunk_ids:      List[int]         = []
@@ -508,12 +492,10 @@ def run_veil(
             iter_query = "[broadcast]"
         else:
             for q in queries_this_iter:
-                vq = vis_query if it == 0 else q
                 if multi_layer_mode == "coarse_to_fine":
                     t, i, v = _coarse_to_fine_retrieve(
                         q, bank, embedder,
                         coarse_top_k, final_top_k, seen_ids,
-                        siglip=siglip, text_alpha=text_alpha, vis_query=vq,
                     )
                 elif multi_layer_mode == "multi_pool":
                     t, i, v = _multi_pool_retrieve(
@@ -525,7 +507,6 @@ def run_veil(
                     t, i, v = _query_retrieve(
                         q, bank, embedder,
                         coarse_top_k, final_top_k, seen_ids,
-                        siglip=siglip, text_alpha=text_alpha, vis_query=vq,
                     )
                 new_texts.extend(t); new_ids.extend(i); new_vecs.extend(v)
                 seen_ids.update(i)
