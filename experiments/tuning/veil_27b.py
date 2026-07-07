@@ -138,23 +138,8 @@ def main():
                     help="Parallel workers (safe with API-mode LLM)")
     ap.add_argument("--pipeline-name",       default=None,
                     help="Override PIPELINE_NAME (= output jsonl filename stem)")
-    ap.add_argument("--single-query-iter0",  action="store_true",
-                    help="At iter 0, use the original question as a single query "
-                         "instead of LLM-decomposing into per-option sub-queries")
-    ap.add_argument("--ignore-verifier-signal", action="store_true",
-                    help="For iter >= 1 planning, ignore verifier feedback and plan only from question/evidence/history")
-    ap.add_argument("--no-rubric", action="store_true",
-                    help="Ablation: holistic verifier sufficiency judgment (no per-criterion rubric scoring / threshold)")
     ap.add_argument("--max-iter", type=int, default=None,
                     help="Override veil_loop.max_iter (e.g. 1 = single-round retrieval, no plan-repair loop)")
-    ap.add_argument("--multi-layer-mode",
-                    choices=["none", "coarse_to_fine", "multi_pool", "planner_ctx"],
-                    default="none",
-                    help="Multi-layer pyramid retrieval mode: "
-                         "none (L1 only, default), "
-                         "coarse_to_fine (L3→L1 window filter), "
-                         "multi_pool (L1+L2 merged), "
-                         "planner_ctx (L3 injected into planner)")
     args = ap.parse_args()
     global PIPELINE_NAME
     if args.pipeline_name:
@@ -212,8 +197,6 @@ def main():
         "llm_api_url": args.llm_api_url,
         "llm_api_model": args.llm_api_model,
         "embed_api_url": args.embed_api_url,
-        "single_query_iter0": args.single_query_iter0,
-        "multi_layer_mode": args.multi_layer_mode,
     }
     log.info("run_metadata: %s", json.dumps(run_metadata, ensure_ascii=False, sort_keys=True))
     sidecar_metadata = dict(run_metadata)
@@ -380,10 +363,6 @@ def main():
             answer_keyframe_cap=akk,
             verifier_evidence_cap=vek,
             rubric_rerank=True,
-            single_query_iter0=args.single_query_iter0,
-            ignore_verifier_signal=args.ignore_verifier_signal,
-            verifier_implicit=args.no_rubric,
-            multi_layer_mode=args.multi_layer_mode,
         )
         return run_veil(s.question, s.candidates, bank, embedder, answerer, llm,
                         task_type=s.question_type, **kw), None

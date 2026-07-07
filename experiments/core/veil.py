@@ -5,9 +5,9 @@ Planner (iter-0 decomposition + iter≥1 unified planner + query safety nets) li
 only the main loop, retrieval primitives, evidence dedup, and the rubric-based
 final evidence rerank.
 
-Per-iteration retrieval: each sub-question independently fetches BGE coarse top-k
-(optionally SigLIP-fused) → de-dup against accumulated evidence
-(BGE cosine ≥ ``evidence_dedup_threshold``).
+Per-iteration retrieval: each sub-question independently fetches from the
+multi-layer pool (L1 detail + L2/L3 summaries) by text-only BGE cosine → de-dup
+against accumulated evidence (BGE cosine ≥ ``evidence_dedup_threshold``).
 """
 from __future__ import annotations
 
@@ -47,19 +47,6 @@ def _broadcast_retrieve(
             ids.append(c.chunk_id)
             vecs.append(c.v_text or [])
     return texts, ids, vecs
-
-
-# ── Online layer: on-demand re-examination of raw frames ─────────────────────
-
-_SUFFICIENT_LABELS = ("sufficient", "SUFFICIENT", "FULLY_SUFFICIENT", "ANSWER_SUFFICIENT")
-
-
-def _verdict_sufficient(verdict: dict) -> bool:
-    """True if the verifier considers evidence sufficient (no online layer needed)."""
-    if verdict.get("label") in _SUFFICIENT_LABELS:
-        return True
-    # Also treat "no unknown options remaining" as sufficient.
-    return not (verdict.get("unknown_options") or [])
 
 
 # ── Rubric-based final reranking ─────────────────────────────────────────────
@@ -174,94 +161,7 @@ def _query_retrieve(
     )
 
 
-# ── Multi-layer pyramid retrieval helpers ────────────────────────────────────
-
-def _retrieve_on_chunks(
-    query: str,
-    chunks: list,
-    embedder,
-    top_k: int,
-    exclude_ids: Set[int],
-) -> tuple[List[str], List[int], List[List[float]]]:
-    """BGE retrieval on an explicit chunk list; skip chunks in exclude_ids."""
-    if not chunks:
-        return [], [], []
-    q_vec = embedder.encode([query])[0]
-    doc_vecs = np.array([c.v_text for c in chunks], dtype=np.float32)
-    scores = doc_vecs @ q_vec
-    order = np.argsort(-scores)
-
-    out_texts, out_ids, out_vecs = [], [], []
-    for i in order:
-        c = chunks[i]
-        if c.chunk_id in exclude_ids:
-            continue
-        parts = [f"[{c.start_time:.0f}s-{c.end_time:.0f}s]", c.memory_text]
-        if getattr(c, "asr", "").strip():
-            parts.append(f"Speech: {c.asr}")
-        out_texts.append("\n".join(parts))
-        out_ids.append(c.chunk_id)
-        out_vecs.append(c.v_text)
-        if len(out_ids) >= top_k:
-            break
-    return out_texts, out_ids, out_vecs
-
-
-def _coarse_to_fine_retrieve(
-    query: str,
-    bank: "MemoryBank",
-    embedder,
-    coarse_top_k: int,
-    final_top_k: int,
-    exclude_ids: Set[int],
-    l3_top_k: int = 2,
-) -> tuple[List[str], List[int], List[List[float]]]:
-    """Mode A: use top-2 L3 windows to filter L1 candidates, then fine retrieve."""
-    if not bank.l3_chunks:
-        return _query_retrieve(query, bank, embedder, coarse_top_k, final_top_k,
-                               exclude_ids)
-
-    q_vec = embedder.encode([query])[0]
-    l3_vecs = np.array([c.v_text for c in bank.l3_chunks], dtype=np.float32)
-    l3_scores = l3_vecs @ q_vec
-    top_l3 = np.argsort(-l3_scores)[:l3_top_k]
-    windows = [(bank.l3_chunks[i].start_time, bank.l3_chunks[i].end_time) for i in top_l3]
-
-    def _overlaps(c):
-        return any(c.start_time < te and c.end_time > ts for ts, te in windows)
-
-    in_window = [c for c in bank.chunks if _overlaps(c)]
-    out_window = [c for c in bank.chunks if not _overlaps(c)]
-    # Put in-window first; fall back to out-window if pool is too small
-    candidate_pool = in_window + out_window
-
-    if not candidate_pool:
-        return [], [], []
-
-    doc_vecs = np.array([c.v_text for c in candidate_pool], dtype=np.float32)
-    scores = doc_vecs @ q_vec
-
-    k = min(coarse_top_k, len(scores))
-    coarse = np.argpartition(-scores, k - 1)[:k]
-    coarse = coarse[np.argsort(-scores[coarse])]
-
-    def _ev_text(c):
-        parts = [f"[{c.start_time:.0f}s-{c.end_time:.0f}s]", c.memory_text]
-        if getattr(c, "asr", "").strip():
-            parts.append(f"Speech: {c.asr}")
-        return "\n".join(parts)
-
-    ev_texts_pool = [_ev_text(candidate_pool[i]) for i in range(len(candidate_pool))]
-
-    final_idx = list(coarse[:final_top_k])
-
-    new_idx = [i for i in final_idx if candidate_pool[i].chunk_id not in exclude_ids]
-    return (
-        [ev_texts_pool[i] for i in new_idx],
-        [candidate_pool[i].chunk_id for i in new_idx],
-        [candidate_pool[i].v_text for i in new_idx],
-    )
-
+# ── Multi-layer pyramid retrieval ────────────────────────────────────────────
 
 def _multi_pool_retrieve(
     query: str,
@@ -271,19 +171,17 @@ def _multi_pool_retrieve(
     final_top_k: int,
     exclude_ids: Set[int],
     l2_cap: int = 4,
-    iter_idx: Optional[int] = None,
 ) -> tuple[List[str], List[int], List[List[float]]]:
-    """Mode B: retrieve from L1..L4 pools, merge by score.
+    """Retrieve from the L1 detail pool + L2/L3 summary pools, merged by score.
 
-    Round-2 tuning (2026-06-28): the original variant used only L1+L2 (+14 @900,
-    p=0.122). L3/L4 are now poolable via env vars so summary depth can be swept
-    without touching the CLI (consistent with VEIL's env-override pattern):
+    Pool sizes are env-overridable so summary depth can be swept without touching
+    the CLI (VEIL's env-override pattern):
 
-      VEIL_MP_L2_CAP          how many L2 summaries enter the pool (default 4)
-      VEIL_MP_L3_CAP          how many L3 summaries enter the pool (default 0=off)
-      VEIL_MP_L4_CAP          how many L4 summaries enter the pool (default 0=off)
-      VEIL_MP_SUMMARY_WEIGHT  multiply L2/L3/L4 scores in the merge (default 1.0;
-                              >1 favours summaries, <1 favours raw L1 evidence)
+      VEIL_MP_L1_CAP   L1 detail chunks entering the pool (default = coarse_top_k)
+      VEIL_MP_L2_CAP   L2 summaries entering the pool (default 4)
+      VEIL_MP_L3_CAP   L3 summaries entering the pool (default 0 = off)
+
+    Definitive config: L1=8 / L2=4 / L3=2.
     """
     if not bank.l2_chunks:
         return _query_retrieve(query, bank, embedder, coarse_top_k, final_top_k,
@@ -295,47 +193,10 @@ def _multi_pool_retrieve(
         except ValueError:
             return default
 
-    l1_cap = _envi("VEIL_MP_L1_CAP", coarse_top_k)
+    l1_pool_cap = _envi("VEIL_MP_L1_CAP", coarse_top_k)
     l2_cap = _envi("VEIL_MP_L2_CAP", l2_cap)
     l3_cap = _envi("VEIL_MP_L3_CAP", 0)
-    l4_cap = _envi("VEIL_MP_L4_CAP", 0)
     final_keep = final_top_k
-
-    # Layer escalation — tie iteration to abstraction level. iter-0 sees only L1
-    # detail; summaries (L2) unlock on iter-1, overviews (L3) on iter-2, global (L4)
-    # on iter-3. So each re-retrieval round adds a NEW information type instead of
-    # re-searching the same pooled space. Only escalates when the verifier deemed
-    # L1 detail insufficient (that is what advances the iter counter). Default off.
-    #
-    # Two flavours (evidence still accumulates across iters either way — this only
-    # gates which layer THIS round retrieves from):
-    #   accumulate (default): iter-N unlocks layer N while keeping all lower layers,
-    #                         so each round also pulls fresh L1 detail.
-    #   exclusive (VEIL_LAYER_EXCLUSIVE=1): iter-N retrieves ONLY layer N — no fresh
-    #                         L1 on later rounds; pure level-switch (L1→L2→L3).
-    if iter_idx is not None and os.environ.get("VEIL_LAYER_ESCALATE", "").strip() in ("1", "true", "True"):
-        if os.environ.get("VEIL_LAYER_EXCLUSIVE", "").strip() in ("1", "true", "True"):
-            if iter_idx != 0:
-                l1_cap = 0
-            if iter_idx != 1:
-                l2_cap = 0
-            if iter_idx != 2:
-                l3_cap = 0
-            l4_cap = 0
-        else:
-            if iter_idx < 1:
-                l2_cap = 0
-            if iter_idx < 2:
-                l3_cap = 0
-            if iter_idx < 3:
-                l4_cap = 0
-
-    l1_pool_cap = l1_cap
-
-    try:
-        sw = float(os.environ.get("VEIL_MP_SUMMARY_WEIGHT", "").strip() or 1.0)
-    except ValueError:
-        sw = 1.0
 
     q_vec = embedder.encode([query])[0]
 
@@ -357,10 +218,9 @@ def _multi_pool_retrieve(
         if c.chunk_id not in exclude_ids:
             candidates.append((float(l1_scores[i]), c, _l1_ev(c)))
 
-    # L2/L3/L4 summary pools (score-weighted by VEIL_MP_SUMMARY_WEIGHT)
+    # L2/L3 summary pools
     for layer, cap in ((bank.l2_chunks, l2_cap),
-                       (bank.l3_chunks, l3_cap),
-                       (bank.l4_chunks, l4_cap)):
+                       (bank.l3_chunks, l3_cap)):
         if not layer or cap <= 0:
             continue
         vecs = np.array([c.v_text for c in layer], dtype=np.float32)
@@ -368,7 +228,7 @@ def _multi_pool_retrieve(
         for i in np.argsort(-scores)[:cap]:
             c = layer[int(i)]
             if c.chunk_id not in exclude_ids:
-                candidates.append((float(scores[int(i)]) * sw, c, c.memory_text))
+                candidates.append((float(scores[int(i)]), c, c.memory_text))
 
     candidates.sort(key=lambda x: -x[0])
     selected = candidates[:final_keep]
@@ -377,21 +237,6 @@ def _multi_pool_retrieve(
         [c.chunk_id for _, c, _ in selected],
         [c.v_text for _, c, _ in selected],
     )
-
-
-def _get_l3_context(question: str, bank: "MemoryBank", embedder, top_k: int = 2) -> str:
-    """Mode C: retrieve top-k L3 summaries most relevant to the question."""
-    if not bank.l3_chunks:
-        return ""
-    q_vec = embedder.encode([question])[0]
-    l3_vecs = np.array([c.v_text for c in bank.l3_chunks], dtype=np.float32)
-    scores = l3_vecs @ q_vec
-    order = np.argsort(-scores)[:top_k]
-    parts = []
-    for i in order:
-        c = bank.l3_chunks[i]
-        parts.append(f"[{c.start_time:.0f}s-{c.end_time:.0f}s] {c.memory_text}")
-    return "\n\n".join(parts)
 
 
 # ── Main loop ────────────────────────────────────────────────────────────────
@@ -416,11 +261,8 @@ def run_veil(
     answer_keyframe_cap:   int | None   = 16,
     verifier_evidence_cap: int | None   = None,
     rubric_judgment:       bool         = True,
-    single_query_iter0:    bool         = False,
-    ignore_verifier_signal:    bool     = False,
     rubric_rerank:         bool         = False,
     verifier_implicit:     bool         = False,
-    multi_layer_mode:      str          = "none",
 ) -> dict:
     """Iter-0 sub-question decomposition + iter ≥1 unified-planner repair.
 
@@ -444,21 +286,12 @@ def run_veil(
     plan_history:       List[List[str]]   = [[question]]  # seed with original question for dedup
     iterations:         List[dict]        = []
     chunk_by_id = {c.chunk_id: c for c in bank.chunks}
-    # For multi-pool mode: include L2 chunks so keyframe lookup doesn't skip them
-    # (L2 chunks have no frames, so they'll naturally produce no keyframes)
-    if multi_layer_mode == "multi_pool":
-        chunk_by_id.update({c.chunk_id: c for c in bank.l2_chunks})
+    # Include L2 chunks so keyframe lookup doesn't skip them (L2 chunks have no
+    # frames, so they naturally produce no keyframes).
+    chunk_by_id.update({c.chunk_id: c for c in bank.l2_chunks})
 
     # ── Iter-0 plan: sub-question decomposition ──────────────────────────────
-    if single_query_iter0:
-        # Single query ablation: use original question without decomposition
-        current_plan: dict = {
-            "strategy": "targeted",
-            "queries": [question],
-            "reasoning": "iter0_single_query"
-        }
-    else:
-        current_plan: dict = planner.decompose_iter0(question, candidates)
+    current_plan: dict = planner.decompose_iter0(question, candidates)
     plan_history.append(current_plan["queries"])
     last_verdict: dict = {}
 
@@ -466,7 +299,7 @@ def run_veil(
 
         # ── Plan (iter ≥ 1): generate new queries from last verdict + history ─
         if it > 0:
-            verdict_for_planning = {} if ignore_verifier_signal else last_verdict
+            verdict_for_planning = last_verdict
             next_plan, m_desc = planner.plan_next(
                 question, candidates, all_evidence_texts, verdict_for_planning, plan_history,
                 rubric_judgment=rubric_judgment,
@@ -492,22 +325,10 @@ def run_veil(
             iter_query = "[broadcast]"
         else:
             for q in queries_this_iter:
-                if multi_layer_mode == "coarse_to_fine":
-                    t, i, v = _coarse_to_fine_retrieve(
-                        q, bank, embedder,
-                        coarse_top_k, final_top_k, seen_ids,
-                    )
-                elif multi_layer_mode == "multi_pool":
-                    t, i, v = _multi_pool_retrieve(
-                        q, bank, embedder,
-                        coarse_top_k, final_top_k, seen_ids,
-                        iter_idx=it,
-                    )
-                else:
-                    t, i, v = _query_retrieve(
-                        q, bank, embedder,
-                        coarse_top_k, final_top_k, seen_ids,
-                    )
+                t, i, v = _multi_pool_retrieve(
+                    q, bank, embedder,
+                    coarse_top_k, final_top_k, seen_ids,
+                )
                 new_texts.extend(t); new_ids.extend(i); new_vecs.extend(v)
                 seen_ids.update(i)
             iter_query = (" | ".join(queries_this_iter) if len(queries_this_iter) > 1

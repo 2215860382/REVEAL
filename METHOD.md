@@ -17,7 +17,7 @@
 - 上层为**叠加式**:不重新抽帧/caption,只复用 L1 文本往上摘要。
 - **每层文本都用 BGE-M3 预编码成检索向量**——检索全程只用文本向量。
 - **视觉只在建库时用**:SigLIP 用于 L1 的相似度分组;视觉内容通过 VLM 写进 L1 的 caption 文本而保留下来。推理阶段(检索、答题)**不使用关键帧和 SigLIP 向量**——推理侧的视觉双路检索代码已移除,检索是纯文本的。
-- **online 层(设计,未启用)**:检索仍不足时,回到原始帧按需重打 caption 补缺。基础设施(原始帧、充分性判据)已具备,但未接入主流程——实测在本任务上收益为负,真正的瓶颈是检索召回。
+- **online 层(探索过,已不在代码里)**:曾设想"检索仍不足时回到原始帧按需重打 caption 补缺",但实测在本任务收益为负(瓶颈是检索召回而非回看),故其运行时钩子已在精简时删除;建库仍可保留原始帧(`--include-raw`)备将来使用。
 
 ---
 
@@ -79,6 +79,27 @@ rubric 不是手写,而是用**对比配对**学出来——让判官看成对�
 5. **在线精修 rubric**:把每对"不足(误导)× 充分(黄金)"喂给判官,它**原地增改**自己的评分清单(增/改/拆/删/调权重),同题型串行(去重内联),得到按题型的加权判据。
 
 **评估**:上线 900 题,定版配置(L1/L2/L3 = 8/4/2、纯文本)扫 `sufficient_threshold`(0.45/0.60/0.75),同题号对比主线。
+
+---
+
+## 七、一条龙运行(换数据集即可复现)
+
+三个阶段各一条命令(先起好 vLLM 27B 与 BGE embed 服务,见 `scripts/start_*`):
+
+```bash
+# ① 建多层记忆库(L1+L2/L3+关键帧,一条命令出 ml3_n12)
+BENCH=videomme MEM=outputs/memory/videomme_ml3_n12 bash scripts/run_build.sh
+
+# ② 构造 rubric(选黄金×误导 → 在线精修 → 离线判对率)
+MEM=outputs/memory/videomme_ml3_n12 RB=outputs/rubric/pairs_v6 bash scripts/run_rubric.sh
+
+# ③ 主实验(定版 8/4/2 纯文本;rubric 用 VEIL_RUBRIC_PATH 指定)
+VEIL_RUBRIC_PATH=outputs/rubric/pairs_v6/rubric.yaml \
+MEM=outputs/memory/videomme_ml3_n12 END=900 bash scripts/run_eval.sh
+```
+
+换数据集:在 `src/dataloader/` 加一个 loader、在 `src/build_memory/core/specs.py` 加一条
+benchmark 记录,然后把 `BENCH` 换掉即可;检索容量、阈值等通过脚本顶部变量 / 环境变量覆盖。
 
 ---
 
