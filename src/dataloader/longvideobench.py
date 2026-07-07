@@ -24,7 +24,7 @@ class LongVideoBenchSample:
     question: str
     candidates: List[str]
     answer: str             # gold answer text
-    question_category: str
+    question_type: str      # LVB question_category (e.g. SSS / E3E / S2E ...)
     sample_idx: int
 
 
@@ -65,7 +65,7 @@ def load_longvideobench(
             question=entry["question"],
             candidates=candidates,
             answer=answer_text,
-            question_category=entry.get("question_category", ""),
+            question_type=entry.get("question_category", ""),
             sample_idx=idx,
         ))
     return samples

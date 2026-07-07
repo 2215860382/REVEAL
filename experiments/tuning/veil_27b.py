@@ -88,6 +88,14 @@ def load_samples(cfg: dict, filter_video_ids: set | None = None):
             video_dir=b["video_dir"],
             duration_groups=b.get("duration_groups"),
         )
+    elif bench == "longvideobench":
+        from src.dataloader.longvideobench import load_longvideobench
+        b = cfg["benchmark"]
+        samples = load_longvideobench(
+            json_path=b["json_path"],
+            video_dir=b["video_dir"],
+            duration_groups=b.get("duration_groups"),
+        )
     else:
         raise ValueError(f"Unknown benchmark: {bench}")
     if filter_video_ids is not None:

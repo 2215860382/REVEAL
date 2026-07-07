@@ -12,9 +12,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
-BenchName = Literal["mlvu", "videomme"]
+BenchName = Literal["mlvu", "videomme", "longvideobench"]
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]  # …/VEIL (core → build_memory → src → VEIL)
 _OUTPUTS_ROOT = _PROJECT_ROOT / "outputs"
 
 
@@ -61,6 +61,28 @@ def benchmark_videomme() -> dict[str, Any]:
     }
 
 
+def benchmark_longvideobench() -> dict[str, Any]:
+    return {
+        "name": "longvideobench",
+        "json_path": "/home2/ycj/Datas/LongVideoBench/lvb_val.json",
+        "video_dir": "/home2/ycj/Datas/LongVideoBench/videos/videos",
+        "subtitle_dir": None,
+        "duration_groups": None,   # None = all 1337 val Qs; e.g. [3600] = hour-long only
+    }
+
+
+# benchmark name → its config builder
+_BENCH_BUILDERS = {
+    "mlvu": benchmark_mlvu,
+    "videomme": benchmark_videomme,
+    "longvideobench": benchmark_longvideobench,
+}
+
+
+def _bench(name: BenchName) -> dict[str, Any]:
+    return _BENCH_BUILDERS[name]()
+
+
 def embedder_bge_m3(device: str = "cuda:0") -> dict[str, Any]:
     return {
         "model_path": "/home2/ycj/Models/BAAI/bge-m3",
@@ -72,14 +94,16 @@ def embedder_bge_m3(device: str = "cuda:0") -> dict[str, Any]:
 
 
 def similarity_memory_cache_dir(name: BenchName) -> Path:
-    if name == "mlvu":
-        return _OUTPUTS_ROOT / "memory" / "mlvu_similarity"
-    return _OUTPUTS_ROOT / "memory" / "videomme_L_27b_27b"
+    return _OUTPUTS_ROOT / "memory" / {
+        "mlvu": "mlvu_similarity",
+        "videomme": "videomme_L_27b_27b",
+        "longvideobench": "longvideobench_single",
+    }[name]
 
 
 def cfg_for_similarity_build(name: BenchName, bge_device: str = "cuda:0") -> dict[str, Any]:
     """Minimal config dict for ``src.build_memory.build_single_similarity`` (benchmark + embedder + out dir)."""
-    bench = benchmark_mlvu() if name == "mlvu" else benchmark_videomme()
+    bench = _bench(name)
     out = str(similarity_memory_cache_dir(name))
     return {
         "paths": {"outputs_root": str(_OUTPUTS_ROOT)},
@@ -104,7 +128,7 @@ FIXEDFRAME_MODE_PARAMS: dict[str, dict[str, float | int]] = {
 
 def cfg_for_fixedframe_build(name: BenchName) -> dict[str, Any]:
     """Benchmark + paths for the legacy fixedframe CLI."""
-    bench = benchmark_mlvu() if name == "mlvu" else benchmark_videomme()
+    bench = _bench(name)
     return {
         "paths": {"outputs_root": str(_OUTPUTS_ROOT)},
         "benchmark": bench,

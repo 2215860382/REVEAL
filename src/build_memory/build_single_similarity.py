@@ -370,7 +370,17 @@ def narrate_chunks(
 
 # ── Video paths ───────────────────────────────────────────────────────────────
 
-def _get_video_paths(cfg: dict) -> dict[str, str]:
+def _get_video_paths(cfg: dict, video_dir: str | None = None) -> dict[str, str]:
+    # Generic mode: point at a folder of videos, no benchmark/annotation needed.
+    # video_id = filename stem. Builds EVERY video found (recursively).
+    if video_dir:
+        vdir = Path(video_dir)
+        exts = {".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v"}
+        paths: dict[str, str] = {}
+        for p in sorted(vdir.rglob("*")):
+            if p.suffix.lower() in exts and p.stem not in paths:
+                paths[p.stem] = str(p)
+        return paths
     bench = cfg["benchmark"]["name"]
     if bench == "mlvu":
         json_dir  = Path(cfg["benchmark"]["json_dir"])
@@ -397,6 +407,15 @@ def _get_video_paths(cfg: dict) -> dict[str, str]:
             duration_groups=b.get("duration_groups"),
         )
         return {s.video_id: s.video_path for s in samples}
+    elif bench == "longvideobench":
+        from src.dataloader.longvideobench import load_longvideobench
+        b = cfg["benchmark"]
+        samples = load_longvideobench(
+            json_path=b["json_path"],
+            video_dir=b["video_dir"],
+            duration_groups=b.get("duration_groups"),
+        )
+        return {s.video_id: s.video_path for s in samples}
     else:
         raise ValueError(f"Unsupported benchmark: {bench}")
 
@@ -406,8 +425,12 @@ def _get_video_paths(cfg: dict) -> dict[str, str]:
 def main():
     ap = argparse.ArgumentParser()
     src = ap.add_mutually_exclusive_group(required=True)
-    src.add_argument("--benchmark", choices=["mlvu", "videomme"])
+    src.add_argument("--benchmark", choices=["mlvu", "videomme", "longvideobench"])
     src.add_argument("--config", help="Legacy YAML path")
+    ap.add_argument("--video-dir", default=None,
+                    help="Generic mode: build every video in this folder (recursive, "
+                         "video_id = filename stem); overrides benchmark video enumeration. "
+                         "Still needs --config or --benchmark for the BGE model path / out dir.")
     ap.add_argument("--siglip-model",     required=True)
     ap.add_argument("--siglip-gpu",       default="cuda:0")
     ap.add_argument("--bge-gpu",          default="cuda:0")
@@ -516,7 +539,7 @@ def main():
                  ml_out_dir, ml_cfg["frame_mode"], ml_cfg["include_raw"])
 
     # ── Video list ─────────────────────────────────────────────────────────────
-    video_paths = _get_video_paths(cfg)
+    video_paths = _get_video_paths(cfg, args.video_dir)
     log.info("Found %d videos", len(video_paths))
 
     if args.filter_from:

@@ -1,0 +1,30 @@
+# Config for LongVideoBench (validation split, 1337 Qs / 753 videos).
+benchmark:
+  name: longvideobench
+  json_path: /home2/ycj/Datas/LongVideoBench/lvb_val.json
+  video_dir: /home2/ycj/Datas/LongVideoBench/videos/videos
+  duration_groups: null   # null = all 1337; e.g. [3600] = hour-long only
+
+paths:
+  outputs_root: /home2/ycj/Project/VEIL/outputs
+
+veil_loop:
+  max_iter: 3
+  query_history_dedup_threshold: 0.9
+  evidence_dedup_threshold: 0.9
+  query_evidence_dedup_threshold: 0.7
+  kf_dedup_threshold: 0.92
+
+eval:
+  output_dir: /home2/ycj/Project/VEIL/outputs/results/longvideobench
+
+models:
+  vlm:
+    model_path: /home2/ycj/Models/Qwen/Qwen3.5-27B
+  llm:
+    model_path: /home2/ycj/Models/Qwen/Qwen3.5-27B
+    dtype: bfloat16
+    attn_impl: sdpa
+  embedder:
+    model_path: /home2/ycj/Models/BAAI/bge-m3
+    use_fp16: true
