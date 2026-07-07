@@ -382,36 +382,11 @@ def _get_video_paths(cfg: dict, video_dir: str | None = None) -> dict[str, str]:
                 paths[p.stem] = str(p)
         return paths
     bench = cfg["benchmark"]["name"]
-    if bench == "mlvu":
-        json_dir  = Path(cfg["benchmark"]["json_dir"])
-        video_dir = Path(cfg["benchmark"]["video_dir"])
-        paths = {}
-        for jf in cfg["benchmark"]["json_files"].values():
-            p = json_dir / jf
-            if not p.exists():
-                continue
-            subdir = video_dir / Path(jf).stem
-            for item in json.loads(p.read_text()):
-                vid = item.get("video", item.get("video_id", ""))
-                if vid:
-                    k = Path(vid).stem
-                    if k not in paths:
-                        paths[k] = str(subdir / vid)
-        return paths
-    elif bench == "videomme":
+    if bench == "videomme":
         from src.dataloader.videomme import load_videomme
         b = cfg["benchmark"]
         samples = load_videomme(
             parquet_path=b["parquet_path"],
-            video_dir=b["video_dir"],
-            duration_groups=b.get("duration_groups"),
-        )
-        return {s.video_id: s.video_path for s in samples}
-    elif bench == "longvideobench":
-        from src.dataloader.longvideobench import load_longvideobench
-        b = cfg["benchmark"]
-        samples = load_longvideobench(
-            json_path=b["json_path"],
             video_dir=b["video_dir"],
             duration_groups=b.get("duration_groups"),
         )
@@ -433,7 +408,7 @@ def _get_video_paths(cfg: dict, video_dir: str | None = None) -> dict[str, str]:
 def main():
     ap = argparse.ArgumentParser()
     src = ap.add_mutually_exclusive_group(required=True)
-    src.add_argument("--benchmark", choices=["mlvu", "videomme", "longvideobench", "lvbench"])
+    src.add_argument("--benchmark", choices=["videomme", "lvbench"])
     src.add_argument("--config", help="Legacy YAML path")
     ap.add_argument("--video-dir", default=None,
                     help="Generic mode: build every video in this folder (recursive, "
@@ -486,7 +461,7 @@ def main():
     else:
         cfg = load_config(args.config)
         bn = cfg.get("benchmark", {}).get("name")
-        if bn in ("mlvu", "videomme") and not (cfg.get("memory") or {}).get("cache_dir"):
+        if bn in ("videomme", "lvbench") and not (cfg.get("memory") or {}).get("cache_dir"):
             from src.build_memory.core import specs as build_specs
             cfg.setdefault("memory", {})["cache_dir"] = str(
                 build_specs.similarity_memory_cache_dir(bn)

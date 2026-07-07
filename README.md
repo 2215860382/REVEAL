@@ -22,7 +22,7 @@ src/
     core/                         # frame_pipeline, schema (MemoryBank), specs, bank_loader
   agents/                         # planner, verifier (rubric scoring), answerer
   clients/                        # vlm / llm / embedder (BGE-M3) / siglip / reranker wrappers
-  dataloader/                     # videomme, longvideobench
+  dataloader/                     # videomme, lvbench
   generate_rubric/construct/contrastive_trace/
                                   # Stage 2 — rubric construction (gold × mislead)
     select_gold_mislead.py        #   pick gold + misleading evidence, closed-book filter → pairs

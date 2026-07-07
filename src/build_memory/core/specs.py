@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
-BenchName = Literal["mlvu", "videomme", "longvideobench", "lvbench"]
+BenchName = Literal["videomme", "lvbench"]
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]  # …/VEIL (core → build_memory → src → VEIL)
 _OUTPUTS_ROOT = _PROJECT_ROOT / "outputs"
@@ -22,35 +22,6 @@ def outputs_root() -> Path:
     return _OUTPUTS_ROOT
 
 
-def benchmark_mlvu() -> dict[str, Any]:
-    return {
-        "name": "mlvu",
-        "split": "dev",
-        "json_dir": "/home/Dataset/Dataset/MLVU/MLVU/json",
-        "video_dir": "/home/Dataset/Dataset/MLVU/MLVU/video",
-        "task_types": [
-            "plotQA",
-            "needle",
-            "ego",
-            "count",
-            "order",
-            "anomaly_reco",
-            "topic_reasoning",
-        ],
-        "json_files": {
-            "plotQA": "1_plotQA.json",
-            "needle": "2_needle.json",
-            "ego": "3_ego.json",
-            "count": "4_count.json",
-            "order": "5_order.json",
-            "anomaly_reco": "6_anomaly_reco.json",
-            "topic_reasoning": "7_topic_reasoning.json",
-            "sub_scene": "8_sub_scene.json",
-            "summary": "9_summary.json",
-        },
-    }
-
-
 def benchmark_videomme() -> dict[str, Any]:
     return {
         "name": "videomme",
@@ -58,16 +29,6 @@ def benchmark_videomme() -> dict[str, Any]:
         "video_dir": "/home2/ycj/Datas/VideoMME/videos",
         "subtitle_dir": "/home2/ycj/Datas/VideoMME/subtitle",
         "duration_groups": ["long"],
-    }
-
-
-def benchmark_longvideobench() -> dict[str, Any]:
-    return {
-        "name": "longvideobench",
-        "json_path": "/home2/ycj/Datas/LongVideoBench/lvb_val.json",
-        "video_dir": "/home2/ycj/Datas/LongVideoBench/videos/videos",
-        "subtitle_dir": None,
-        "duration_groups": None,   # None = all 1337 val Qs; e.g. [3600] = hour-long only
     }
 
 
@@ -83,9 +44,7 @@ def benchmark_lvbench() -> dict[str, Any]:
 
 # benchmark name → its config builder
 _BENCH_BUILDERS = {
-    "mlvu": benchmark_mlvu,
     "videomme": benchmark_videomme,
-    "longvideobench": benchmark_longvideobench,
     "lvbench": benchmark_lvbench,
 }
 
@@ -106,9 +65,7 @@ def embedder_bge_m3(device: str = "cuda:0") -> dict[str, Any]:
 
 def similarity_memory_cache_dir(name: BenchName) -> Path:
     return _OUTPUTS_ROOT / "memory" / {
-        "mlvu": "mlvu_similarity",
         "videomme": "videomme_L_27b_27b",
-        "longvideobench": "longvideobench_single",
         "lvbench": "lvbench_single",
     }[name]
 

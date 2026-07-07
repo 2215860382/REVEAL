@@ -1,4 +1,4 @@
-"""Compute MLVU-style accuracy: per-task and overall, plus a couple of diagnostics."""
+"""Compute accuracy: per-question-type and overall, plus a couple of diagnostics."""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -9,7 +9,7 @@ def compute_accuracy(records: List[dict]) -> Dict[str, dict]:
     """Each record: {question_type, gold, pred_letter, pred_text}.
 
     pred_letter ∈ A/B/C/D... or None.
-    Correct iff pred_text == gold (string match — MLVU records gold as candidate text).
+    Correct iff pred_text == gold (string match — gold is recorded as candidate text).
     """
     by_task: Dict[str, List[dict]] = defaultdict(list)
     for r in records:

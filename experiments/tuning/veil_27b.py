@@ -4,8 +4,8 @@ Answerer / Planner / Verifier all use Qwen3.5-27B via --vlm-api-url / --llm-api-
 
 Usage:
     cd /home2/ycj/Project/VEIL
-    PYTHONPATH=. python experiments/veil_27b.py \\
-        --config configs/mlvu_memory_bank.yaml \\
+    PYTHONPATH=. python experiments/tuning/veil_27b.py \\
+        --config configs/veil.yaml \\
         --vlm-api-url http://localhost:8000 \\
         --llm-api-url http://localhost:8001 \\
         --bge-gpu cuda:3
@@ -72,27 +72,11 @@ def _count_memory_videos(memory_dir: Path) -> int | None:
 
 def load_samples(cfg: dict, filter_video_ids: set | None = None):
     bench = cfg["benchmark"]["name"]
-    if bench == "mlvu":
-        from src.dataloader.mlvu import load_mlvu
-        b = cfg["benchmark"]
-        samples = load_mlvu(
-            json_dir=b["json_dir"],
-            video_dir=b["video_dir"],
-            json_files=b["json_files"],
-        )
-    elif bench == "videomme":
+    if bench == "videomme":
         from src.dataloader.videomme import load_videomme
         b = cfg["benchmark"]
         samples = load_videomme(
             parquet_path=b["parquet_path"],
-            video_dir=b["video_dir"],
-            duration_groups=b.get("duration_groups"),
-        )
-    elif bench == "longvideobench":
-        from src.dataloader.longvideobench import load_longvideobench
-        b = cfg["benchmark"]
-        samples = load_longvideobench(
-            json_path=b["json_path"],
             video_dir=b["video_dir"],
             duration_groups=b.get("duration_groups"),
         )
