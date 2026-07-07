@@ -416,6 +416,14 @@ def _get_video_paths(cfg: dict, video_dir: str | None = None) -> dict[str, str]:
             duration_groups=b.get("duration_groups"),
         )
         return {s.video_id: s.video_path for s in samples}
+    elif bench == "lvbench":
+        from src.dataloader.lvbench import load_lvbench
+        b = cfg["benchmark"]
+        samples = load_lvbench(
+            meta_path=b["meta_path"],
+            video_dir=b["video_dir"],
+        )
+        return {s.video_id: s.video_path for s in samples}
     else:
         raise ValueError(f"Unsupported benchmark: {bench}")
 
@@ -425,7 +433,7 @@ def _get_video_paths(cfg: dict, video_dir: str | None = None) -> dict[str, str]:
 def main():
     ap = argparse.ArgumentParser()
     src = ap.add_mutually_exclusive_group(required=True)
-    src.add_argument("--benchmark", choices=["mlvu", "videomme", "longvideobench"])
+    src.add_argument("--benchmark", choices=["mlvu", "videomme", "longvideobench", "lvbench"])
     src.add_argument("--config", help="Legacy YAML path")
     ap.add_argument("--video-dir", default=None,
                     help="Generic mode: build every video in this folder (recursive, "

@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
-BenchName = Literal["mlvu", "videomme", "longvideobench"]
+BenchName = Literal["mlvu", "videomme", "longvideobench", "lvbench"]
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]  # …/VEIL (core → build_memory → src → VEIL)
 _OUTPUTS_ROOT = _PROJECT_ROOT / "outputs"
@@ -71,11 +71,22 @@ def benchmark_longvideobench() -> dict[str, Any]:
     }
 
 
+def benchmark_lvbench() -> dict[str, Any]:
+    return {
+        "name": "lvbench",
+        "meta_path": "/home2/ycj/Datas/LVBench/video_info.meta.jsonl",
+        "video_dir": "/home2/ycj/Datas/LVBench/videos",   # {key}.mp4 (download separately)
+        "subtitle_dir": None,
+        "duration_groups": None,
+    }
+
+
 # benchmark name → its config builder
 _BENCH_BUILDERS = {
     "mlvu": benchmark_mlvu,
     "videomme": benchmark_videomme,
     "longvideobench": benchmark_longvideobench,
+    "lvbench": benchmark_lvbench,
 }
 
 
@@ -98,6 +109,7 @@ def similarity_memory_cache_dir(name: BenchName) -> Path:
         "mlvu": "mlvu_similarity",
         "videomme": "videomme_L_27b_27b",
         "longvideobench": "longvideobench_single",
+        "lvbench": "lvbench_single",
     }[name]
 
 

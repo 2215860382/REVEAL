@@ -96,6 +96,13 @@ def load_samples(cfg: dict, filter_video_ids: set | None = None):
             video_dir=b["video_dir"],
             duration_groups=b.get("duration_groups"),
         )
+    elif bench == "lvbench":
+        from src.dataloader.lvbench import load_lvbench
+        b = cfg["benchmark"]
+        samples = load_lvbench(
+            meta_path=b["meta_path"],
+            video_dir=b["video_dir"],
+        )
     else:
         raise ValueError(f"Unknown benchmark: {bench}")
     if filter_video_ids is not None:
