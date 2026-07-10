@@ -18,13 +18,15 @@ BENCH=${BENCH:-videomme}
 SIGLIP=${SIGLIP:-/home2/ycj/Models/google/siglip-large-patch16-384}
 API=${API:-http://127.0.0.1:8003}                       # 27B for captions + summaries
 MEM=${MEM:-outputs/memory/${BENCH}_ml3_n12}             # final multi-layer bank dir
+CONC=${CONC:-16}                                        # caption concurrency (÷ #endpoints per endpoint)
+SUMM_CONC=${SUMM_CONC:-32}                              # summary concurrency; lower both to be gentle on shared endpoints
 
 "$PY" -m src.build_memory.build_single_similarity \
   --benchmark "$BENCH" \
   --siglip-model "$SIGLIP" --siglip-gpu cuda:0 --bge-gpu cuda:0 \
-  --api-url "$API" --api-model Qwen3.5-27B --api-concurrency 16 \
+  --api-url "$API" --api-model Qwen3.5-27B --api-concurrency "$CONC" \
   --fps 1.0 --theta 0.80 --n-max 30 \
   --emit-multilayer --multilayer-out-dir "$MEM" \
-  --summary-api-url "$API" --summary-api-model Qwen3.5-27B --summary-concurrency 32
+  --summary-api-url "$API" --summary-api-model Qwen3.5-27B --summary-concurrency "$SUMM_CONC"
 
 echo "[build] done → $MEM"

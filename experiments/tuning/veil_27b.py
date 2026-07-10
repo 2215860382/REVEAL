@@ -5,7 +5,7 @@ Answerer / Planner / Verifier all use Qwen3.5-27B via --vlm-api-url / --llm-api-
 Usage:
     cd /home2/ycj/Project/VEIL
     PYTHONPATH=. python experiments/tuning/veil_27b.py \\
-        --config configs/veil.yaml \\
+        --config configs/videomme.yaml \\
         --vlm-api-url http://localhost:8000 \\
         --llm-api-url http://localhost:8001 \\
         --bge-gpu cuda:3
@@ -131,8 +131,6 @@ def main():
                     help="Cap evidence blocks passed to verifier")
     ap.add_argument("--answer-keyframe-k",   type=int, default=32,
                     help="Cap keyframe images passed to the final answerer")
-    ap.add_argument("--max-frames",          type=int, default=None,
-                    help="Override frame_sampling.max_frames from config")
     ap.add_argument("--workers",             type=int, default=1,
                     help="Parallel workers (safe with API-mode LLM)")
     ap.add_argument("--pipeline-name",       default=None,
@@ -284,6 +282,22 @@ def main():
         )
         log.info("  BGE-M3 ready (%.1fs)", time.time() - t0)
 
+    # Optional cross-encoder reranker (env VEIL_RERANK=1): reranks the coarse
+    # dense-retrieved candidates by query↔chunk relevance. Dense retrieval is
+    # sensitive to caption wording (observed retrieval overlap ~0.25 between
+    # 448 and full-res captions); cross-encoder scores query↔chunk directly.
+    import os as _os
+    reranker = None
+    if _os.environ.get("VEIL_RERANK", "").strip() in ("1", "true", "True"):
+        from src.clients.reranker import BGEReranker
+        rr_path = _os.environ.get(
+            "VEIL_RERANK_MODEL", "/home2/ycj/Models/BAAI/bge-reranker-v2-m3")
+        rr_gpu = _os.environ.get("VEIL_RERANK_GPU", "cuda:1")
+        log.info("loading reranker on %s ...", rr_gpu)
+        _t0 = time.time()
+        reranker = BGEReranker(rr_path, device=rr_gpu)
+        log.info("  reranker ready (%.1fs)", time.time() - _t0)
+
     from src.clients.llm_client import LLMClient
     if args.llm_api_url:
         api_model = args.llm_api_model or "Qwen3.5-27B"
@@ -350,8 +364,8 @@ def main():
         if bank is None:
             return None, "bank_missing"
         kw = dict(
-            coarse_top_k=int(os.environ.get("VEIL_COARSE_TOP_K", "").strip() or 8),
-            final_top_k=int(os.environ.get("VEIL_FINAL_TOP_K", "").strip() or 8),
+            coarse_top_k=8,
+            final_top_k=8,
             max_iter=veil_max_iter,
             query_history_dedup_threshold=q_hist_dedup,
             evidence_dedup_threshold=ev_dedup,
@@ -362,6 +376,7 @@ def main():
             answer_keyframe_cap=akk,
             verifier_evidence_cap=vek,
             rubric_rerank=True,
+            reranker=reranker,
         )
         return run_veil(s.question, s.candidates, bank, embedder, answerer, llm,
                         task_type=s.question_type, **kw), None

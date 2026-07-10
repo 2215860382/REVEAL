@@ -39,7 +39,7 @@ n=12 for both L2 and L3.
 Usage (one bank from an existing single-layer bank):
     PYTHONPATH=. python -m src.build_memory.build_multilayer \\
         --src-memory-dir outputs/memory/videomme_multiframe \\
-        --out-memory-dir outputs/memory/videomme_ml3_n12 \\
+        --out-memory-dir outputs/memory/videommeL \\
         --llm-api-url http://127.0.0.1:8003,http://127.0.0.1:8004 \\
         --embed-api-url http://127.0.0.1:9000 \\
         --workers 16 [--limit 2]

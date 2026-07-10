@@ -48,6 +48,7 @@ import asyncio
 import base64
 import io
 import json
+import os
 import re
 import sys
 import time
@@ -246,7 +247,7 @@ async def _call_api(
         try:
             async with session.post(
                 f"{ep}/v1/chat/completions", json=payload_base,
-                timeout=aiohttp.ClientTimeout(total=180),
+                timeout=aiohttp.ClientTimeout(total=900),
             ) as r:
                 data = await r.json()
             text = data["choices"][0]["message"]["content"]
@@ -264,11 +265,16 @@ async def _call_api(
     raise last_err  # unreachable
 
 
-def _img_block(path: Path, max_side: int = 448) -> dict:
+def _img_block(path: Path, max_side: int | None = None) -> dict:
     """Long-edge resize → JPEG q=85 → base64 (mirrors Binlu api_backend.py:104-119).
     Matters most for the multi-image narrative call: raw 1fps frames are 1280+
     on the long edge; sending 30 of them un-scaled triples the prompt-token
-    budget and bloats attention noise, dragging caption quality down."""
+    budget and bloats attention noise, dragging caption quality down.
+
+    Long-edge cap is env-tunable via VEIL_CAPTION_MAX_SIDE (default 448); set it
+    huge (e.g. 10000) to send frames at original resolution for A/B tests."""
+    if max_side is None:
+        max_side = int(os.environ.get("VEIL_CAPTION_MAX_SIDE", "448"))
     img = Image.open(path).convert("RGB")
     if max(img.size) > max_side:
         scale = max_side / max(img.size)

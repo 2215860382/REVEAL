@@ -38,7 +38,7 @@ def main() -> None:
     ap.add_argument("--pairs", required=True)
     ap.add_argument("--chains", required=True)
     ap.add_argument("--rubric", required=True)
-    ap.add_argument("--config", default="configs/veil.yaml")
+    ap.add_argument("--config", default="configs/videomme.yaml")
     ap.add_argument("--llm-api-url", required=True)
     ap.add_argument("--llm-api-model", default=None)
     ap.add_argument("--workers", type=int, default=16)
@@ -46,7 +46,7 @@ def main() -> None:
     #    label chains (sample_chains._label_chain -> load_keyframes + chat_with_frames).
     #    A text-only verifier can't predict a multimodal answerer, so pair separation
     #    stalls near chance; aligning the modality is the fix. ──
-    ap.add_argument("--memory-dir", default="outputs/memory/videomme_ml3_n12")
+    ap.add_argument("--memory-dir", default="outputs/memory/videommeL")
     ap.add_argument("--keyframe-dir", default=None, help="defaults to --memory-dir")
     ap.add_argument("--answer-keyframe-k", type=int, default=32)
     ap.add_argument("--no-images", action="store_true",

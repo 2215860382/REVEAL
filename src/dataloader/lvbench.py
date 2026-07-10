@@ -58,6 +58,9 @@ def load_lvbench(
         key = str(row["key"])
         dur = float(row.get("video_info", {}).get("duration_minutes", 0.0)) * 60.0
         vpath = str(video_dir / f"{key}.mp4")
+        if not Path(vpath).exists():
+            continue  # skip videos whose mp4 isn't downloaded (e.g. LVBench YouTube removals);
+                      # keeps build + eval scoped to present videos, sample_idx stays contiguous
         for qa in row.get("qa", []):
             if max_samples is not None and len(samples) >= max_samples:
                 return samples

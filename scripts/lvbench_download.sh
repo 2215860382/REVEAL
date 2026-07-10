@@ -5,7 +5,7 @@
 set -u
 META=${META:-/home2/ycj/Datas/LVBench/video_info.meta.jsonl}
 VDIR=${VDIR:-/home2/ycj/Datas/LVBench/videos}
-PROXY=${PROXY:-http://127.0.0.1:10085}
+PROXY=${PROXY:-http://127.0.0.1:10086}
 PARALLEL=${PARALLEL:-3}
 YTDLP=/home2/ycj/miniconda3/envs/veil/bin/yt-dlp
 PY=/home2/ycj/miniconda3/envs/veil/bin/python

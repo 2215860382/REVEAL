@@ -12,16 +12,15 @@ export PYTHONPATH=.
 export NO_PROXY=127.0.0.1,10.82.1.145,10.82.1.147,localhost,::1 no_proxy=$NO_PROXY
 unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY 2>/dev/null || true
 
-CONFIG=${CONFIG:-configs/veil.yaml}                     # e.g. configs/lvbench.yaml
-MEM=${MEM:-outputs/memory/videomme_ml3_n12}
+CONFIG=${CONFIG:-configs/videomme.yaml}                     # e.g. configs/lvbench.yaml
+MEM=${MEM:-outputs/memory/videommeL}
 EMBED=${EMBED:-http://127.0.0.1:9000}
 SRV=${SRV:-http://127.0.0.1:8003}                       # 27B: planner + verifier + answerer
 RUBRIC=${VEIL_RUBRIC_PATH:-outputs/rubric/rubric_contrastive.yaml}
 OUT=${OUT:-outputs/results/videomme/veil_main.jsonl}
 START=${START:-0}; END=${END:-900}; WORKERS=${WORKERS:-12}
 
-env VEIL_MP_L1_CAP=8 VEIL_MP_L2_CAP=4 VEIL_MP_L3_CAP=2 \
-    VEIL_RUBRIC_PATH="$RUBRIC" \
+env VEIL_RUBRIC_PATH="$RUBRIC" \
   "$PY" experiments/tuning/veil_27b.py \
   --config "$CONFIG" --memory-dir "$MEM" \
   --embed-api-url "$EMBED" --vlm-api-url "$SRV" --llm-api-url "$SRV" \

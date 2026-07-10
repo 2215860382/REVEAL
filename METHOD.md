@@ -88,14 +88,14 @@ rubric 不是手写,而是用**对比配对**学出来——让判官看成对�
 
 ```bash
 # ① 建多层记忆库(L1+L2/L3+关键帧,一条命令出 ml3_n12)
-BENCH=videomme MEM=outputs/memory/videomme_ml3_n12 bash scripts/run_build.sh
+BENCH=videomme MEM=outputs/memory/videommeL bash scripts/run_build.sh
 
 # ② 构造 rubric(选黄金×误导 → 在线精修 → 离线判对率)
-MEM=outputs/memory/videomme_ml3_n12 RB=outputs/rubric/pairs_v6 bash scripts/run_rubric.sh
+MEM=outputs/memory/videommeL RB=outputs/rubric/pairs_v6 bash scripts/run_rubric.sh
 
 # ③ 主实验(定版 8/4/2 纯文本;rubric 用 VEIL_RUBRIC_PATH 指定)
 VEIL_RUBRIC_PATH=outputs/rubric/pairs_v6/rubric.yaml \
-MEM=outputs/memory/videomme_ml3_n12 END=900 bash scripts/run_eval.sh
+MEM=outputs/memory/videommeL END=900 bash scripts/run_eval.sh
 ```
 
 换数据集:在 `src/dataloader/` 加一个 loader、在 `src/build_memory/core/specs.py` 加一条

@@ -125,9 +125,27 @@ def extract_frames(video_path: str, out_dir: Path, fps: float = DEFAULT_FPS) -> 
     the 448-side downscale at the API boundary.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        "ffmpeg", "-i", str(video_path),
-        "-vf", f"fps={fps}", "-q:v", "2",
+    # Long-edge cap on extracted frames, env-tunable via VEIL_EXTRACT_MAX_SIDE
+    # (default 0 = no cap, preserves original behavior). Set e.g. 1920 to keep
+    # ultra-high-res sources (8K) from choking ffmpeg's scale+JPEG-encode stage.
+    # Never upscales smaller videos (min() with iw/ih + decrease-only fit).
+    import os
+    _max = int(os.environ.get("VEIL_EXTRACT_MAX_SIDE", "0"))
+    vf = f"fps={fps}"
+    if _max > 0:
+        vf += (f",scale='min({_max},iw)':'min({_max},ih)'"
+               f":force_original_aspect_ratio=decrease")
+    # Optional GPU (NVDEC) decode for ultra-high-res sources. CPU software decode
+    # chokes on 8K (must decode 100k+ full-res frames at 24fps before the fps=1
+    # downsample); NVDEC hardware decode clears it in ~1/10 the wall time. Enable
+    # via VEIL_HWACCEL_DEVICE=<gpu idx> (empty = CPU software decode, default).
+    _hw = os.environ.get("VEIL_HWACCEL_DEVICE", "")
+    pre = ["ffmpeg"]
+    if _hw != "":
+        pre += ["-hwaccel", "cuda", "-hwaccel_device", _hw]
+    cmd = pre + [
+        "-i", str(video_path),
+        "-vf", vf, "-q:v", "2",
         str(out_dir / "frame_%06d.jpg"),
         "-hide_banner", "-loglevel", "error", "-y",
     ]

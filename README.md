@@ -11,7 +11,7 @@ and how to run the three stages end-to-end.
 ## Layout
 
 ```
-configs/veil.yaml                 # benchmark paths, model paths, loop thresholds
+configs/videomme.yaml                 # benchmark paths, model paths, loop thresholds
 METHOD.md                         # method description (memory / retrieval / verifier / rubric)
 
 src/
@@ -49,7 +49,7 @@ scripts/
 # pip install -r requirements.txt
 ```
 
-Model/data paths live in `configs/veil.yaml` (`models.*.model_path`, `benchmark.*`).
+Model/data paths live in `configs/videomme.yaml` (`models.*.model_path`, `benchmark.*`).
 
 ## Running
 
@@ -62,14 +62,14 @@ python scripts/start_embed_server.py                 # BGE-M3 embed API at :9000
 bash   scripts/start_vllm_gpu3_8003.sh               # 27B VLM/LLM at :8003
 
 # ① build the multi-layer memory bank (ml3_n12) in one command
-BENCH=videomme MEM=outputs/memory/videomme_ml3_n12 bash scripts/run_build.sh
+BENCH=videomme MEM=outputs/memory/videommeL bash scripts/run_build.sh
 
 # ② construct the rubric (gold × mislead → refine → offline score)
-MEM=outputs/memory/videomme_ml3_n12 RB=outputs/rubric/pairs_v6 bash scripts/run_rubric.sh
+MEM=outputs/memory/videommeL RB=outputs/rubric/pairs_v6 bash scripts/run_rubric.sh
 
 # ③ main experiment — definitive config (L1=8/L2=4/L3=2, text-only, ~78.9%)
 VEIL_RUBRIC_PATH=outputs/rubric/pairs_v6/rubric.yaml \
-MEM=outputs/memory/videomme_ml3_n12 END=900 bash scripts/run_eval.sh
+MEM=outputs/memory/videommeL END=900 bash scripts/run_eval.sh
 ```
 
 Accuracy is printed at the end of Stage 3 and written per-question to `--out`

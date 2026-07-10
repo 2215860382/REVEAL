@@ -170,18 +170,14 @@ def _multi_pool_retrieve(
     coarse_top_k: int,
     final_top_k: int,
     exclude_ids: Set[int],
-    l2_cap: int = 4,
+    reranker=None,
 ) -> tuple[List[str], List[int], List[List[float]]]:
     """Retrieve from the L1 detail pool + L2/L3 summary pools, merged by score.
 
-    Pool sizes are env-overridable so summary depth can be swept without touching
-    the CLI (VEIL's env-override pattern):
-
-      VEIL_MP_L1_CAP   L1 detail chunks entering the pool (default = coarse_top_k)
-      VEIL_MP_L2_CAP   L2 summaries entering the pool (default 4)
-      VEIL_MP_L3_CAP   L3 summaries entering the pool (default 0 = off)
-
-    Definitive config: L1=8 / L2=4 / L3=2.
+    Definitive config: L1=8 / L2=4 / L3=2 candidates enter the merge pool, then the
+    top ``final_top_k`` by cosine are returned. The caps default to that config; the
+    ``VEIL_MP_L{1,2,3}_CAP`` env vars exist ONLY to sweep layer depth in ablations
+    (e.g. L2=0/L3=0 for the L1-only ablation). The mainline eval sets none of them.
     """
     if not bank.l2_chunks:
         return _query_retrieve(query, bank, embedder, coarse_top_k, final_top_k,
@@ -193,9 +189,9 @@ def _multi_pool_retrieve(
         except ValueError:
             return default
 
-    l1_pool_cap = _envi("VEIL_MP_L1_CAP", coarse_top_k)
-    l2_cap = _envi("VEIL_MP_L2_CAP", l2_cap)
-    l3_cap = _envi("VEIL_MP_L3_CAP", 0)
+    l1_pool_cap = _envi("VEIL_MP_L1_CAP", 8)
+    l2_cap      = _envi("VEIL_MP_L2_CAP", 4)
+    l3_cap      = _envi("VEIL_MP_L3_CAP", 2)
     final_keep = final_top_k
 
     q_vec = embedder.encode([query])[0]
@@ -230,8 +226,16 @@ def _multi_pool_retrieve(
             if c.chunk_id not in exclude_ids:
                 candidates.append((float(scores[int(i)]), c, c.memory_text))
 
-    candidates.sort(key=lambda x: -x[0])
-    selected = candidates[:final_keep]
+    if reranker is not None and len(candidates) > final_keep:
+        # cross-encoder 精排: 对粗召回候选按 query-chunk 语义重排, 取 final_keep。
+        # dense 召回对 caption 措辞敏感(检索重叠仅 0.25); cross-encoder 直接算
+        # query↔chunk 相关性, 不靠 caption 措辞, 稳住检索。
+        order = reranker.rerank(query, [ev for _, _, ev in candidates],
+                                top_k=final_keep)
+        selected = [candidates[i] for i, _ in order]
+    else:
+        candidates.sort(key=lambda x: -x[0])
+        selected = candidates[:final_keep]
     return (
         [ev for _, _, ev in selected],
         [c.chunk_id for _, c, _ in selected],
@@ -262,7 +266,7 @@ def run_veil(
     verifier_evidence_cap: int | None   = None,
     rubric_judgment:       bool         = True,
     rubric_rerank:         bool         = False,
-    verifier_implicit:     bool         = False,
+    reranker                            = None,
 ) -> dict:
     """Iter-0 sub-question decomposition + iter ≥1 unified-planner repair.
 
@@ -328,6 +332,7 @@ def run_veil(
                 t, i, v = _multi_pool_retrieve(
                     q, bank, embedder,
                     coarse_top_k, final_top_k, seen_ids,
+                    reranker=reranker,
                 )
                 new_texts.extend(t); new_ids.extend(i); new_vecs.extend(v)
                 seen_ids.update(i)
@@ -381,8 +386,7 @@ def run_veil(
             kf_for_verifier = kf_for_verifier[:answer_keyframe_cap]
 
         last_verdict = verifier.verify(question, candidates, ev_for_verifier, rubric,
-                                  keyframe_images=kf_for_verifier,
-                                  implicit=verifier_implicit)
+                                  keyframe_images=kf_for_verifier)
 
         # ── Trace ────────────────────────────────────────────────────────────
         iterations.append({
@@ -405,17 +409,21 @@ def run_veil(
             break
 
     # ── Answer ───────────────────────────────────────────────────────────────
+    # 先按 rubric(题目+选项)让 LLM 重排全部证据, 再截断 top-k: 让 LLM 决定
+    # 哪些证据进 top-k, 而不是让 dense 先砍再排。截断丢掉的是 LLM 判为最没用的
+    # 尾部噪声证据, 减少答题 context 干扰。cap=None 时只重排不截断(baseline 行为)。
     ev_texts = all_evidence_texts
     ev_ids   = all_chunk_ids
-    if answer_evidence_cap is not None:
-        cap      = min(answer_evidence_cap, len(ev_texts))
-        ev_texts = ev_texts[:cap]
-        ev_ids   = ev_ids[:cap]
 
     if rubric_rerank and len(ev_texts) > 1:
         order    = _rerank_by_rubric(question, candidates, ev_texts, rubric, llm)
         ev_texts = [ev_texts[i] for i in order]
         ev_ids   = [ev_ids[i]   for i in order]
+
+    if answer_evidence_cap is not None:
+        cap      = min(answer_evidence_cap, len(ev_texts))
+        ev_texts = ev_texts[:cap]
+        ev_ids   = ev_ids[:cap]
 
     kf_for_answer        = all_keyframes
     kf_chunk_ids_for_ans = all_kf_chunk_ids
