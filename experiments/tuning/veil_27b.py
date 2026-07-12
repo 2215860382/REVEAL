@@ -70,6 +70,24 @@ def _count_memory_videos(memory_dir: Path) -> int | None:
         return None
 
 
+def _egolife_query_cutoff(s) -> float | None:
+    """EgoLife: absolute global-timeline second of a sample's query_time, so
+    retrieval can drop memory AFTER it (future is off-limits). None for other
+    benchmarks (no query_time) ⇒ no time filtering."""
+    qt = getattr(s, "query_time", None)
+    if not qt:
+        return None
+    date, tstr = qt.get("date"), qt.get("time")
+    if not date or not tstr:
+        return None
+    try:
+        from src.dataloader.egolife import _clip_abs_start
+        day = int(str(date).upper().replace("DAY", ""))
+        return _clip_abs_start(day, str(tstr))
+    except Exception:
+        return None
+
+
 def load_samples(cfg: dict, filter_video_ids: set | None = None):
     bench = cfg["benchmark"]["name"]
     if bench == "videomme":
@@ -86,6 +104,24 @@ def load_samples(cfg: dict, filter_video_ids: set | None = None):
         samples = load_lvbench(
             meta_path=b["meta_path"],
             video_dir=b["video_dir"],
+        )
+    elif bench == "longvideobench":
+        from src.dataloader.longvideobench import load_longvideobench
+        b = cfg["benchmark"]
+        samples = load_longvideobench(
+            bench_root=b["bench_root"],
+            video_dir=b["video_dir"],
+        )
+    elif bench in ("egolife", "egolifeqa", "egor1_manual", "egor1_gemini", "egor1_both"):
+        # EgoLife family: video_id = person; bank = that person's life-stream.
+        # filter_people (optional) limits eval to persons whose bank is built.
+        from src.dataloader.egolife import load_egolife
+        b = cfg["benchmark"]
+        samples = load_egolife(
+            bench=bench,
+            bench_root=b["bench_root"],
+            video_dir=b.get("video_dir"),
+            filter_people=b.get("filter_people"),
         )
     else:
         raise ValueError(f"Unknown benchmark: {bench}")
@@ -125,10 +161,6 @@ def main():
                     help="OpenAI-compatible API base URL(s); comma-separated = round-robin")
     ap.add_argument("--llm-api-model",  default=None,
                     help="Served model id for --llm-api-url (default: Qwen3.5-27B)")
-    ap.add_argument("--answer-evidence-k",   type=int, default=None,
-                    help="Cap evidence blocks passed to the final answerer")
-    ap.add_argument("--verifier-evidence-k", type=int, default=None,
-                    help="Cap evidence blocks passed to verifier")
     ap.add_argument("--answer-keyframe-k",   type=int, default=32,
                     help="Cap keyframe images passed to the final answerer")
     ap.add_argument("--workers",             type=int, default=1,
@@ -282,22 +314,6 @@ def main():
         )
         log.info("  BGE-M3 ready (%.1fs)", time.time() - t0)
 
-    # Optional cross-encoder reranker (env VEIL_RERANK=1): reranks the coarse
-    # dense-retrieved candidates by query↔chunk relevance. Dense retrieval is
-    # sensitive to caption wording (observed retrieval overlap ~0.25 between
-    # 448 and full-res captions); cross-encoder scores query↔chunk directly.
-    import os as _os
-    reranker = None
-    if _os.environ.get("VEIL_RERANK", "").strip() in ("1", "true", "True"):
-        from src.clients.reranker import BGEReranker
-        rr_path = _os.environ.get(
-            "VEIL_RERANK_MODEL", "/home2/ycj/Models/BAAI/bge-reranker-v2-m3")
-        rr_gpu = _os.environ.get("VEIL_RERANK_GPU", "cuda:1")
-        log.info("loading reranker on %s ...", rr_gpu)
-        _t0 = time.time()
-        reranker = BGEReranker(rr_path, device=rr_gpu)
-        log.info("  reranker ready (%.1fs)", time.time() - _t0)
-
     from src.clients.llm_client import LLMClient
     if args.llm_api_url:
         api_model = args.llm_api_model or "Qwen3.5-27B"
@@ -354,8 +370,6 @@ def main():
 
     from src.eval.parse_answer import parse_letter
 
-    aek    = args.answer_evidence_k
-    vek    = args.verifier_evidence_k
     akk    = None if args.answer_keyframe_k is not None and args.answer_keyframe_k < 0 else args.answer_keyframe_k
     kf_dir = None if args.no_keyframes else memory_dir
 
@@ -372,11 +386,9 @@ def main():
             query_evidence_dedup_threshold=q_ev_dedup,
             kf_dedup_threshold=kf_dedup_thresh,
             keyframe_dir=kf_dir,
-            answer_evidence_cap=aek,
             answer_keyframe_cap=akk,
-            verifier_evidence_cap=vek,
             rubric_rerank=True,
-            reranker=reranker,
+            max_time=_egolife_query_cutoff(s),
         )
         return run_veil(s.question, s.candidates, bank, embedder, answerer, llm,
                         task_type=s.question_type, **kw), None

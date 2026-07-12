@@ -226,12 +226,31 @@ def build_multilayer_for_video(src_vd: Path, out_vd: Path, llm, embedder, cfg: d
         # so the multi-layer bank ships its own photos.
         kf_ref = ""
         if c.keyframe_path:
-            kf_name = Path(c.keyframe_path).name
-            if frame_mode == "reference":
-                kf_ref = str((src_vd / "keyframes_resized" / kf_name).resolve())
+            kfp = Path(c.keyframe_path)
+            if "_clips" in kfp.parts:
+                # EgoLife per-clip layout: frames live at
+                # src_vd/_clips/<stem>/keyframes_{resized,origin}/<name>, and the
+                # basename ("0000_0.jpg") collides across ALL clips — so the dest
+                # name must carry the clip stem to stay unique in the flat bank.
+                stem = kfp.parts[kfp.parts.index("_clips") + 1]
+                base = kfp.name
+                dst_name = f"{stem}_{base}"
+                clip_dir = src_vd / "_clips" / stem
+                if frame_mode == "reference":
+                    kf_ref = str((clip_dir / "keyframes_resized" / base).resolve())
+                else:
+                    _place_frame(clip_dir / "keyframes_resized" / base,
+                                 out_vd / "keyframes_resized" / dst_name, frame_mode)
+                    _place_frame(clip_dir / "keyframes_origin" / base,
+                                 out_vd / "keyframes_origin" / dst_name, frame_mode)
+                    kf_ref = f"keyframes_resized/{dst_name}"
             else:
-                _place_chunk_frames(src_vd, out_vd, kf_name, frame_mode, include_raw)
-                kf_ref = f"keyframes_resized/{kf_name}"
+                kf_name = kfp.name
+                if frame_mode == "reference":
+                    kf_ref = str((src_vd / "keyframes_resized" / kf_name).resolve())
+                else:
+                    _place_chunk_frames(src_vd, out_vd, kf_name, frame_mode, include_raw)
+                    kf_ref = f"keyframes_resized/{kf_name}"
         # Preserve the raw speech transcript line so L1 evidence matches the
         # single-layer bank's `<narrative>\nSpeech: <asr>` format (the narrative
         # already weaves speech in, but keep the verbatim line for fidelity).

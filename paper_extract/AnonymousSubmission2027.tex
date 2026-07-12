@@ -1,0 +1,529 @@
+\documentclass[letterpaper]{article} % DO NOT CHANGE THIS
+\usepackage[submission]{aaai2027}  % DO NOT CHANGE THIS
+\usepackage[hyphens]{url}  % DO NOT CHANGE THIS
+\usepackage{graphicx} % DO NOT CHANGE THIS
+\urlstyle{rm} % DO NOT CHANGE THIS
+\def\UrlFont{\rm}  % DO NOT CHANGE THIS
+\usepackage{natbib}  % DO NOT CHANGE THIS AND DO NOT ADD ANY OPTIONS TO IT
+\usepackage{caption} % DO NOT CHANGE THIS AND DO NOT ADD ANY OPTIONS TO IT
+\frenchspacing  % DO NOT CHANGE THIS
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{newfloat}
+\usepackage{listings}
+\usepackage{todonotes}
+\usepackage{multirow}
+\DeclareCaptionStyle{ruled}{labelfont=normalfont,labelsep=colon,strut=off} % DO NOT CHANGE THIS
+\lstset{%
+    basicstyle={\footnotesize\ttfamily},%
+    numbers=left,numberstyle=\footnotesize,xleftmargin=2em,%
+    aboveskip=0pt,belowskip=0pt,%
+    showstringspaces=false,tabsize=2,breaklines=true}
+\floatstyle{ruled}
+\newfloat{listing}{tb}{lst}{}
+\floatname{listing}{Listing}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\pdfinfo{
+/TemplateVersion (2027.1)
+}
+
+\setcounter{secnumdepth}{2}
+
+\title{Rubric-Guided Evidence Repair for Long-Video Question Answering}
+\author{Anonymous Submission}
+\affiliations{}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Recently, retrieval- and memory-augmented agents have advanced long-video question answering by compressing each video into a searchable memory and retrieving evidence for a question on demand. However, these systems typically segment the video into fixed-length chunks that cut coherent scenes apart, and---whether the memory is then indexed as multi-scale summaries or multimodal knowledge graphs---they still equate retrieval relevance with evidence sufficiency, judging whether the collected evidence is enough only implicitly and often stopping to answer on segments that are related to the question yet cannot confirm or rule out the options. To address this, we propose VEIL, a rubric-guided evidence-repair framework that makes evidence sufficiency an explicit, inspectable decision. VEIL organizes each video into a hierarchical memory whose base units are scene segments grouped by visual similarity rather than fixed time spans, summarized upward into event- and video-level context; over this memory---using no knowledge graph or cross-modal retrieval index---a verifier scores the retrieved evidence against question-specific rubrics to decide whether it can confirm or rule out every option and turns each unresolved option into a targeted repair query, so the search continues until the evidence is decisive rather than merely relevant. We further design a pipeline that constructs these rubrics automatically from contrastive pairs of decisive and misleading evidence. Training-free and using only a lightweight open Qwen model with no visual input at inference, VEIL surpasses strong proprietary systems such as GPT-5 by 6.3 points on Video-MME-L and reaches state-of-the-art on multiple long-video benchmarks, showing that explicit sufficiency verification---not heavier memory---is the key to reliable long-video reasoning.
+\end{abstract}
+
+% Uncomment after de-anonymized camera-ready release.
+% \begin{links}
+%     \link{Code}{https://anonymous.4open.science/r/rubric-video-repair}
+% \end{links}
+
+\section{Introduction}
+
+Video large language models (video LLMs) are increasingly deployed in applications that must understand very long videos---AI glasses and home robots that perceive a user's day, assistants that search through hours of surveillance, meeting, or lecture recordings, and systems that answer questions about movies, sports broadcasts, or instructional footage~\citep{fu2024videomme,wang2024lvbench,zhou2024mlvu,tian2025egor1}. Long-video question answering (QA) is the canonical task for measuring this ability: a model must locate and reason over the few seconds of evidence that answer a question, buried in hours of otherwise redundant footage. The central obstacle is scale. Sampling even one frame per second from an hour-long video yields thousands of frames, far more than a vision-language model (VLM) can attend to at once; feeding them in directly exhausts both the visual-token budget and the context length of current models and inflates computational cost~\citep{qwen2_vl,gpt4o}. Specialized long-video models therefore shrink the visual input before or during encoding---through sparse frame sampling, keyframe selection, or visual-token compression that packs long clips into a fixed token budget~\citep{video_chatgpt,video_llava,llama_vid,chat_univi,longvu,sun2025videosalmonns}.
+
+While such compression lets a model nominally cover a longer video, it is inherently lossy: sub-sampling frames or merging tokens throws away the fine-grained visual detail that many questions depend on, and the token cost still scales with duration. To avoid squeezing the whole video through the model, retrieval-augmented methods index the video into an external memory and, for each question, retrieve only a small set of relevant segments to reason over~\citep{lewis2020rag,karpukhin2020dpr,video_rag}. Because the model then conditions on a compact, query-specific subset instead of the entire stream, retrieval decouples reasoning cost from video length and scales gracefully to hours-long content.
+
+However, retrieving from a flat pool of clips or captions has clear limits. A single-scale index treats every segment as an isolated unit: it cannot represent events that play out over different durations, and it offers no global view of how scattered moments connect into a storyline. Memory-augmented methods close part of this gap by processing the raw video into a structured memory before any question arrives---captioning segments, stacking them into hierarchical multi-scale summaries, or linking recurring entities into knowledge graphs---and pairing this memory with an agent that retrieves across levels over multiple rounds and decides on its own when to stop~\citep{moviechat,ma_lmm,fan2024videoagentmemory,worldmm,tian2025egor1,chen2025lvagent,wang2025avp}. This organizes a long temporal context into a searchable, multi-granularity memory and substantially improves long-video reasoning.
+
+Yet across these designs a common blind spot persists: they treat retrieval relevance as evidence sufficiency. Consider a question that asks \emph{why} a woman leaves a restaurant. Retrieval readily surfaces the segment where she stands up and walks out---the closest match in both words and appearance---yet this clip shows only \emph{that} she leaves, not why, and can even mislead by suggesting she has simply finished her meal. The evidence that actually decides the question sits elsewhere and scores lower for relevance: an earlier moment in which she takes a phone call and looks alarmed. A system that stops at the most relevant clip answers from a distractor, whereas the \emph{sufficient} evidence is the segment that lets the model confirm the real cause and rule the misleading reading out. Compounding this, when a multi-round agent decides that it has ``seen enough,'' the judgment is implicit and holistic: it never names which option is still unresolved or which fact is missing, so follow-up queries stay broad and keep returning related but non-decisive clips. What is missing is an explicit account of whether the current evidence is sufficient to decide the question---and, when it is not, of exactly what to search for next.
+
+We propose VEIL, a rubric-guided evidence-repair framework that makes this account an explicit step inside the inference loop. VEIL first builds a hierarchical memory whose base units are scene segments formed by grouping visually similar frames---so a coherent event stays whole instead of being split at fixed time boundaries---and abstracts them upward into event- and video-level summaries for retrieval at multiple scales. Given a question, a rubric-guided verifier scores the retrieved evidence against a set of sufficiency criteria and judges, option by option, whether the evidence can confirm or rule it out; if any option remains undecided, the verifier emits a structured trace of what is missing, which a planner turns into a targeted repair query so the system searches for that specific gap rather than re-retrieving broadly. This retrieve--verify--repair loop continues until the evidence is decisive, and only then is an answer produced. Central to VEIL is \emph{where} the rubric lives: rubrics have so far served mainly to grade final answers~\citep{liu2023geval,zheng2023judging,kim2023prometheus,es2023ragas} or to shape rewards in reinforcement learning~\citep{liu2025openrubrics,zhou2025ruscarl,zhang2026chasingtail}, whereas we move them into inference as a control signal that governs retrieval. To obtain the criteria without hand-crafting them, we design a construction pipeline that induces rubrics automatically from contrastive pairs of decisive versus misleading evidence, teaching the verifier the boundary between what settles a question and what merely looks relevant.
+
+Our contributions are summarized as follows:
+\begin{itemize}
+    \item To our knowledge, we are the first to bring rubric-based evidence-sufficiency verification into the inference loop of long-video QA, recasting answering as an explicit retrieve--verify--repair process and opening a direction in which interpretable, criterion-level checks---rather than implicit confidence---govern when the collected evidence is enough.
+    \item We design VEIL, which couples a hierarchical, similarity-grouped video memory with a rubric-guided verifier that diagnoses per-option evidence gaps and repairs them through targeted retrieval, together with a pipeline that constructs the rubrics automatically from contrastive evidence pairs rather than manual authoring.
+    \item VEIL is training-free and uses only a lightweight open model: with no visual input at inference, it reaches state-of-the-art among comparable systems and surpasses strong proprietary models, scoring 78.9 on Video-MME-L ($+6.3$ over GPT-5) and 63.5 on LVBench.
+\end{itemize}
+
+
+
+\section{Related Work}
+
+\subsection{Long Video Understanding}
+
+Long-video understanding must reason over sparse evidence spread across a long temporal context, which is difficult to feed to an MLLM directly under visual-token and context-length budgets. Existing work therefore reduces the video input through sparse frame sampling, keyframe selection, or visual-token compression \citep{video_chatgpt,video_llava,llama_vid,chat_univi,longvu,sun2025videosalmonns}, or avoids full-video encoding by indexing the video into an external memory and retrieving a small set of relevant clips or memory items per question \citep{lewis2020rag,karpukhin2020dpr,video_rag,fan2024videoagentmemory,yeo2025worldmm,tian2025egor1}. Memory-based systems further structure this memory into captions, hierarchical multi-scale summaries, or entity knowledge graphs, and recent agentic methods add planning, tool use, and multi-round retrieval that continues until the agent judges it has gathered enough \citep{moviechat,ma_lmm,wang2024videoagentlongform,yang2024vca,chen2025lvagent,wang2025avp}. These systems improve access to relevant content, but relevance does not imply sufficiency, and their stopping decision is typically an implicit LLM or multi-agent judgment; in contrast, we make the sufficiency check explicit at the option and criterion level and use the resulting missing-evidence trace to steer the next retrieval.
+
+\subsection{Rubric-based Methods}
+
+Rubrics decompose a complex, subjective assessment into a set of explicit, verifiable criteria, separating the evaluation standard from the model that applies it. As LLM-as-a-judge scorers, rubrics turn a single holistic score into inspectable per-criterion judgments and have been used to evaluate open-ended, medical, and video outputs \citep{liu2023geval,zheng2023judging,kim2023prometheus,hashemi2024llmrubric,es2023ragas,arora2025healthbench,waheed2025videojudge,shaar2026movierecapsqa}, with recent work automating their construction at scale \citep{liu2026rubricssurvey,li2026rubrichub,zhou2026autochecklist,fan2025sedareval}. Beyond evaluation, rubrics have been used as reward signals in reinforcement learning, where an LLM grader supplies fine-grained feedback for tasks that lack ground-truth answers \citep{liu2025openrubrics,zhou2025ruscarl,zhang2026chasingtail}. In all of these settings, however, the rubric is applied to a completed answer---to score it or to reward it---rather than inside the reasoning process. We instead bring rubrics into the inference loop of a long-video agent, where they judge, option by option, whether the currently retrieved evidence is sufficient and expose which criteria remain unmet to drive the next retrieval.
+
+
+\section{Methodology}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{Figures/overview.pdf}
+\caption{Overview of VEIL. A long video is compressed into a hierarchical \emph{textual} memory bank: segment-level narrative captions (L1) and stacked event- and paragraph-level summaries (L2, L3). Representative keyframes and raw frames are retained for optional inspection or online supplementation, but retrieval and answering are text-only in the default configuration. At inference time, the planner decomposes the question into subqueries (round~0) or, guided by the verifier's missing-evidence trace, issues targeted or broadcast repair queries (round~$\ge 1$); the retriever collects timestamped multi-level evidence; and a rubric-guided verifier scores per-option sufficiency to decide whether the evidence is \texttt{SUFFICIENT} or \texttt{INSUFFICIENT}. Insufficient cases feed a repair trace back for another retrieval round, while sufficient cases---or a reached round budget---are passed to the answer agent.}
+\label{fig:arch}
+\end{figure*}
+
+VEIL recasts long-video question answering as an explicit \emph{retrieve--verify--repair--answer} process (Figure~\ref{fig:arch}), built from three components. \textbf{(1)} A hierarchical, scene-grouped \emph{memory} compresses the video into searchable multi-scale text, so that a coherent event stays whole and its details remain retrievable (Section~\ref{sec:memory}). \textbf{(2)} A rubric-guided \emph{verify-and-repair} loop then, given a question, retrieves candidate evidence, scores its sufficiency for every option with a verifier, and---when the evidence is insufficient---turns the verifier's missing-evidence trace into targeted repair queries, iterating until the evidence is decisive before an answer is produced (Sections~\ref{sec:retrieval}--\ref{sec:answer}). \textbf{(3)} An offline \emph{rubric-construction} pipeline induces the verifier's criteria from contrastive pairs of decisive and misleading evidence, so the rubrics are built automatically rather than by hand (Section~\ref{sec:rubric}). A single open LLM serves as the planner, verifier, and answerer, and all retrieval is performed over text. We detail each component below.
+
+\subsection{Hierarchical Memory Construction}
+\label{sec:memory}
+
+Retrieval quality is bounded by how the video is segmented and indexed. Cutting the stream into fixed-length chunks splits a coherent scene across several units, and a single-scale index cannot serve questions that range from a one-second action to a whole-video summary. Given a long video $V$, VEIL therefore builds a three-level textual memory pyramid whose base units follow scene boundaries rather than a fixed clock: the lower level preserves local detail, while upper levels provide increasingly abstract temporal context. All retrieval is performed over text embeddings; visual information is written into the L1 captions rather than retrieved through a separate visual channel.
+
+\paragraph{L1: segment-level narrative memory.}
+We sample video frames at 1 fps and remove low-quality frames before chunking. Near-black, near-white, or nearly uniform frames are filtered using JPEG size and pixel statistics, and blurred frames are removed with a Laplacian-variance criterion. The remaining frames are encoded by SigLIP~\citep{zhai2023siglip}. Adjacent frames are greedily grouped into variable-length shot-like segments when their visual cosine similarity exceeds a threshold $\theta$; we use $\theta=0.8$ by default. For each segment, a VLM generates a caption from the segment frames and the temporally aligned subtitle or speech transcript when available. The caption is instructed to preserve answer-discriminative details, including identities, objects, actions, state changes, temporal transitions, spatial relations, and counts. This produces an L1 memory item of roughly 10 seconds on average:
+\begin{equation}
+    c_i^{(1)}=(t_i^s,t_i^e,x_i^{(1)},K_i),
+\end{equation}
+where $(t_i^s,t_i^e)$ are temporal boundaries, $x_i^{(1)}$ is the segment-level narrative, and $K_i$ stores representative keyframes for possible re-reading or visualization. In the default configuration the keyframes are neither used as an independent retrieval channel nor shown to the answerer: all answer-relevant visual content is carried by the L1 caption text, and both retrieval and answering are text-only.
+
+\paragraph{L2 and L3: stacked summaries.}
+Upper levels are built by textual stacking rather than by re-captioning video frames. Every 12 consecutive L1 items are summarized by an LLM into a 120-word L2 event-timeline summary. Every 12 consecutive L2 items are then summarized into a 300-word L3 paragraph-level summary. Formally,
+\begin{equation}
+    x_j^{(2)}=S_2(x_{12j}^{(1)},\ldots,x_{12j+11}^{(1)}),
+\end{equation}
+\begin{equation}
+    x_k^{(3)}=S_3(x_{12k}^{(2)},\ldots,x_{12k+11}^{(2)}),
+\end{equation}
+where $S_2$ and $S_3$ denote LLM summarizers with prompts that retain temporal order and answer-relevant entities. L2 captures event processes, while L3 captures global themes and coarse temporal structure. This stacked construction keeps upper-level memories consistent with L1 observations and avoids additional visual-processing cost.
+
+\paragraph{Text embedding and online memory.}
+Each textual memory item $x_i^{(\ell)}$ from level $\ell\in\{1,2,3\}$ is encoded by BGE-M3~\citep{chen2024bgem3}:
+\begin{equation}
+    \mathbf{h}_i^{(\ell)}=f_{\mathrm{text}}(x_i^{(\ell)}).
+\end{equation}
+The offline memory bank is therefore
+\begin{equation}
+    \mathcal{M}=\mathcal{M}^{(1)}\cup\mathcal{M}^{(2)}\cup\mathcal{M}^{(3)}.
+\end{equation}
+The memory format can additionally retain the raw frames around each segment. Using them, we explored an \emph{online} layer $\mathcal{M}^{+}$ that, when the verifier repeatedly reports missing fine-grained evidence, returns to the original frames around candidate timestamps and regenerates captions for the requested detail as additional textual evidence. On the long-video benchmarks we study, this did not improve accuracy: the dominant failure mode is retrieval \emph{recall} over the offline bank rather than caption incompleteness. The default system therefore disables online supplementation and performs all evidence repair through additional text retrieval over $\mathcal{M}$; we retain the raw frames only as an interface for future work.
+
+\subsection{Multi-level Retrieval and Planning}
+\label{sec:retrieval}
+
+A single question embedding tends to match high-level topical content and miss the decisive local moment, and once a retrieval round falls short, the system needs a principled way to decide what to search next instead of reissuing broad queries. VEIL addresses both with question decomposition, retrieval across memory levels, and verifier-guided repair planning.
+
+\paragraph{Query decomposition.}
+At round 0, the planner receives the question and options and decomposes them into 2--4 atomic subqueries. Each subquery is self-contained and short, typically no more than 15 words. This decomposition reduces the chance that a single broad query retrieves only high-level topical matches while missing the decisive local event. For a subquery $u$, retrieval uses only BGE-M3 text similarity:
+\begin{equation}
+    s(u,c_i^{(\ell)})=\cos(f_{\mathrm{text}}(u),\mathbf{h}_i^{(\ell)}).
+\end{equation}
+
+\paragraph{Multi-level evidence pool.}
+Retrieval is performed independently on L1, L2, and L3. The default capacity is L1@8, L2@4, and L3@2 per round. The candidates from all levels and all subqueries are merged into a single evidence pool, deduplicated by text similarity and timestamp overlap, and sorted by retrieval score. L1 supplies local visual details through captions, L2 supplies event processes, and L3 supplies global context. This design keeps retrieval compact while exposing the verifier to evidence at different temporal scales.
+
+\paragraph{Repair planning.}
+At later rounds, the planner conditions on the previous verifier trace rather than only on the original question. It chooses between two strategies. The \textit{targeted} strategy generates focused queries for missing facts, such as an action before an object appears, the outcome after a scene transition, or the temporal order between two events. The \textit{broadcast} strategy samples temporally diverse memories along the video timeline and is used for overview questions, chronological questions, or when targeted retrieval has failed. To avoid repeated search, a new query is discarded if it is highly redundant with previous queries by Jaccard overlap or if its expected information is already covered by the current evidence according to BGE-M3 similarity. If all targeted queries are discarded, the planner falls back to broadcast retrieval.
+
+\subsection{Rubric-guided Evidence Verification}
+\label{sec:verify}
+
+Multi-round agents usually judge that they have ``seen enough'' with a single holistic decision, which cannot say which option is still unresolved or which requirement is unmet, and so tends to conflate relevance with sufficiency. VEIL replaces this with an explicit, per-criterion check and is the central component of our framework. Given the question, options $O=\{o_1,\ldots,o_m\}$, the retrieved evidence, and a rubric, the verifier scores, for every option, whether the evidence is adequate to confirm or rule it out---not whether the option is likely to be correct.
+
+\paragraph{Rubric format.}
+The inference-time rubric combines general criteria with question-type-specific criteria. Each criterion has the form
+\begin{equation}
+    r_k=(\mathrm{name},\mathrm{description},b_k^1,b_k^{0.5},b_k^0,w_k),
+\end{equation}
+where $b_k^1$, $b_k^{0.5}$, and $b_k^0$ define the scoring boundaries for full, partial, and missing evidence, and $w_k$ is the criterion weight. General criteria cover broad sufficiency requirements such as coverage, specificity, consistency, and temporal grounding. Type-specific criteria specialize these requirements for temporal-order, object-state, action, counting, spatial-relation, and causal questions.
+
+\paragraph{Per-option sufficiency scoring.}
+For each option $o_j$ and criterion $r_k$, the verifier assigns
+$z_{jk}\in\{1,0.5,0\}$ according to whether the current evidence is sufficient to \emph{judge} that option under the criterion; evidence that clearly rules the option out scores as high as evidence that clearly confirms it. The option-level sufficiency score is
+\begin{equation}
+    \rho_j=\frac{\sum_k w_k z_{jk}}{\sum_k w_k}.
+\end{equation}
+In the same pass, the verifier also emits a direct per-option judgment $\hat{y}_j\in\{\texttt{true},\texttt{false},\texttt{unknown}\}$. We then gate this judgment by the sufficiency score, forcing any option whose evidence is not sufficient to \texttt{unknown}:
+\begin{equation}
+    y_j=\begin{cases}
+    \hat{y}_j,     & \rho_j\ge\tau,\\
+    \texttt{unknown}, & \rho_j<\tau.
+    \end{cases}
+\end{equation}
+Here \texttt{false} is as important as \texttt{true}: sufficient evidence may rule out an option rather than support it. The threshold $\tau$ is a per-rubric hyperparameter tuned on development questions; the general criteria use $\tau=0.6$, while the type-specific rubrics use stricter thresholds (up to $0.8$).
+
+\paragraph{Global stopping rule.}
+VEIL stops retrieval only when the verifier finds exactly one \texttt{true} option and all remaining options are \texttt{false}. Otherwise, the evidence is labeled \texttt{INSUFFICIENT}. In insufficient cases, the verifier outputs unresolved options, weak criteria, and a concise missing-evidence analysis. This analysis is passed to the planner for the next repair round. The retrieval--verification loop runs for at most three rounds in our default configuration.
+
+\subsection{Answer Generation}
+\label{sec:answer}
+
+By the time the loop stops, the evidence pool also holds many related-but-redundant segments accumulated over rounds, which can drown out the few decisive ones if fed verbatim. VEIL therefore reorders before answering. After verification succeeds or the round budget is exhausted, VEIL first reorders the \emph{entire} accumulated evidence pool with a rubric-guided rerank: the LLM ranks the retrieved segments by how well they satisfy the question's rubric, so decisive segments are placed first and near-duplicate or off-topic segments sink to the end. The reranked pool is then passed \emph{in full}, without truncation, to the answerer, which receives the question first, followed by the segmented evidence. We use the same Qwen3.5-27B model as the verifier with temperature 0, and the default configuration answers from text alone (the retained keyframes are not fed to the answerer). The answerer is instructed to choose the option supported by the evidence. If the loop stops without full sufficiency, the answerer still produces the best-supported option for benchmark compatibility, while the system records the missing-evidence statement for analysis.
+
+\subsection{Contrastive Rubric Construction}
+\label{sec:rubric}
+
+The verifier needs criteria that separate decisive evidence from merely relevant context, but writing such criteria by hand for every question type is costly, subjective, and hard to calibrate. We instead construct them automatically from contrastive evidence pairs that distinguish sufficient evidence from misleading but insufficient evidence. Construction uses only training or development questions with known answers; test answer labels are never used. Figure~\ref{fig:rubric_construction} illustrates the pipeline.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{Figures/rubric_construction.png}
+\caption{Contrastive rubric construction pipeline. We first sample and label candidate evidence sets, then retain only genuine questions that satisfy the A/B/C evidence test: gold evidence answers correctly, no evidence answers incorrectly, and misleading evidence answers incorrectly. Each retained gold--misleading pair is used to refine the current type-specific rubric through add, rewrite, decompose, delete, and weight-adjustment operations. The refined rubric is verified on held-out examples, and misjudged cases are carried into the next refinement round.}
+\label{fig:rubric_construction}
+\end{figure*}
+
+\paragraph{Candidate evidence pool.}
+For each training question, we first retrieve a broad textual pool from the hierarchical memory: L1@16, L2@16, and all L3 summaries. This pool is large enough to contain both decisive evidence and hard distractors, but small enough for an LLM to inspect in a single construction step.
+
+\paragraph{Gold and misleading evidence selection.}
+A teacher model is given the question, answer options, gold answer, and the candidate pool. It selects a minimal gold subset $E^{+}$ that is sufficient to force the correct answer. The subset must be compact and decisive: removing its key evidence should make the answer ambiguous. The same teacher also selects a misleading subset $E^{-}$ from the pool. This subset should appear relevant to the question but omit the decisive fact, temporal transition, or exclusion evidence, thereby leading the answer model toward an incorrect or unsupported option.
+
+\paragraph{Closed-book filtering.}
+We retain a contrastive pair only if three answering tests hold: the answer model answers correctly with $E^{+}$, answers incorrectly without evidence, and answers incorrectly with $E^{-}$. This filter removes questions that can be solved from language priors alone and removes pairs whose misleading evidence is not actually misleading. In our Video-MME construction, this filtering discards approximately 44\% of candidate questions, indicating that prior-answerable examples are a major source of noise for rubric induction.
+
+\paragraph{Online type-specific refinement.}
+For each retained pair $(E^{-},E^{+})$, the proposer LLM receives the current rubric for the corresponding question type and edits it in place. The allowed operations are \textsc{Add}, \textsc{Rewrite}, \textsc{Decompose}, \textsc{Delete}, and \textsc{AdjustWeight}. \textsc{Add} introduces a missing criterion, \textsc{Rewrite} clarifies a criterion, \textsc{Decompose} splits a multi-aspect criterion into independently scorable checks, \textsc{Delete} removes redundant or non-discriminative criteria, and \textsc{AdjustWeight} changes the weight according to how strongly the criterion separates $E^{+}$ from $E^{-}$. Refinement is serial within each question type, with inline deduplication and weight normalization after each batch. The result is a set of type-level weighted rubrics used by the inference-time verifier.
+
+\section{Experiments}
+
+
+\begin{table*}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3.0pt}
+\renewcommand{\arraystretch}{1.08}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llcccccccc}
+\toprule
+Category & Method & Size
+& EgoLifeQA
+& Ego-R1 Bench
+& LVBench
+& MLVU
+& Video-MME (long)
+& LongVideoBench (val)
+& Avg. \\
+\midrule
+
+General-purpose MLLMs
+& Qwen3-VL-8B$^{\dagger\S}$
+& 8B
+& 38.6 & 35.7 & 48.3 & 61.0 & 67.6 & $-$ & $-$ \\
+
+& Gemini 2.5 Pro$^{\dagger\S}$
+& $-$
+& 46.4 & 46.7 & 57.0 & 55.7 & 69.8 & $-$ & $-$ \\
+
+& GPT-5$^{\dagger\S}$
+& $-$
+& 48.6 & 46.3 & 60.4 & 74.3 & 72.6 & $-$ & $-$ \\
+
+\midrule
+
+Specialized Long-video Models
+& VideoChat-Flash$^{\dagger\S}$
+& 7B
+& 34.2 & 42.7 & 33.2 & 74.7 & 44.1 & 64.7 & $-$ \\
+
+& Video-RTS$^{\dagger\S}$
+& 7B
+& 48.2 & 47.4 & 39.8 & $-$ & 47.9 & 56.6 & $-$ \\
+
+& video-SALMONN S$^{\dagger\S}$
+& 8B
+& $-$ & $-$ & 55.6 & $-$ & 71.3 & $-$ & $-$ \\
+
+& LongVideo-R1$^{\dagger\S}$
+& 8B
+& $-$ & $-$ & 60.7 & 71.3 & 58.0 & $-$ & $-$ \\
+
+& FlexMem (LLaVA-Video-7B)$^{\dagger\S}$
+& 7B
+& $-$ & $-$ & 51.0 & 72.4 & 54.4 & 63.6 & $-$ \\
+
+\midrule
+
+Retrieval-augmented Methods
+& Video-RAG$^{\ddagger}$
+& $-$
+& $-$ & $-$ & $-$ & $-$ & 66.44 & $-$ & $-$ \\
+
+& HippoRAG 2$^{\ddagger}$
+& $-$
+& $-$ & $-$ & $-$ & $-$ & $-$ & $-$ & $-$ \\
+
+& Vgent$^{\ddagger}$
+& $-$
+& $-$ & $-$ & $-$ & $-$ & $-$ & $-$ & $-$ \\
+
+\midrule
+
+Memory-augmented Methods
+& Ego-R1$^{\dagger\S}$
+& 3B
+& 53.0 & 52.0 & 34.1 & $-$ & 42.7 & $-$ & $-$ \\
+
+& M3-Agent$^{\dagger\S}$
+& 7B
+& 53.5 & 52.0 & 49.3 & $-$ & 55.3 & $-$ & $-$ \\
+
+& VideoLucy$^{\ddagger}$
+& $-$
+& $-$ & $-$ & $-$ & $-$ & $-$ & $-$ & $-$ \\
+
+& WorldMM$^{\ddagger}$
+& $-$
+& 65.6 & 65.3 & 61.9 & $-$
+& 58.67\,(76.6) & $-$ & $-$ \\
+
+\midrule
+
+& \textbf{Ours}
+& $-$ & 60.00 & 62.4& 63.54 & $-$ & \textbf{78.89} & $-$ & $-$ \\
+
+
+\bottomrule
+\end{tabular}%
+}
+\caption{
+Main comparison on six public long-video reasoning benchmarks.
+Methods within each category are ordered chronologically according to their
+first public release.
+LongVideoBench results are evaluated on its public validation split.
+The \emph{Size} column reports the parameter scale of the fixed model or
+checkpoint used for evaluation.
+For proprietary MLLMs, ``--'' indicates that the model size is undisclosed.
+For modular retrieval- and memory-augmented frameworks, ``--'' indicates that
+the framework does not prescribe a single task-specific trained backbone.
+We instantiate their replaceable reasoning or controller LLM with Qwen3.5-27B,
+while preserving the original video preprocessing, indexing, memory
+construction, retrieval, perception, and iterative reasoning procedures.
+For methods with officially released task-specific checkpoints, such as
+Ego-R1 and M3-Agent, we directly use the released models and report their
+original results without replacing the trained controller.
+$^{\dagger}$ denotes previously reported results.
+$^{\ddagger}$ denotes results evaluated by us using Qwen3.5-27B as the
+replaceable reasoning or controller LLM.
+$^{\S}$ indicates that some target benchmarks were not originally reported
+and require additional evaluation using the released checkpoint, official
+implementation, or official API.
+Parenthesized results denote the result reported with the proprietary
+controller used in the corresponding paper.
+The average is calculated only when results on all six benchmarks are available.
+}
+\label{tab:main_results}
+\end{table*}
+
+
+\begin{table*}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3.0pt}
+\renewcommand{\arraystretch}{1.08}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llccccccc}
+\toprule
+Category & Method & 
+& EgoLifeQA
+& Ego-R1 Bench
+& LVBench
+& Video-MME (long)
+& LongVideoBench (val)
+& Avg. \\
+\midrule
+
+MLLMs
+
+& Qwen3-VL-8B$^{\dagger\S}$
+& 8B & 38.6 & 35.7 & 48.3 & 61.0 & 67.6 & $-$ \\
+
+& Gemini 2.5 Pro$^{\dagger\S}$
+& $-$ & 46.4 & 46.7 & 57.0 & 55.7 & 69.8 & $-$ \\
+
+& GPT-5$^{\dagger\S}$
+& $-$ & 48.6 & 46.3 & 60.4 & 74.3 & 72.6 & $-$ \\
+
+\midrule
+Long Video LLMs
+& VideoChat-Flash$^{\dagger}$
+& 7B & 34.2 & 42.7 & 33.2 & 44.1 & 64.7 & 48.9 \\
+
+& Video-RTS$^{\dagger\S}$
+& 7B & 48.2 & 47.4 & 39.8 & 47.9 & 56.6 & $-$ \\
+
+& video-SALMONN S$^{\dagger\S}$
+& 8B & $-$ & $-$ & 55.6 & 71.3 & $-$ & $-$ \\
+
+& FlexMem (LLaVA-Video-7B)$^{\dagger\S}$
+& 7B & $-$ & $-$ & 51.0 & 54.4 & 63.6 & $-$ \\
+
+\midrule
+RAG-based Video LLMs
+& LightRAG$^{\ddagger}$
+& $-$ & $-$ & $-$ & $-$ & $-$ & $-$ & $-$ \\
+
+& Video-RAG$^{\ddagger}$
+& $-$ & $-$ & $-$ & $-$ & 66.44 & $-$ & $-$ \\
+
+& HippoRAG 2$^{\ddagger}$
+& $-$ & $-$ & $-$ & $-$ & $-$ & $-$ & $-$ \\
+
+\midrule
+Memory-based Video LLMs
+
+& HippoMM$^{\ddagger}$
+& $-$ & $-$ & $-$ & $-$ & $-$ & $-$ & $-$ \\
+
+& Ego-R1$^{\dagger\S}$
+& 3B & 53.0 & 52.0 & 34.1 & 42.7 & $-$ & $-$ \\
+
+& M3-Agent$^{\dagger\S}$
+& 7B & 53.5 & 52.0 & 49.3 & 55.3 & $-$ & $-$ \\
+
+& WorldMM$^{\ddagger}$
+& $-$ & (65.6) & (65.3) & (61.9) &  58.67(76.6) & $-$ & $-$ \\
+
+
+\addlinespace[2pt]
+& \textbf{Ours}
+& $-$ & 60.00 & $-$ & 63.54 & \textbf{78.89} & $-$ & $-$ \\
+
+\bottomrule
+\end{tabular}%
+}
+\caption{
+Main comparison on five public long-video reasoning benchmarks.
+Methods within each category are ordered chronologically according to their
+first public release.
+LongVideoBench results are evaluated on its public validation split.
+The \emph{Size} column reports the parameter scale of the fixed model or
+checkpoint used for evaluation.
+For proprietary MLLMs, ``--'' indicates that the model size is undisclosed.
+For RAG-based and memory-based training-free frameworks, ``--'' indicates that
+no task-specific trained backbone is used; we instantiate their separable
+reasoning or controller LLM with Qwen3.5-27B while preserving the original
+video processing, memory construction, retrieval, perception, and tool-use
+components.
+$^{\dagger}$ denotes results reported in the original paper or obtained from
+an existing unified evaluation.
+$^{\ddagger}$ denotes results evaluated by us using Qwen3.5-27B as the
+reasoning or controller LLM.
+$^{\S}$ indicates that some target benchmarks were not reported and require
+additional evaluation using the released checkpoint, official implementation,
+or official API.
+The average is calculated only when results on all five benchmarks are available.
+}
+\label{tab:main_results}
+\end{table*}
+
+
+\subsection{Experimental Setup}
+
+\paragraph{Benchmarks.}
+We evaluate on five public long-video understanding benchmarks: EgoLifeQA, Ego-R1 Bench, LVBench, MLVU, and Video-MME-L. Video-MME-L evaluates multiple-choice question answering over long videos and is widely used in recent long-video studies. LVBench focuses on reasoning over extended temporal contexts. MLVU provides a multi-task long-video evaluation suite; we use its multiple-choice setting to match our answer-selection formulation. EgoLifeQA and Ego-R1 Bench focus on egocentric long-video reasoning, where task-relevant evidence is sparse, temporally distributed, and often tied to fine-grained daily-life events. This benchmark set covers both third-person and egocentric videos, while keeping all evaluation data publicly accessible.
+
+\paragraph{Baselines.}
+We compare VEIL with four groups of recent long-video systems, following Table~\ref{tab:main_results}. 
+\textbf{MLLMs} directly process sampled video frames with strong multimodal language models, including Qwen3-VL-8B, Gemini 2.5 Pro, and GPT-5.
+\textbf{Long Video LLMs} are models designed or adapted for long-video understanding, including VideoChat-Flash, Video-RTS, and video-SALMONN S.
+\textbf{RAG-based Video LLMs} retrieve relevant video evidence before answering, including HippoRAG~2, Video-RAG, and Vgent with Qwen3.5-27B as the reasoning model when the released implementation supports model replacement.
+\textbf{Memory Agents} build structured or agentic memories over long videos, including HippoMM, M3-Agent, WorldMM, and VideoARM with Qwen3.5-27B as the backend reasoner where applicable. Our method is listed as a rubric-guided agent using the same Qwen3.5-27B answer model.
+
+We also construct controlled internal variants for the ablation study on Video-MME-L and LVBench. These variants share the same answer model and differ only in retrieval round, rubric-based sufficiency verification, and multi-level memory usage. This controlled design separates the effects of iterative search, explicit evidence sufficiency judgment, and hierarchical memory across the primary benchmark and an additional long-video benchmark from Table~\ref{tab:main_results}.
+
+\paragraph{Implementation Details.}
+Unless otherwise stated, all controlled variants use the same answer model, frame rate, chunking procedure, and retrieval budget per round. The default maximum number of retrieval-repair rounds is $K=3$. The verifier sufficiency threshold $\tau$ is set per rubric rather than by a single global value: the general criteria use $\tau=0.6$ and the type-specific rubrics use stricter thresholds (up to $0.8$), tuned on development questions. For multi-level retrieval, each round retrieves evidence from local segment memories, event-level summaries, and paragraph-level summaries. For single-level retrieval, only the local segment memory is used.
+
+\subsection{Main Results}
+
+Table~\ref{tab:main_results} compares VEIL with recent long-video systems across the five benchmarks. The results are organized by method category, including direct MLLMs, long-video LLMs, RAG-based video LLMs, memory agents, and our rubric-guided agent. Direct MLLMs provide strong general multimodal reasoning, but they must compress long videos through sparse frame sampling. Retrieval-augmented and memory-based methods are more suitable for long videos because they organize long temporal contexts into searchable evidence. However, these methods still mainly rely on semantic relevance or implicit self-reflection, so they may retrieve clips that are related to the question but insufficient for deciding the answer. VEIL targets this limitation by verifying whether the retrieved evidence is sufficient to judge each option, then using the resulting diagnostic trace to repair missing evidence.
+
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\renewcommand{\arraystretch}{1.05}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lccccc}
+\toprule
+\multirow{2}{*}{\textbf{Method}}
+& \multicolumn{3}{c}{Components}
+& \multicolumn{2}{c}{Datasets} \\
+\cmidrule(lr){2-4}
+\cmidrule(lr){5-6}
+& \shortstack{Iter.\\Ret.}
+& \shortstack{Rubric\\Suff.}
+& \shortstack{Hybrid\\Mem.}
+& \shortstack{Video-\\MME-L}
+& LVBench \\
+\midrule
+
+$\mathcal{M}_{\mathrm{base}}$
+&  &  &  & 65.89 & $-$ \\
+
+$\mathcal{M}_{\mathrm{iter}}$
+& \checkmark &  &  & 72.78 & $-$ \\
+
+$\mathcal{M}_{\mathrm{iter+rubric}}$
+& \checkmark & \checkmark &  & 75.22 & $-$ \\
+
+$\mathcal{M}_{\mathrm{iter+hybrid}}$
+& \checkmark &  & \checkmark & 77.67 & $-$ \\
+
+\textbf{Ours}
+& \checkmark
+& \checkmark
+& \checkmark
+& \textbf{78.89}
+& $-$ \\
+\bottomrule
+\end{tabular}%
+}
+\caption{Ablation results on Video-MME-L and LVBench.
+$\mathcal{M}_{\mathrm{base}}$ uses single-round retrieval over local
+segment memory. $\mathcal{M}_{\mathrm{iter}}$ adds iterative retrieval.
+The rubric and hybrid variants further introduce rubric-based
+sufficiency verification and hybrid memory, respectively. Ours combines
+all three components.}
+\label{tab:ablation_design}
+\end{table}
+
+\subsection{Ablation Study}
+
+Table~\ref{tab:ablation_design} reports the controlled ablation results on Video-MME-L and LVBench. Video-MME-L is the primary ablation setting, while LVBench serves as an additional benchmark from the main comparison to test whether the component effects transfer beyond a single dataset. We isolate three design factors: multi-round retrieval, rubric-based evidence sufficiency verification, and multi-level memory retrieval. All variants use the same answer model and comparable per-round retrieval budget.
+
+\paragraph{Effect of Multi-round Retrieval.}
+The single-round baseline achieves 65.89 on Video-MME-L. Replacing one-shot retrieval with multi-round single-level retrieval raises performance to 72.78, a gain of 6.89 points. This shows that long-video QA benefits from iterative evidence seeking: the system can revise its query after the first retrieval result instead of committing to a fixed top-ranked evidence set.
+
+\paragraph{Effect of Rubric-based Sufficiency Verification.}
+Adding rubric-based sufficiency verification to the multi-round single-level setting improves performance from 72.78 to 75.22. The gain indicates that the verifier is not merely adding another reasoning call; it provides an explicit criterion for deciding whether the current evidence can determine each option. With rubric-guided decomposition, the planner receives more precise missing-evidence targets and avoids repeatedly retrieving topically relevant but non-decisive segments.
+
+\paragraph{Effect of Multi-level Memory.}
+Using multi-level memory without rubric verification reaches 77.67, outperforming the single-level variants. This confirms that hierarchical memory is important for long videos: local segment memories preserve fine-grained details, event-level memories capture temporal processes, and paragraph-level summaries provide global context. The full model combines multi-round retrieval, rubric-based sufficiency verification, and multi-level memory, reaching 78--79 on Video-MME-L. The improvement over the multi-level no-rubric variant suggests that better memory coverage and explicit evidence sufficiency checking are complementary.
+
+
+\section{Conclusion}
+
+% We presented a rubric-guided evidence repair framework for long-video question answering. The key idea is to separate evidence relevance from evidence sufficiency. Instead of relying on implicit LLM confidence, the verifier checks question-conditioned rubric criteria for each answer option and returns structured traces that specify what evidence is missing. These traces guide targeted retrieval repair and, when offline memory is incomplete, trigger online evidence supplementation from the original video. By making evidence gaps explicit, the framework turns broad semantic re-search into targeted, trace-guided evidence repair for long-video reasoning.
+
+\bibliography{aaai2027}
+
+\end{document}

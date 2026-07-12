@@ -29,11 +29,17 @@ def _broadcast_retrieve(
     bank: MemoryBank,
     seen_ids: Set[int],
     n: int = 8,
+    max_time: float | None = None,
 ) -> tuple[list, list, list]:
-    """Uniformly sample n unseen chunks across the video timeline."""
+    """Uniformly sample n unseen chunks across the video timeline.
+
+    ``max_time`` (EgoLife): drop any chunk whose ``end_time`` is after the
+    question's ``query_time`` — future memory is off-limits. None ⇒ no filter.
+    """
     texts_ev  = bank.memory_texts(with_time=True, with_asr=True)
     idx_map   = {c.chunk_id: i for i, c in enumerate(bank.chunks)}
-    unseen    = [c for c in bank.chunks if c.chunk_id not in seen_ids]
+    unseen    = [c for c in bank.chunks if c.chunk_id not in seen_ids
+                 and (max_time is None or c.end_time <= max_time)]
     if not unseen:
         return [], [], []
     unseen.sort(key=lambda c: c.chunk_id)
@@ -58,15 +64,16 @@ def _rerank_by_rubric(
     rubric: dict,
     llm,
 ) -> List[int]:
-    """Ask LLM to rank evidence chunks by rubric relevance. Returns sorted indices (best first)."""
+    """Ask LLM to rank evidence chunks best-first by rubric-satisfaction +
+    question relevance. Returns sorted indices."""
     if len(evidence_texts) <= 1:
         return list(range(len(evidence_texts)))
 
-    from src.agents.verifier import _format_rubric_as_text
     opts    = "\n".join(f"({chr(65+i)}) {c}" for i, c in enumerate(candidates))
     ev_fmt  = "\n".join(f"[E{i+1}] {t[:300]}" for i, t in enumerate(evidence_texts))
-    rubric_text = _format_rubric_as_text(rubric)
 
+    from src.agents.verifier import _format_rubric_as_text
+    rubric_text = _format_rubric_as_text(rubric)
     user = (
         f"Question: {question}\n"
         f"Options:\n{opts}\n\n"
@@ -135,9 +142,11 @@ def _query_retrieve(
     coarse_top_k: int,
     final_top_k: int,
     exclude_ids: Set[int],
+    max_time: float | None = None,
 ) -> tuple[List[str], List[int], List[List[float]]]:
     """Return (evidence_texts, chunk_ids, v_text_vecs), skipping already-seen chunks.
-    Text-only BGE retrieval."""
+    Text-only BGE retrieval. ``max_time`` (EgoLife): exclude chunks whose
+    ``end_time`` is after the query time (future memory off-limits)."""
     texts    = bank.memory_texts()
     texts_ev = bank.memory_texts(with_time=True, with_asr=True)
     q_vec  = embedder.encode([query])[0]
@@ -146,6 +155,9 @@ def _query_retrieve(
     else:
         doc_vecs = embedder.encode(texts)
     scores = doc_vecs @ q_vec
+    if max_time is not None:  # mask out future chunks before top-k selection
+        mask = np.array([c.end_time <= max_time for c in bank.chunks])
+        scores = np.where(mask, scores, -np.inf)
 
     k      = min(coarse_top_k, len(scores))
     coarse = np.argpartition(-scores, k - 1)[:k]
@@ -153,7 +165,8 @@ def _query_retrieve(
 
     final_idx = list(coarse[:final_top_k])
 
-    new_idx = [i for i in final_idx if bank.chunks[i].chunk_id not in exclude_ids]
+    new_idx = [i for i in final_idx if bank.chunks[i].chunk_id not in exclude_ids
+               and (max_time is None or bank.chunks[i].end_time <= max_time)]
     return (
         [texts_ev[i] for i in new_idx],
         [bank.chunks[i].chunk_id for i in new_idx],
@@ -170,7 +183,7 @@ def _multi_pool_retrieve(
     coarse_top_k: int,
     final_top_k: int,
     exclude_ids: Set[int],
-    reranker=None,
+    max_time: float | None = None,
 ) -> tuple[List[str], List[int], List[List[float]]]:
     """Retrieve from the L1 detail pool + L2/L3 summary pools, merged by score.
 
@@ -178,10 +191,14 @@ def _multi_pool_retrieve(
     top ``final_top_k`` by cosine are returned. The caps default to that config; the
     ``VEIL_MP_L{1,2,3}_CAP`` env vars exist ONLY to sweep layer depth in ablations
     (e.g. L2=0/L3=0 for the L1-only ablation). The mainline eval sets none of them.
+
+    ``max_time`` (EgoLife): every layer masks out chunks whose ``end_time`` is after
+    the query time before its top-k, so future memory never enters the pool. None ⇒
+    no filter (lvbench/videomme path unchanged).
     """
     if not bank.l2_chunks:
         return _query_retrieve(query, bank, embedder, coarse_top_k, final_top_k,
-                               exclude_ids)
+                               exclude_ids, max_time=max_time)
 
     def _envi(name, default):
         try:
@@ -192,14 +209,26 @@ def _multi_pool_retrieve(
     l1_pool_cap = _envi("VEIL_MP_L1_CAP", 8)
     l2_cap      = _envi("VEIL_MP_L2_CAP", 4)
     l3_cap      = _envi("VEIL_MP_L3_CAP", 2)
-    final_keep = final_top_k
 
     q_vec = embedder.encode([query])[0]
 
     # L1 pool
     l1_vecs = np.array([c.v_text for c in bank.chunks], dtype=np.float32)
     l1_scores = l1_vecs @ q_vec
-    l1_order = np.argsort(-l1_scores)[:l1_pool_cap]
+    l1_mask = None
+    if max_time is not None:  # future chunks can't enter the L1 pool
+        l1_mask = np.array([c.end_time <= max_time for c in bank.chunks])
+        l1_scores = np.where(l1_mask, l1_scores, -np.inf)
+
+    # Opt-in hybrid (VEIL_HYBRID_BM25=1): fuse dense + BM25 by RRF for the L1 pool
+    # membership so lexical hits (names/objects) that dense buries can still enter.
+    from . import _hybrid
+    _hybrid_on = _hybrid.enabled()
+    _bm = _hybrid.bm25_for_l1(bank).get_scores(query) if _hybrid_on else None
+    if _hybrid_on:
+        l1_order = _hybrid.rrf_order(l1_scores, _bm, valid_mask=l1_mask)[:l1_pool_cap]
+    else:
+        l1_order = np.argsort(-l1_scores)[:l1_pool_cap]
 
     # Merge by score
     def _l1_ev(c):
@@ -211,8 +240,9 @@ def _multi_pool_retrieve(
     candidates = []
     for i in l1_order:
         c = bank.chunks[i]
-        if c.chunk_id not in exclude_ids:
-            candidates.append((float(l1_scores[i]), c, _l1_ev(c)))
+        if c.chunk_id not in exclude_ids and (max_time is None or c.end_time <= max_time):
+            _b = float(_bm[i]) if _bm is not None else 0.0
+            candidates.append((float(l1_scores[i]), _b, c, _l1_ev(c)))
 
     # L2/L3 summary pools
     for layer, cap in ((bank.l2_chunks, l2_cap),
@@ -221,25 +251,27 @@ def _multi_pool_retrieve(
             continue
         vecs = np.array([c.v_text for c in layer], dtype=np.float32)
         scores = vecs @ q_vec
+        if max_time is not None:  # a summary covering future content is off-limits
+            l_mask = np.array([c.end_time <= max_time for c in layer])
+            scores = np.where(l_mask, scores, -np.inf)
         for i in np.argsort(-scores)[:cap]:
             c = layer[int(i)]
-            if c.chunk_id not in exclude_ids:
-                candidates.append((float(scores[int(i)]), c, c.memory_text))
+            if c.chunk_id not in exclude_ids and (max_time is None or c.end_time <= max_time):
+                candidates.append((float(scores[int(i)]), 0.0, c, c.memory_text))
 
-    if reranker is not None and len(candidates) > final_keep:
-        # cross-encoder 精排: 对粗召回候选按 query-chunk 语义重排, 取 final_keep。
-        # dense 召回对 caption 措辞敏感(检索重叠仅 0.25); cross-encoder 直接算
-        # query↔chunk 相关性, 不靠 caption 措辞, 稳住检索。
-        order = reranker.rerank(query, [ev for _, _, ev in candidates],
-                                top_k=final_keep)
-        selected = [candidates[i] for i, _ in order]
+    if _hybrid_on and candidates:
+        # RRF over the merged pool so BM25-surfaced L1 (low dense) survive the cut.
+        ds = np.array([x[0] for x in candidates], dtype=np.float32)
+        bs = np.array([x[1] for x in candidates], dtype=np.float32)
+        order = _hybrid.rrf_order(ds, bs)
+        selected = [candidates[int(i)] for i in order[:final_top_k]]
     else:
         candidates.sort(key=lambda x: -x[0])
-        selected = candidates[:final_keep]
+        selected = candidates[:final_top_k]
     return (
-        [ev for _, _, ev in selected],
-        [c.chunk_id for _, c, _ in selected],
-        [c.v_text for _, c, _ in selected],
+        [ev for _, _, _, ev in selected],
+        [c.chunk_id for _, _, c, _ in selected],
+        [c.v_text for _, _, c, _ in selected],
     )
 
 
@@ -261,12 +293,10 @@ def run_veil(
     kf_dedup_threshold:    float = 0.9,
     evidence_dedup_threshold:    float = 0.9,
     query_evidence_dedup_threshold: float | None = 0.9,
-    answer_evidence_cap:   int | None   = None,
     answer_keyframe_cap:   int | None   = 16,
-    verifier_evidence_cap: int | None   = None,
     rubric_judgment:       bool         = True,
     rubric_rerank:         bool         = False,
-    reranker                            = None,
+    max_time:              float | None = None,
 ) -> dict:
     """Iter-0 sub-question decomposition + iter ≥1 unified-planner repair.
 
@@ -324,15 +354,14 @@ def run_veil(
 
         if do_broadcast:
             new_texts, new_ids, new_vecs = _broadcast_retrieve(
-                bank, seen_ids, n=final_top_k,
+                bank, seen_ids, n=final_top_k, max_time=max_time,
             )
             iter_query = "[broadcast]"
         else:
             for q in queries_this_iter:
                 t, i, v = _multi_pool_retrieve(
                     q, bank, embedder,
-                    coarse_top_k, final_top_k, seen_ids,
-                    reranker=reranker,
+                    coarse_top_k, final_top_k, seen_ids, max_time=max_time,
                 )
                 new_texts.extend(t); new_ids.extend(i); new_vecs.extend(v)
                 seen_ids.update(i)
@@ -374,12 +403,7 @@ def run_veil(
                     all_kf_vecs.append(c.v_visual if c.v_visual else [])
 
         # ── Verifier ──────────────────────────────────────────────────────────
-        if verifier_evidence_cap is not None and len(all_evidence_texts) > verifier_evidence_cap:
-            order = _rerank_by_rubric(question, candidates, all_evidence_texts, rubric, llm)
-            top_k = min(verifier_evidence_cap, len(all_evidence_texts))
-            ev_for_verifier = [all_evidence_texts[i] for i in order[:top_k]]
-        else:
-            ev_for_verifier = all_evidence_texts
+        ev_for_verifier = all_evidence_texts
 
         kf_for_verifier = all_keyframes
         if answer_keyframe_cap is not None and len(kf_for_verifier) > answer_keyframe_cap:
@@ -409,9 +433,8 @@ def run_veil(
             break
 
     # ── Answer ───────────────────────────────────────────────────────────────
-    # 先按 rubric(题目+选项)让 LLM 重排全部证据, 再截断 top-k: 让 LLM 决定
-    # 哪些证据进 top-k, 而不是让 dense 先砍再排。截断丢掉的是 LLM 判为最没用的
-    # 尾部噪声证据, 减少答题 context 干扰。cap=None 时只重排不截断(baseline 行为)。
+    # 按 rubric(题目+选项)让 LLM 重排全部累积证据, 有用的排前噪声沉底, 全喂 answerer
+    # (不截断)。
     ev_texts = all_evidence_texts
     ev_ids   = all_chunk_ids
 
@@ -420,10 +443,13 @@ def run_veil(
         ev_texts = [ev_texts[i] for i in order]
         ev_ids   = [ev_ids[i]   for i in order]
 
-    if answer_evidence_cap is not None:
-        cap      = min(answer_evidence_cap, len(ev_texts))
-        ev_texts = ev_texts[:cap]
-        ev_ids   = ev_ids[:cap]
+    # Opt-in evidence focus (VEIL_EVIDENCE_CAP=N): after the rubric rerank puts the
+    # useful segments first, keep only the top N so the gold segment isn't diluted
+    # among ~57 near-duplicate egocentric segments.
+    _ev_cap = int(os.environ.get("VEIL_EVIDENCE_CAP", "0") or 0)
+    if _ev_cap > 0 and len(ev_texts) > _ev_cap:
+        ev_texts = ev_texts[:_ev_cap]
+        ev_ids   = ev_ids[:_ev_cap]
 
     kf_for_answer        = all_keyframes
     kf_chunk_ids_for_ans = all_kf_chunk_ids

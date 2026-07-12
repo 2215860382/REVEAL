@@ -1,0 +1,464 @@
+{"sample_idx": 1, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "On the table on the second floor", "gold": "On the table on the second floor"}
+{"sample_idx": 5, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Katrina", "gold": "Katrina"}
+{"sample_idx": 2, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "On the table on the second floor", "gold": "On the table on the second floor"}
+{"sample_idx": 3, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 0, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Shure", "gold": "Alice"}
+{"sample_idx": 8, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Katrina, Lucia, Tasha", "gold": "Katrina, Lucia, Tasha"}
+{"sample_idx": 9, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Shure", "gold": "Shure"}
+{"sample_idx": 4, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Suggested collecting leaves to make bookmarks", "gold": "Suggested collecting leaves to make bookmarks"}
+{"sample_idx": 12, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Cake Making", "gold": "Cake Making"}
+{"sample_idx": 6, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Mine", "gold": "Mine"}
+{"sample_idx": 7, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Do a puzzle", "gold": "Do a puzzle"}
+{"sample_idx": 11, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Shure"}
+{"sample_idx": 10, "correct": false, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "", "gold": "Katrina, Alice"}
+{"sample_idx": 16, "correct": false, "question_type": "HabitInsight", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Shure"}
+{"sample_idx": 13, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Katrina"}
+{"sample_idx": 17, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Katrina", "gold": "Katrina"}
+{"sample_idx": 20, "correct": false, "question_type": "HabitInsight", "need_audio": false, "n_frames": 5, "pred": "Shure", "gold": "Me"}
+{"sample_idx": 21, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Shure", "gold": "Shure"}
+{"sample_idx": 15, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Lucia", "gold": "Alice"}
+{"sample_idx": 14, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Alice, Shure", "gold": "Katrina, Alice"}
+{"sample_idx": 19, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "About an hour ago", "gold": "About an hour ago"}
+{"sample_idx": 18, "correct": true, "question_type": "HabitInsight", "need_audio": false, "n_frames": 5, "pred": "I will pick up the power bank charging the camera, take a look, and then put it down.", "gold": "I will pick up the power bank charging the camera, take a look, and then put it down."}
+{"sample_idx": 25, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Alice, Shure", "gold": "Katrina, Shure"}
+{"sample_idx": 24, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Shure", "gold": "Shure"}
+{"sample_idx": 22, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 26, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Whisk", "gold": "Whisk"}
+{"sample_idx": 23, "correct": false, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Pizza", "gold": "Beijing-style Braised Pork"}
+{"sample_idx": 30, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Shure", "gold": "Katrina"}
+{"sample_idx": 31, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "KFC", "gold": "KFC"}
+{"sample_idx": 28, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Hamburger", "gold": "Hamburger"}
+{"sample_idx": 33, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "KFC", "gold": "KFC"}
+{"sample_idx": 34, "correct": true, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "Lucia", "gold": "Lucia"}
+{"sample_idx": 35, "correct": false, "question_type": "TaskMaster", "need_audio": false, "n_frames": 5, "pred": "Huiyuan Peach Juice, Sprite", "gold": "Yakult, Coconut Milk"}
+{"sample_idx": 38, "correct": true, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "Alice", "gold": "Alice"}
+{"sample_idx": 39, "correct": false, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "About 6 hours ago", "gold": "About 5 hours ago"}
+{"sample_idx": 32, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Meituan", "gold": "Meituan"}
+{"sample_idx": 37, "correct": false, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Fruits", "gold": "Alcohol"}
+{"sample_idx": 42, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Too many people, it would be a bit troublesome", "gold": "Too many people, it would be a bit troublesome"}
+{"sample_idx": 43, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Pizza", "gold": "Pizza"}
+{"sample_idx": 41, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Coke", "gold": "Coke"}
+{"sample_idx": 36, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Coffee", "gold": "Coffee"}
+{"sample_idx": 46, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Sour and spicy dishes", "gold": "Sour and spicy dishes"}
+{"sample_idx": 40, "correct": false, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "About two hours ago", "gold": "About four hours ago"}
+{"sample_idx": 47, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "KFC", "gold": "KFC"}
+{"sample_idx": 44, "correct": false, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "About an hour ago", "gold": "About four hours ago"}
+{"sample_idx": 48, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Photography", "gold": "Photography"}
+{"sample_idx": 50, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Shure", "gold": "Shure"}
+{"sample_idx": 52, "correct": true, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "Shure", "gold": "Shure"}
+{"sample_idx": 49, "correct": true, "question_type": "HabitInsight", "need_audio": false, "n_frames": 5, "pred": "Take a look at the timer interface on my phone", "gold": "Take a look at the timer interface on my phone"}
+{"sample_idx": 54, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 45, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Tasha, Alice"}
+{"sample_idx": 55, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Shure", "gold": "Shure"}
+{"sample_idx": 57, "correct": false, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Me, Alice, and Lucia", "gold": "Me, Alice, and Tasha"}
+{"sample_idx": 60, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Katrina", "gold": "Katrina"}
+{"sample_idx": 61, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Alice", "gold": "Lucia"}
+{"sample_idx": 53, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Alice", "gold": "Alice"}
+{"sample_idx": 58, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Green grapes", "gold": "Green grapes"}
+{"sample_idx": 59, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Because when merchants prepare fruit, they cut off the bad parts and leave the good ones for customers to eat", "gold": "Because when merchants prepare fruit, they cut off the bad parts and leave the good ones for customers to eat"}
+{"sample_idx": 66, "correct": false, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Because there were pre-cut ones available, so the clerk didn't agree", "gold": "Because the fruit-cutting clerk was off duty at that time"}
+{"sample_idx": 63, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Taro, mint, and tart crust", "gold": "Taro, mint, and tart crust"}
+{"sample_idx": 64, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "2", "gold": "2"}
+{"sample_idx": 62, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "40min", "gold": "40min"}
+{"sample_idx": 69, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Because one box can be used for making a cake, and the other can be eaten", "gold": "Because one box can be used for making a cake, and the other can be eaten"}
+{"sample_idx": 68, "correct": false, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Tasha", "gold": "Alice"}
+{"sample_idx": 65, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Because sterile eggs can be used to make tiramisu", "gold": "Because sterile eggs can be used to make tiramisu"}
+{"sample_idx": 74, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 67, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Because they are hard to cook", "gold": "Because they are hard to cook"}
+{"sample_idx": 78, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 79, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Lucia", "gold": "Alice"}
+{"sample_idx": 76, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 77, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 82, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Tasha, Alice", "gold": "Tasha, Alice"}
+{"sample_idx": 80, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Katrina, Lucia, Shure"}
+{"sample_idx": 87, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha, Alice", "gold": "Tasha, Alice"}
+{"sample_idx": 84, "correct": false, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Me", "gold": "Tasha"}
+{"sample_idx": 81, "correct": false, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Hip-hop trendy men's clothing", "gold": "Similar to Hainan Home men's clothing"}
+{"sample_idx": 86, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "coffee", "gold": "coffee"}
+{"sample_idx": 89, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "market", "gold": "market"}
+{"sample_idx": 83, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Tasha, Alice", "gold": "Tasha, Alice"}
+{"sample_idx": 93, "correct": false, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Alice", "gold": "Tasha"}
+{"sample_idx": 92, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Katrina, Shure, Lucia", "gold": "Katrina, Shure, Lucia"}
+{"sample_idx": 88, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Alcohol and coffee", "gold": "Alcohol and coffee"}
+{"sample_idx": 98, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Me, Lucia, Shure", "gold": "Lucia, Katrina, Alice"}
+{"sample_idx": 99, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Alice", "gold": "Tasha"}
+{"sample_idx": 94, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Cake", "gold": "Cake"}
+{"sample_idx": 100, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "clock", "gold": "clock"}
+{"sample_idx": 96, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Cream", "gold": "Cream"}
+{"sample_idx": 104, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Lucia", "gold": "Lucia"}
+{"sample_idx": 108, "correct": true, "question_type": "TaskMaster", "need_audio": false, "n_frames": 5, "pred": "Clock Puncher", "gold": "Clock Puncher"}
+{"sample_idx": 102, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Last night"}
+{"sample_idx": 103, "correct": false, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "An hour ago", "gold": "One day ago"}
+{"sample_idx": 109, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 113, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 110, "correct": false, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "Already had it", "gold": "Supermarket"}
+{"sample_idx": 114, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Alice", "gold": "Alice"}
+{"sample_idx": 111, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "About 10 minutes ago", "gold": "About 50 minutes ago"}
+{"sample_idx": 115, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Assembling a shelf", "gold": "Assembling a shelf"}
+{"sample_idx": 106, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Last night"}
+{"sample_idx": 119, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Buy tickets at the airport", "gold": "Buy tickets at the airport"}
+{"sample_idx": 120, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Dance", "gold": "Dance"}
+{"sample_idx": 112, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Lucia", "gold": "Lucia"}
+{"sample_idx": 122, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Operating the device", "gold": "Operating the device"}
+{"sample_idx": 123, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Nicous, Choiszt", "gold": "Nicous, Choiszt"}
+{"sample_idx": 117, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Choiszt"}
+{"sample_idx": 124, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Cut the paper boxes into small paper dogs for the last day's activities", "gold": "Cut the paper boxes into small paper dogs for the last day's activities"}
+{"sample_idx": 121, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Labeling the SD card", "gold": "Labeling the SD card"}
+{"sample_idx": 128, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Wash dishes", "gold": "Put the bowl in the sink"}
+{"sample_idx": 127, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 125, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Shure", "gold": "Shure"}
+{"sample_idx": 129, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Under the screen on the first floor", "gold": "Under the screen on the first floor"}
+{"sample_idx": 132, "correct": false, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "Two hours ago", "gold": "About a day ago"}
+{"sample_idx": 131, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "This afternoon", "gold": "Yesterday afternoon"}
+{"sample_idx": 133, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "This afternoon", "gold": "Yesterday afternoon"}
+{"sample_idx": 134, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "About 3 hours ago", "gold": "About an hour and a half ago"}
+{"sample_idx": 126, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Nicous, Choiszt"}
+{"sample_idx": 130, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Alice"}
+{"sample_idx": 138, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Lucia", "gold": "Lucia"}
+{"sample_idx": 137, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 135, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Sesame sauce", "gold": "Sesame sauce"}
+{"sample_idx": 136, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Lucia Shure", "gold": "Lucia Shure"}
+{"sample_idx": 141, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Tasha, Alice", "gold": "Tasha, Alice"}
+{"sample_idx": 145, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Nicous, Choiszt", "gold": "Nicous, Choiszt"}
+{"sample_idx": 140, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Cat", "gold": "Cat"}
+{"sample_idx": 144, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha, Alice", "gold": "Choiszt, Nicous"}
+{"sample_idx": 142, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Katrina, Lucia", "gold": "Katrina, Lucia"}
+{"sample_idx": 143, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Nicous", "gold": "Nicous"}
+{"sample_idx": 148, "correct": false, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Use the iPhone along with the action camera on the wall to scan together", "gold": "Use my iPhone"}
+{"sample_idx": 147, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Katrina", "gold": "Katrina"}
+{"sample_idx": 149, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Discuss the content of Earth Day", "gold": "Discuss the content of Earth Day"}
+{"sample_idx": 146, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Scan the room with glasses", "gold": "Scan the room with glasses"}
+{"sample_idx": 153, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 152, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Park", "gold": "Park"}
+{"sample_idx": 150, "correct": false, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "", "gold": "Katrina, Shure, Nicous"}
+{"sample_idx": 151, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Go outdoors", "gold": "Go outdoors"}
+{"sample_idx": 155, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Lucia", "gold": "Lucia"}
+{"sample_idx": 154, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Choiszt"}
+{"sample_idx": 157, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "With clear drum beats", "gold": "With clear drum beats"}
+{"sample_idx": 158, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "About four and a half hours ago", "gold": "About four and a half hours ago"}
+{"sample_idx": 161, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Align Time", "gold": "Align Time"}
+{"sample_idx": 162, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Last night", "gold": "Last night"}
+{"sample_idx": 163, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Little Pillow", "gold": "Little Pillow"}
+{"sample_idx": 159, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Choiszt"}
+{"sample_idx": 166, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "I and Violet", "gold": "I and Violet"}
+{"sample_idx": 165, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Nicous Choiszt", "gold": "Nicous Choiszt"}
+{"sample_idx": 160, "correct": false, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "7 hours ago", "gold": "5 and a half hours ago"}
+{"sample_idx": 167, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 169, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha and Choiszt", "gold": "Tasha and Katrina"}
+{"sample_idx": 170, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Washing dishes", "gold": "Washing dishes"}
+{"sample_idx": 168, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 172, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Mineral Water", "gold": "Mineral Water"}
+{"sample_idx": 164, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Violet"}
+{"sample_idx": 174, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Dance and take photos", "gold": "Dance and take photos"}
+{"sample_idx": 171, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Go outdoors for photography", "gold": "Go outdoors for photography"}
+{"sample_idx": 176, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha Lucia", "gold": "Tasha Lucia"}
+{"sample_idx": 173, "correct": true, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "Ocean", "gold": "Ocean"}
+{"sample_idx": 177, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "About 1 day ago", "gold": "About 1 day ago"}
+{"sample_idx": 178, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Go to the convenience store", "gold": "Go to the convenience store"}
+{"sample_idx": 180, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Lucia, Tasha", "gold": "Lucia, Tasha"}
+{"sample_idx": 175, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Nongfu Spring", "gold": "Nongfu Spring"}
+{"sample_idx": 181, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Alice, Tasha, Lucia", "gold": "Alice, Katrina, Violet"}
+{"sample_idx": 182, "correct": false, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Grab a doll", "gold": "Distribute coins"}
+{"sample_idx": 186, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "The bracelet broke", "gold": "The bracelet broke"}
+{"sample_idx": 187, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 183, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "About 20 minutes ago", "gold": "About 20 minutes ago"}
+{"sample_idx": 190, "correct": false, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Hot Sale", "gold": "Hema Fresh"}
+{"sample_idx": 179, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Alice, Shure"}
+{"sample_idx": 184, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Convenience store", "gold": "Convenience store"}
+{"sample_idx": 193, "correct": true, "question_type": "TaskMaster", "need_audio": false, "n_frames": 5, "pred": "Hole punch Clock", "gold": "Hole punch Clock"}
+{"sample_idx": 197, "correct": false, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "One day ago", "gold": "About two days ago"}
+{"sample_idx": 194, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Hema Supermarket", "gold": "Hema Supermarket"}
+{"sample_idx": 198, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha and Alice", "gold": "Tasha and Alice"}
+{"sample_idx": 192, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Last night", "gold": "The night before yesterday"}
+{"sample_idx": 201, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 196, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha Alice Shure", "gold": "Tasha Alice Shure"}
+{"sample_idx": 200, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Lucia and Alice", "gold": "Lucia and Alice"}
+{"sample_idx": 202, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Strawberries Blueberries", "gold": "Strawberries Blueberries"}
+{"sample_idx": 204, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Play games", "gold": "Play games"}
+{"sample_idx": 206, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Play for a while first", "gold": "Play for a while first"}
+{"sample_idx": 205, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Tasha said she borrowed a membership for discounts", "gold": "Tasha said she borrowed a membership for discounts"}
+{"sample_idx": 199, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "The afternoon before yesterday", "gold": "The afternoon before yesterday"}
+{"sample_idx": 203, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "There was a donation", "gold": "There was a donation"}
+{"sample_idx": 207, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 195, "correct": false, "question_type": "TaskMaster", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Barbecue Skewers"}
+{"sample_idx": 208, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Liquor section", "gold": "Liquor section"}
+{"sample_idx": 209, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Alice", "gold": "Shure"}
+{"sample_idx": 213, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Choiszt Nicous", "gold": "Choiszt Nicous"}
+{"sample_idx": 212, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Violet will return for the gathering this Sunday", "gold": "Violet will return for the gathering this Sunday"}
+{"sample_idx": 210, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Lucia", "gold": "Lucia"}
+{"sample_idx": 214, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Grill meat", "gold": "Grill meat"}
+{"sample_idx": 211, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "I need to transfer data", "gold": "I need to transfer data"}
+{"sample_idx": 217, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Alice"}
+{"sample_idx": 218, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Katrina and Alice"}
+{"sample_idx": 216, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Make dessert", "gold": "Make dessert"}
+{"sample_idx": 220, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Yibao", "gold": "Yibao"}
+{"sample_idx": 215, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Operate the computer.", "gold": "Operate the computer."}
+{"sample_idx": 222, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 221, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Honey", "gold": "Honey"}
+{"sample_idx": 226, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Lucia", "gold": "Lucia"}
+{"sample_idx": 225, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Me"}
+{"sample_idx": 227, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Convert to SGD", "gold": "Convert to SGD"}
+{"sample_idx": 219, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Yesterday at noon"}
+{"sample_idx": 224, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Make dessert", "gold": "Make dessert"}
+{"sample_idx": 223, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Me"}
+{"sample_idx": 228, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Orange Juice and Tequila", "gold": "Orange Juice and Tequila"}
+{"sample_idx": 231, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Eat mango", "gold": "Eat mango"}
+{"sample_idx": 232, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Last night", "gold": "The night before yesterday"}
+{"sample_idx": 229, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "A group photo of six people", "gold": "A group photo of six people"}
+{"sample_idx": 233, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Me, Alice", "gold": "Me, Alice"}
+{"sample_idx": 230, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Mango", "gold": "Mango"}
+{"sample_idx": 234, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Me, Tasha, Lucia", "gold": "Me, Tasha, Lucia"}
+{"sample_idx": 237, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Violet"}
+{"sample_idx": 238, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 235, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 239, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Wash hands", "gold": "Cut mangoes"}
+{"sample_idx": 242, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Knife", "gold": "Knife"}
+{"sample_idx": 241, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Tasha said she wanted a craft class", "gold": "Tasha said she wanted a craft class"}
+{"sample_idx": 236, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 246, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Pick up takeout", "gold": "Pick up takeout"}
+{"sample_idx": 240, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "About half an hour ago", "gold": "About an hour ago"}
+{"sample_idx": 245, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Choiszt", "gold": "Violet"}
+{"sample_idx": 247, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Last night", "gold": "Last night"}
+{"sample_idx": 243, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Alice Katrina", "gold": "Alice Katrina"}
+{"sample_idx": 251, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Dance", "gold": "Dance"}
+{"sample_idx": 250, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Carpet Little Dolls", "gold": "Carpet Little Dolls"}
+{"sample_idx": 248, "correct": false, "question_type": "HabitInsight", "need_audio": false, "n_frames": 5, "pred": "Ele.me", "gold": "Meituan"}
+{"sample_idx": 252, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Make breakfast", "gold": "Make breakfast"}
+{"sample_idx": 254, "correct": false, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "milk tea", "gold": "masking tape"}
+{"sample_idx": 255, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Alice", "gold": "Alice"}
+{"sample_idx": 253, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Carpet, Decorative Painting", "gold": "Carpet, Decorative Painting"}
+{"sample_idx": 258, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Lucia", "gold": "Lucia"}
+{"sample_idx": 259, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Drinks", "gold": "Vegetables"}
+{"sample_idx": 249, "correct": false, "question_type": "HabitInsight", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Meituan"}
+{"sample_idx": 257, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Yesterday afternoon"}
+{"sample_idx": 256, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Tasha"}
+{"sample_idx": 262, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Katrina", "gold": "Katrina"}
+{"sample_idx": 263, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Plans for the Next Few Days", "gold": "Plans for the Next Few Days"}
+{"sample_idx": 260, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "This morning", "gold": "Yesterday afternoon"}
+{"sample_idx": 264, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Shure", "gold": "Shure"}
+{"sample_idx": 261, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Playing on their phones", "gold": "Barbecue Party"}
+{"sample_idx": 267, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Dumplings", "gold": "Dumplings"}
+{"sample_idx": 266, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Pillow fight", "gold": "Pillow fight"}
+{"sample_idx": 270, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Assembling a shelf", "gold": "Assembling a shelf"}
+{"sample_idx": 265, "correct": true, "question_type": "HabitInsight", "need_audio": false, "n_frames": 5, "pred": "Check the camera", "gold": "Check the camera"}
+{"sample_idx": 269, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Shure, Tasha", "gold": "Alice, Shure"}
+{"sample_idx": 268, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Lucia Shure", "gold": "Shure Katrina"}
+{"sample_idx": 274, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha and Lucia", "gold": "Tasha and Lucia"}
+{"sample_idx": 271, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "On the shelf", "gold": "On the shelf"}
+{"sample_idx": 275, "correct": true, "question_type": "HabitInsight", "need_audio": false, "n_frames": 5, "pred": "Tasha and Lucia", "gold": "Tasha and Lucia"}
+{"sample_idx": 272, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Dance", "gold": "Dance"}
+{"sample_idx": 276, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "", "gold": "The door wouldn't open"}
+{"sample_idx": 278, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Ask for others' opinions", "gold": "Ask for others' opinions"}
+{"sample_idx": 279, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Alice and Lucia", "gold": "Alice and Lucia"}
+{"sample_idx": 277, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Pick up takeout", "gold": "Pick up takeout"}
+{"sample_idx": 273, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Last night"}
+{"sample_idx": 282, "correct": true, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "Refrigerator", "gold": "Refrigerator"}
+{"sample_idx": 283, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Lucia said she put it in the refrigerator downstairs.", "gold": "Lucia said she put it in the refrigerator downstairs."}
+{"sample_idx": 281, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Tasha and Lucia"}
+{"sample_idx": 288, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Rent or second-hand", "gold": "Rent or second-hand"}
+{"sample_idx": 286, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Laba garlic", "gold": "Laba garlic"}
+{"sample_idx": 284, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "The night before yesterday", "gold": "The night before yesterday"}
+{"sample_idx": 289, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 280, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "", "gold": "The afternoon before yesterday"}
+{"sample_idx": 290, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 291, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Shure", "gold": "Shure"}
+{"sample_idx": 285, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Tasha and Lucia"}
+{"sample_idx": 295, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Evening", "gold": "Evening"}
+{"sample_idx": 292, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Meat", "gold": "Meat"}
+{"sample_idx": 296, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Mandarin R&B", "gold": "Mandarin R&B"}
+{"sample_idx": 294, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Living Room", "gold": "Living Room"}
+{"sample_idx": 293, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "About 19 hours ago", "gold": "Two days ago"}
+{"sample_idx": 300, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Last night", "gold": "Last night"}
+{"sample_idx": 299, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Watch dogs", "gold": "Watch dogs"}
+{"sample_idx": 298, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Last night", "gold": "Last night"}
+{"sample_idx": 302, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Look at the lyrics", "gold": "Look at the lyrics"}
+{"sample_idx": 297, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Make a puppy", "gold": "Make a puppy"}
+{"sample_idx": 303, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Washing dishes", "gold": "Whipping cream"}
+{"sample_idx": 304, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 301, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Alice", "gold": "Tasha"}
+{"sample_idx": 307, "correct": false, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Me and Alice", "gold": "Nicous and Katrina"}
+{"sample_idx": 306, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Dumplings", "gold": "Dumplings"}
+{"sample_idx": 308, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 305, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Shure", "gold": "Shure"}
+{"sample_idx": 309, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "yesterday night", "gold": "3 hours ago"}
+{"sample_idx": 312, "correct": false, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Tasha, Lucia, Katrina", "gold": "Tasha, Lucia, Alice"}
+{"sample_idx": 313, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Alice, Tasha", "gold": "Alice, Tasha"}
+{"sample_idx": 311, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "yesterday", "gold": "2 days 3 hours ago"}
+{"sample_idx": 315, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Pinduoduo", "gold": "Pinduoduo"}
+{"sample_idx": 314, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Lucia", "gold": "Lucia"}
+{"sample_idx": 316, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Me, Lucia", "gold": "Me, Lucia"}
+{"sample_idx": 310, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Last Night"}
+{"sample_idx": 319, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Katrina,Nicous", "gold": "Shure,Nicous"}
+{"sample_idx": 320, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Me, Nicous", "gold": "Me, Nicous"}
+{"sample_idx": 317, "correct": false, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Shure, Katrina, Tasha", "gold": "Shure, Tasha, Lucia"}
+{"sample_idx": 321, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Shure"}
+{"sample_idx": 318, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Alice, Lucia", "gold": "Alice, Lucia"}
+{"sample_idx": 324, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Should we get vaccinated?", "gold": "Should we get vaccinated?"}
+{"sample_idx": 323, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Lucia, Shure, Katrina", "gold": "Lucia, Shure, Katrina"}
+{"sample_idx": 327, "correct": false, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "One day ago", "gold": "Two days ago"}
+{"sample_idx": 329, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Knead the dough", "gold": "Knead the dough"}
+{"sample_idx": 325, "correct": false, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Because Lucia likes this flavor", "gold": "Because he added butter to the bread"}
+{"sample_idx": 328, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Money", "gold": "Money"}
+{"sample_idx": 326, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 330, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Lucia", "gold": "Lucia"}
+{"sample_idx": 322, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Katrina, Shure"}
+{"sample_idx": 332, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "The sky is dark", "gold": "The sky is dark"}
+{"sample_idx": 331, "correct": true, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "Noodles", "gold": "Noodles"}
+{"sample_idx": 335, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Alice and Lucia", "gold": "Alice and Lucia"}
+{"sample_idx": 336, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 337, "correct": false, "question_type": "HabitInsight", "need_audio": false, "n_frames": 5, "pred": "Wash hands with dish soap", "gold": "Wash hands with hand sanitizer"}
+{"sample_idx": 333, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Yesterday afternoon"}
+{"sample_idx": 334, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Cake Ingredients", "gold": "Cake Ingredients"}
+{"sample_idx": 340, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Shopping", "gold": "Shopping"}
+{"sample_idx": 338, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Refrigerator", "gold": "Refrigerator"}
+{"sample_idx": 339, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Steamed Bun", "gold": "Steamed Bun"}
+{"sample_idx": 342, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Last night", "gold": "Last night"}
+{"sample_idx": 344, "correct": false, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "About an hour ago", "gold": "About three hours ago"}
+{"sample_idx": 343, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Lucia"}
+{"sample_idx": 348, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Vegetables", "gold": "Vegetables"}
+{"sample_idx": 346, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "The afternoon before yesterday", "gold": "The afternoon before yesterday"}
+{"sample_idx": 349, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "About ten minutes ago", "gold": "About three hours ago"}
+{"sample_idx": 347, "correct": false, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Wangzai Milk Fruit Beer", "gold": "Wangzai Milk Yakult"}
+{"sample_idx": 350, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Shopping", "gold": "Shopping"}
+{"sample_idx": 341, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Dog"}
+{"sample_idx": 353, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha and Shure", "gold": "Tasha and Shure"}
+{"sample_idx": 352, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Choiszt and Alice", "gold": "Violet and Alice"}
+{"sample_idx": 356, "correct": true, "question_type": "HabitInsight", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 357, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 358, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Yesterday afternoon", "gold": "The afternoon before yesterday"}
+{"sample_idx": 354, "correct": false, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "", "gold": "Blueberries"}
+{"sample_idx": 359, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Lucia and Nicous", "gold": "Tasha and Alice"}
+{"sample_idx": 351, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Choiszt and Nicous"}
+{"sample_idx": 355, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "", "gold": "The afternoon before yesterday"}
+{"sample_idx": 360, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Alice and Tasha", "gold": "Alice and Tasha"}
+{"sample_idx": 362, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Tequila", "gold": "Tequila"}
+{"sample_idx": 364, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Fruits", "gold": "Fruits"}
+{"sample_idx": 361, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Blueberries", "gold": "Blueberries"}
+{"sample_idx": 365, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "The afternoon before yesterday", "gold": "The afternoon before yesterday"}
+{"sample_idx": 363, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Choiszt"}
+{"sample_idx": 367, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Alice and Shure", "gold": "Alice and Shure"}
+{"sample_idx": 369, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Alice", "gold": "Shure"}
+{"sample_idx": 366, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "About an hour ago", "gold": "About an hour ago"}
+{"sample_idx": 370, "correct": false, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Barbecue", "gold": "Fire Burn"}
+{"sample_idx": 368, "correct": true, "question_type": "HabitInsight", "need_audio": false, "n_frames": 5, "pred": "Take a taxi", "gold": "Take a taxi"}
+{"sample_idx": 372, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "This afternoon", "gold": "This afternoon"}
+{"sample_idx": 374, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 376, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "The night before yesterday", "gold": "The night before yesterday"}
+{"sample_idx": 377, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "About two hours ago", "gold": "1 day 6 hours ago"}
+{"sample_idx": 373, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "", "gold": "The day before yesterday at noon"}
+{"sample_idx": 371, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 382, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Lucia", "gold": "Lucia"}
+{"sample_idx": 375, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 379, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "", "gold": "The day before yesterday at noon"}
+{"sample_idx": 380, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Hema Supermarket", "gold": "Hema Supermarket"}
+{"sample_idx": 378, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Egg Tart", "gold": "Sweet Potato"}
+{"sample_idx": 381, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Yesterday afternoon"}
+{"sample_idx": 384, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Shure"}
+{"sample_idx": 386, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Outdoor", "gold": "Outdoor"}
+{"sample_idx": 383, "correct": false, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Alice and Katrina", "gold": "Lucia and Me"}
+{"sample_idx": 389, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "About 1 hour ago", "gold": "About 3 hours ago"}
+{"sample_idx": 388, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 387, "correct": false, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "One day ago", "gold": "Four days ago"}
+{"sample_idx": 390, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Alice and Violet", "gold": "Nicous and Alice"}
+{"sample_idx": 393, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Living room", "gold": "Living room"}
+{"sample_idx": 394, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "This afternoon", "gold": "This afternoon"}
+{"sample_idx": 395, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Eating hot pot", "gold": "Eating hot pot"}
+{"sample_idx": 391, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Choiszt and Tasha"}
+{"sample_idx": 397, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Repairing glasses", "gold": "Repairing glasses"}
+{"sample_idx": 398, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Using the computer", "gold": "Using the computer"}
+{"sample_idx": 392, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Order takeout", "gold": "Order takeout"}
+{"sample_idx": 399, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Because it's stable to push backwards", "gold": "Because it's stable to push backwards"}
+{"sample_idx": 396, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Listening to that song", "gold": "Listening to that song"}
+{"sample_idx": 400, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Because the cost-performance ratio is average", "gold": "Because the cost-performance ratio is average"}
+{"sample_idx": 401, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Wahaha", "gold": "Wahaha"}
+{"sample_idx": 402, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Because she thinks stewed dishes look too ugly", "gold": "Because she thinks stewed dishes look too ugly"}
+{"sample_idx": 405, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Three days ago", "gold": "About 12 hours ago"}
+{"sample_idx": 406, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Yesterday at noon", "gold": "Yesterday at noon"}
+{"sample_idx": 404, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Lele", "gold": "Lele"}
+{"sample_idx": 403, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 407, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Miniature landscape, Aromatherapy", "gold": "Miniature landscape, Aromatherapy"}
+{"sample_idx": 410, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Last night", "gold": "Last night"}
+{"sample_idx": 411, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Last night", "gold": "Yesterday afternoon"}
+{"sample_idx": 409, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "About eleven hours ago", "gold": "About eleven hours ago"}
+{"sample_idx": 408, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Yesterday at noon", "gold": "Yesterday at noon"}
+{"sample_idx": 414, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Last night", "gold": "Last night"}
+{"sample_idx": 412, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Open the refrigerator to take something", "gold": "Open the refrigerator to take something"}
+{"sample_idx": 413, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Discussing drinking", "gold": "Discussing drinking"}
+{"sample_idx": 415, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Egg Tart"}
+{"sample_idx": 418, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Shopping", "gold": "Shopping"}
+{"sample_idx": 416, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Me"}
+{"sample_idx": 420, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "About 20 minutes ago", "gold": "About half an hour ago"}
+{"sample_idx": 417, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Didn't go out.", "gold": "About an hour ago"}
+{"sample_idx": 422, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Place some items on the table.", "gold": "Place some items on the table."}
+{"sample_idx": 419, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha, Lucia", "gold": "Tasha, Lucia"}
+{"sample_idx": 425, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Got cut by a knife", "gold": "Got cut by a knife"}
+{"sample_idx": 421, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "About 15 minutes ago", "gold": "About 15 minutes ago"}
+{"sample_idx": 424, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Choiszt"}
+{"sample_idx": 428, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Ice cream", "gold": "Ice cream"}
+{"sample_idx": 426, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 429, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Using the browser", "gold": "Using the browser"}
+{"sample_idx": 430, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "This morning", "gold": "This morning"}
+{"sample_idx": 423, "correct": true, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "Upstairs", "gold": "Upstairs"}
+{"sample_idx": 433, "correct": false, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Baked Egg Tart", "gold": "Parchment paper"}
+{"sample_idx": 431, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Black", "gold": "Black"}
+{"sample_idx": 434, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Quiz", "gold": "Quiz"}
+{"sample_idx": 427, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "About two hours ago", "gold": "About 40 minutes ago"}
+{"sample_idx": 436, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Alice", "gold": "Nicous"}
+{"sample_idx": 437, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Three days ago at noon", "gold": "Three days ago at noon"}
+{"sample_idx": 438, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Cardboard puppy", "gold": "Cardboard puppy"}
+{"sample_idx": 432, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Katrina", "gold": "Choiszt"}
+{"sample_idx": 435, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Edit ppt", "gold": "Edit ppt"}
+{"sample_idx": 442, "correct": true, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "I", "gold": "I"}
+{"sample_idx": 441, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Cardboard Box Puppy", "gold": "Cardboard Box Puppy"}
+{"sample_idx": 443, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "About one hour ago", "gold": "About four hours ago"}
+{"sample_idx": 439, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "", "gold": "Lucia"}
+{"sample_idx": 446, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "Me", "gold": "Choiszt"}
+{"sample_idx": 440, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Discussion", "gold": "Discussion"}
+{"sample_idx": 447, "correct": false, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Alice and Nicous", "gold": "Nicous and Choiszt"}
+{"sample_idx": 445, "correct": false, "question_type": "EntityLog", "need_audio": false, "n_frames": 5, "pred": "PPT", "gold": "Video"}
+{"sample_idx": 448, "correct": false, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Today", "gold": "The day before yesterday"}
+{"sample_idx": 450, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Because it's not allowed", "gold": "Because it's not allowed"}
+{"sample_idx": 444, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "", "gold": "The day before yesterday"}
+{"sample_idx": 449, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Because she couldn't press it down", "gold": "Because she couldn't press it down"}
+{"sample_idx": 453, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Because there were no bulbs and the legs weren't stable", "gold": "Because there were no bulbs and the legs weren't stable"}
+{"sample_idx": 454, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 455, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "To plug in the speakers in the courtyard", "gold": "To plug in the speakers in the courtyard"}
+{"sample_idx": 459, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Nicous and Shure and Tasha", "gold": "Nicous and Violet and Shure"}
+{"sample_idx": 451, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Fold the quilt", "gold": "Fold the quilt"}
+{"sample_idx": 457, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Me and Alice", "gold": "Me and Nicous"}
+{"sample_idx": 456, "correct": false, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Two days ago", "gold": "Three days ago"}
+{"sample_idx": 460, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 463, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Tasha", "gold": "Tasha"}
+{"sample_idx": 458, "correct": false, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Nicous and Shure and Alice", "gold": "Nicous and Violet and Shure"}
+{"sample_idx": 464, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Lucia", "gold": "Lucia"}
+{"sample_idx": 462, "correct": true, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Lucia", "gold": "Lucia"}
+{"sample_idx": 467, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Steamed Bun", "gold": "Steamed Bun"}
+{"sample_idx": 468, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Steamed buns", "gold": "Steamed buns"}
+{"sample_idx": 465, "correct": false, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Shure", "gold": "Jack"}
+{"sample_idx": 469, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Tremella soup", "gold": "Tremella soup"}
+{"sample_idx": 466, "correct": false, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "Shure", "gold": "Tasha"}
+{"sample_idx": 470, "correct": true, "question_type": "HabitInsight", "need_audio": true, "n_frames": 5, "pred": "Salty", "gold": "Salty"}
+{"sample_idx": 461, "correct": false, "question_type": "RelationMap", "need_audio": true, "n_frames": 5, "pred": "", "gold": "Nicous and Choiszt"}
+{"sample_idx": 473, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "We can watch a movie again", "gold": "We can watch a movie again"}
+{"sample_idx": 474, "correct": true, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "2", "gold": "2"}
+{"sample_idx": 471, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Cut with scissors", "gold": "Cut with scissors"}
+{"sample_idx": 475, "correct": true, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "Auction", "gold": "Auction"}
+{"sample_idx": 477, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Reward an ego coin", "gold": "Reward an ego coin"}
+{"sample_idx": 479, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "He plays the piano and Shure sings", "gold": "He plays the piano and Shure sings"}
+{"sample_idx": 480, "correct": true, "question_type": "TaskMaster", "need_audio": true, "n_frames": 5, "pred": "Ordinary Friends", "gold": "Ordinary Friends"}
+{"sample_idx": 472, "correct": false, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Because this is according to the plan", "gold": "Because Lucia is not ready"}
+{"sample_idx": 482, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Hotpot", "gold": "Hotpot"}
+{"sample_idx": 486, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Alice", "gold": "Alice"}
+{"sample_idx": 487, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Lucia", "gold": "Lucia"}
+{"sample_idx": 476, "correct": true, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "3 yuan", "gold": "3 yuan"}
+{"sample_idx": 481, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "1 time", "gold": "3 times"}
+{"sample_idx": 490, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Too expensive", "gold": "Too expensive"}
+{"sample_idx": 491, "correct": true, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Yesterday at noon", "gold": "Yesterday at noon"}
+{"sample_idx": 488, "correct": false, "question_type": "EntityLog", "need_audio": true, "n_frames": 5, "pred": "Yesterday morning", "gold": "The day before yesterday"}
+{"sample_idx": 492, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Two days ago", "gold": "Five days ago"}
+{"sample_idx": 496, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "This afternoon", "gold": "The night before yesterday"}
+{"sample_idx": 495, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Unforgettable Tonight", "gold": "Unforgettable Tonight"}
+{"sample_idx": 489, "correct": true, "question_type": "RelationMap", "need_audio": false, "n_frames": 5, "pred": "Alice", "gold": "Alice"}
+{"sample_idx": 498, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Alice", "gold": "Alice"}
+{"sample_idx": 493, "correct": false, "question_type": "EventRecall", "need_audio": false, "n_frames": 5, "pred": "Last night", "gold": "The night before yesterday"}
+{"sample_idx": 499, "correct": true, "question_type": "EventRecall", "need_audio": true, "n_frames": 5, "pred": "Alice", "gold": "Alice"}

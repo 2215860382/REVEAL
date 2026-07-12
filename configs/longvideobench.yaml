@@ -1,0 +1,33 @@
+# Config for LongVideoBench (NeurIPS'24 D&B) — 1337 Qs / 753 videos (8s–60min),
+# long-context interleaved video + Whisper-V3 subtitles. Subtitles live as per-video
+# {id}.srt under subtitle_dir (converted from {id}_en.json by scripts/lvb_json2srt.py).
+benchmark:
+  name: longvideobench
+  bench_root: /home2/ycj/Datas/LongVideoBench          # lvb_val.json here
+  video_dir: /home2/ycj/Datas/LongVideoBench/videos    # {video_id}.mp4
+  subtitle_dir: /home2/ycj/Datas/LongVideoBench/subtitles_srt
+  duration_groups: null
+
+paths:
+  outputs_root: /home2/ycj/Project/VEIL/outputs
+
+veil_loop:
+  max_iter: 3
+  query_history_dedup_threshold: 0.9
+  evidence_dedup_threshold: 0.9
+  query_evidence_dedup_threshold: 0.7
+  kf_dedup_threshold: 0.92
+
+eval:
+  output_dir: /home2/ycj/Project/VEIL/outputs/results/longvideobench
+
+models:
+  vlm:
+    model_path: /home2/ycj/Models/Qwen/Qwen3.5-27B
+  llm:
+    model_path: /home2/ycj/Models/Qwen/Qwen3.5-27B
+    dtype: bfloat16
+    attn_impl: sdpa
+  embedder:
+    model_path: /home2/ycj/Models/BAAI/bge-m3
+    use_fp16: true

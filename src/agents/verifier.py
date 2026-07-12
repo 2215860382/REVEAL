@@ -5,9 +5,11 @@ Rubric-guided judgment:
                        to a per-option score, thresholded into true / false / unknown.
   2. Label and gaps  – label follows the rubric threshold; gaps drive the next query.
 
-Default rubric lives in ``outputs/rubric/rubric_contrastive.yaml``.
-Currently all questions use ``templates.default``; extend ``type_aliases`` / ``keyword_rules``
-in the yaml to route different types to different templates without code changes.
+Default rubric lives in ``outputs/rubric/rubric_contrastive.yaml``: a ``general`` block
+(criteria added to every question) plus one top-level block per question type (keyed by
+the type name). ``get_rubric_dict`` matches ``task_type`` to a same-named block and appends
+its criteria to ``general``; unmatched types fall back to ``general`` only. (Legacy
+``templates:`` / ``type_aliases:`` nesting is still parsed for backward compatibility.)
 """
 from __future__ import annotations
 
@@ -61,9 +63,19 @@ def _rubric_config() -> Tuple[Dict, Dict, Dict[str, str], List[Tuple[List[str], 
     if not general.get("rubric_criteria"):
         raise ValueError(f"{path} must define general.rubric_criteria")
 
+    # Type-specific rubrics. New format: each question type is a top-level key
+    # (a dict with its own rubric_criteria). Legacy format: nested under
+    # ``templates:`` with a redundant identity ``type_aliases:`` map. Reserved
+    # top-level keys are never treated as types.
+    RESERVED = {"general", "types", "type_aliases", "templates", "keyword_rules"}
     templates: Dict = {}
-    for k, v in (data.get("templates") or {}).items():
-        templates[k] = v
+    if data.get("templates"):
+        for k, v in data["templates"].items():
+            templates[k] = v
+    else:
+        for k, v in data.items():
+            if k not in RESERVED and isinstance(v, dict) and v.get("rubric_criteria"):
+                templates[k] = v
 
     aliases: Dict[str, str] = dict(data.get("type_aliases") or {})
     rules_raw = data.get("keyword_rules") or []
@@ -90,7 +102,7 @@ def get_rubric_dict(question: str, task_type: Optional[str] = None) -> dict:
     # Resolve type-specific template key
     key: Optional[str] = None
     if task_type:
-        key = aliases.get(task_type)
+        key = aliases.get(task_type, task_type)  # no alias table → match type name directly
         if key not in templates:
             key = None
 

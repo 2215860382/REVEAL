@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
-BenchName = Literal["videomme", "lvbench"]
+BenchName = Literal["videomme", "lvbench", "egolife", "longvideobench"]
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]  # …/VEIL (core → build_memory → src → VEIL)
 _OUTPUTS_ROOT = _PROJECT_ROOT / "outputs"
@@ -42,10 +42,40 @@ def benchmark_lvbench() -> dict[str, Any]:
     }
 
 
+def benchmark_egolife() -> dict[str, Any]:
+    # EgoLife has no single video file per sample: each "video" is a person whose
+    # footage is thousands of 30-s clips under {egolife_root}/{PERSON}/. The build
+    # engine enumerates clips + transcript via src.dataloader.egolife. Speech comes
+    # from EgoLifeCap/Transcript SRTs (resolved per chunk on the global timeline),
+    # so subtitle_dir stays None (that knob is the single-SRT-per-video path).
+    return {
+        "name": "egolife",
+        "egolife_root": "/home2/ycj/Datas/EgoLife",
+        "subtitle_dir": None,
+        "duration_groups": None,
+    }
+
+
+def benchmark_longvideobench() -> dict[str, Any]:
+    # LongVideoBench: one mp4 per video (val = 753 videos / 1337 Qs). Subtitles are
+    # Whisper-V3 JSON (``{id}_en.json``) converted to ``{id}.srt`` by
+    # scripts/lvb_json2srt.py into ``subtitle_dir``, so the existing SRT injection
+    # path (parse_srt → align_subtitles) attaches them per chunk unchanged.
+    return {
+        "name": "longvideobench",
+        "bench_root": "/home2/ycj/Datas/LongVideoBench",
+        "video_dir": "/home2/ycj/Datas/LongVideoBench/videos",   # {video_id}.mp4
+        "subtitle_dir": "/home2/ycj/Datas/LongVideoBench/subtitles_srt",  # {video_id}.srt
+        "duration_groups": None,
+    }
+
+
 # benchmark name → its config builder
 _BENCH_BUILDERS = {
     "videomme": benchmark_videomme,
     "lvbench": benchmark_lvbench,
+    "egolife": benchmark_egolife,
+    "longvideobench": benchmark_longvideobench,
 }
 
 
@@ -67,6 +97,8 @@ def similarity_memory_cache_dir(name: BenchName) -> Path:
     return _OUTPUTS_ROOT / "memory" / {
         "videomme": "videomme_L_27b_27b",
         "lvbench": "lvbench_single",
+        "egolife": "egolife_single",
+        "longvideobench": "longvideobench_single",
     }[name]
 
 

@@ -1,0 +1,37 @@
+# Config for Ego-R1-Bench — egocentric MCQ over the same per-person life-stream
+# banks as EgoLifeQA (video_id = person). Different question set + bench_root:
+#   manual-benchmark/{PERSON}.json → 150 MCQs (25/person, name: egor1_manual)
+#   gemini-benchmark/{PERSON}.json → gemini variant (name: egor1_gemini)
+#   both dirs                      → name: egor1_both
+# Retrieval is time-gated by each question's query_time (future memory off-limits).
+# Only A1_JAKE's bank is built, so filter_people pins it (A1_JAKE = 25 manual Qs).
+# EgoLifeQA lives in configs/egolife.yaml — same banks, different dataset.
+benchmark:
+  name: egor1_manual
+  bench_root: /home2/ycj/Datas/Ego-R1-Bench
+  video_dir: /home2/ycj/Datas/EgoLife
+  filter_people: [A1_JAKE, A2_ALICE, A3_TASHA, A4_LUCIA, A5_KATRINA, A6_SHURE]
+
+paths:
+  outputs_root: /home2/ycj/Project/VEIL/outputs
+
+veil_loop:
+  max_iter: 3
+  query_history_dedup_threshold: 0.9
+  evidence_dedup_threshold: 0.9
+  query_evidence_dedup_threshold: 0.7
+  kf_dedup_threshold: 0.92
+
+eval:
+  output_dir: /home2/ycj/Project/VEIL/outputs/results/egor1
+
+models:
+  vlm:
+    model_path: /home2/ycj/Models/Qwen/Qwen3.5-27B
+  llm:
+    model_path: /home2/ycj/Models/Qwen/Qwen3.5-27B
+    dtype: bfloat16
+    attn_impl: sdpa
+  embedder:
+    model_path: /home2/ycj/Models/BAAI/bge-m3
+    use_fp16: true

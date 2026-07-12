@@ -114,6 +114,14 @@ def keyframe_paths(keyframe_dir, video_id: str, chunk_id: int, cap: int = 3,
     if not all_matches:
         all_matches = [str(p) for p in sorted(frames_dir.glob(f"c{chunk_id:05d}_f*.jpg"))]
     if not all_matches:
+        # Last resort: a relative-but-existing keyframe_path whose filename does
+        # not match the chunk_id glob (EgoLife per-clip frames, e.g.
+        # DAY1_..._0000_0.jpg). Glob-named banks (videomme/lvbench) never reach
+        # here, so their behaviour is unchanged.
+        if chunk is not None:
+            kp = getattr(chunk, "keyframe_path", "") or ""
+            if kp and Path(kp).is_file():
+                return [str(kp)]
         return []
 
     best = _sharpest(all_matches) if len(all_matches) > 1 else all_matches[0]

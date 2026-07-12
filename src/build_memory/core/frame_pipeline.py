@@ -117,7 +117,8 @@ class CleanedGroup:
 
 # ── Frame extraction (was similarity.extract_frames) ───────────────────────────
 
-def extract_frames(video_path: str, out_dir: Path, fps: float = DEFAULT_FPS) -> List[Path]:
+def extract_frames(video_path: str, out_dir: Path, fps: float = DEFAULT_FPS,
+                   hwaccel_device: str | None = None) -> List[Path]:
     """ffmpeg → frame_000001.jpg, frame_000002.jpg, … in out_dir.
 
     ``-q:v 2`` (≈ JPEG q95) matches Binlu extract_frames.py — keep narrative
@@ -139,10 +140,12 @@ def extract_frames(video_path: str, out_dir: Path, fps: float = DEFAULT_FPS) -> 
     # chokes on 8K (must decode 100k+ full-res frames at 24fps before the fps=1
     # downsample); NVDEC hardware decode clears it in ~1/10 the wall time. Enable
     # via VEIL_HWACCEL_DEVICE=<gpu idx> (empty = CPU software decode, default).
-    _hw = os.environ.get("VEIL_HWACCEL_DEVICE", "")
+    # Explicit hwaccel_device arg overrides the env (None = read env, preserving
+    # the default behaviour for lvbench/videomme callers).
+    _hw = hwaccel_device if hwaccel_device is not None else os.environ.get("VEIL_HWACCEL_DEVICE", "")
     pre = ["ffmpeg"]
     if _hw != "":
-        pre += ["-hwaccel", "cuda", "-hwaccel_device", _hw]
+        pre += ["-hwaccel", "cuda", "-hwaccel_device", str(_hw)]
     cmd = pre + [
         "-i", str(video_path),
         "-vf", vf, "-q:v", "2",
@@ -169,21 +172,24 @@ def is_blank(path: Path, min_bytes: int = DEFAULT_BLANK_BYTES_MIN) -> bool:
 
 def is_blank_pixel(
     path: Path,
-    mean_thresh: float = DEFAULT_BLACK_MEAN_THRESH,
+    mean_thresh: float = DEFAULT_BLACK_MEAN_THRESH,   # kept for API compat; unused
     std_thresh: float = DEFAULT_BLACK_STD_THRESH,
 ) -> bool:
-    """Pixel-level black/uniform frame detector (requires decode).
+    """Pixel-level *uniform* (contentless) frame detector (requires decode).
 
-    Catches near-black frames that survive the file-size pre-filter (e.g. very
-    dark-but-not-pure-black scenes) and near-white uniform frames (fade-to-white).
+    A frame is blank ONLY if it is near-uniform (std < std_thresh): pure black,
+    fade-to-white, or a solid color — genuinely no content to caption. Brightness
+    is deliberately NOT a criterion: a dark scene with real detail (low mean but
+    high std, e.g. dim night/indoor footage) carries answerable information and
+    must survive to captioning. Dropping dark-but-detailed frames blew a recall
+    hole (night events unretrievable). Applies to every dataset that extracts
+    frames — lvbench/videomme/egolife all route pixel filtering through here.
     """
     import cv2
     img = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
     if img is None:
         return True
-    m = float(img.mean())
-    s = float(img.std())
-    return m < mean_thresh or s < std_thresh
+    return float(img.std()) < std_thresh
 
 
 def is_blurry(path: Path, threshold: float = DEFAULT_BLUR_THRESHOLD) -> bool:
@@ -316,13 +322,14 @@ def group_frames(
     timestamps: List[float],   # length T, seconds
     theta: float = DEFAULT_GROUP_THETA,
     n_max: int = DEFAULT_GROUP_N_MAX,
-    min_size: int = 3,
+    min_size: int = 1,
 ) -> List[FrameGroup]:
     """Greedy cosine-similarity grouping of consecutive frames into "shots".
 
     Adjacent frames with cosine similarity ≥ ``theta`` are merged into one
-    group, up to ``n_max`` frames. Short groups (< ``min_size``) are folded
-    into the left neighbour.
+    group, up to ``n_max`` frames. A short (1–2 frame) shot is kept as its OWN
+    group by default (``min_size=1`` ⇒ no folding). Folding is opt-in via
+    ``min_size>1`` and, when it does fold, never grows a group past ``n_max``.
     """
     T = len(v_frames)
     if T == 0:
@@ -340,9 +347,15 @@ def group_frames(
             current = [t]
     groups.append(current)
 
+    # Do NOT blindly fold short shots into the left neighbour. The old code did
+    # ``merged[-1].extend(g)`` ignoring n_max, so a neighbour could grow past
+    # n_max; downstream uniform-sampling back down to n_max then silently dropped
+    # frames that shouldn't have been dropped. Now a 1–2 frame shot stays its own
+    # group (min_size=1 default). If a caller opts into folding (min_size>1), only
+    # fold when the result still fits within n_max.
     merged: List[List[int]] = []
     for g in groups:
-        if len(g) < min_size and merged:
+        if len(g) < min_size and merged and len(merged[-1]) + len(g) <= n_max:
             merged[-1].extend(g)
         else:
             merged.append(g)

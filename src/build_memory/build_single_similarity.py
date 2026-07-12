@@ -56,7 +56,12 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFile
+
+# A truncated/half-written cached JPEG (e.g. a frame written just before an
+# earlier build was killed) must never take down the whole 6k-clip run: let PIL
+# load whatever bytes are decodable, and _img_block below skips the rest.
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -265,7 +270,7 @@ async def _call_api(
     raise last_err  # unreachable
 
 
-def _img_block(path: Path, max_side: int | None = None) -> dict:
+def _img_block(path: Path, max_side: int | None = None) -> dict | None:
     """Long-edge resize → JPEG q=85 → base64 (mirrors Binlu api_backend.py:104-119).
     Matters most for the multi-image narrative call: raw 1fps frames are 1280+
     on the long edge; sending 30 of them un-scaled triples the prompt-token
@@ -275,7 +280,13 @@ def _img_block(path: Path, max_side: int | None = None) -> dict:
     huge (e.g. 10000) to send frames at original resolution for A/B tests."""
     if max_side is None:
         max_side = int(os.environ.get("VEIL_CAPTION_MAX_SIDE", "448"))
-    img = Image.open(path).convert("RGB")
+    try:
+        img = Image.open(path).convert("RGB")
+    except Exception as e:
+        # Corrupt/unreadable cached frame: drop just this image (caller filters
+        # None out) rather than crashing the whole build's asyncio.gather.
+        log.warning("skip unreadable frame %s: %s", path, e)
+        return None
     if max(img.size) > max_side:
         scale = max_side / max(img.size)
         img = img.resize(
@@ -330,8 +341,11 @@ async def _narrate_chunk(
     )
     content: list = [{"type": "text", "text": header}]
     for tt, fp in zip(ts, fps):
+        block = _img_block(fp)
+        if block is None:
+            continue  # unreadable frame — drop it, keep the rest of the chunk
         content.append({"type": "text", "text": FRAME_TS_TEMPLATE.format(ts=_hms(tt))})
-        content.append(_img_block(fp))
+        content.append(block)
     content.append({"type": "text", "text": USER_TRAILER})
 
     messages = [
@@ -405,8 +419,254 @@ def _get_video_paths(cfg: dict, video_dir: str | None = None) -> dict[str, str]:
             video_dir=b["video_dir"],
         )
         return {s.video_id: s.video_path for s in samples}
+    elif bench == "longvideobench":
+        from src.dataloader.longvideobench import load_longvideobench
+        b = cfg["benchmark"]
+        samples = load_longvideobench(
+            bench_root=b["bench_root"],
+            video_dir=b["video_dir"],
+        )
+        return {s.video_id: s.video_path for s in samples}
+    elif bench == "egolife":
+        # Each "video" is a person; the value is a FOOTAGE DIRECTORY (thousands of
+        # 30-s clips), not a single file. _prepare_person() fans it out.
+        from src.dataloader.egolife import egolife_person_dirs
+        return egolife_person_dirs(cfg["benchmark"]["egolife_root"])
     else:
         raise ValueError(f"Unsupported benchmark: {bench}")
+
+
+# ── EgoLife: per-clip incremental builder ──────────────────────────────────────
+
+def build_egolife_person(person, person_dir, out_dir, siglip, embedder, args, cfg, ml):
+    """Build ONE person's bank from their ~30-s clips, CLIP = CHUNK (no grouping).
+
+    EgoLife clips are already atomic 30-s units; SigLIP grouping always collapses a
+    clip's frames into a single group anyway, so we skip it: each clip → one chunk
+    (its ≤30 frames + aligned speech → one caption). The build is clip-incremental
+    and RESUMABLE — each clip's result is cached under _clips/<stem>/ (chunk.json +
+    chunk_vec.npz) and its extracted frames under frames_raw/0000/. A crash loses at
+    most the in-flight batch; a restart reuses every cached clip and every extracted
+    frame (no re-ffmpeg). The person bank (narrative.json + vectors.npz) is
+    check-pointed after every batch, then the ml3_n12 bank is emitted once at the end.
+    """
+    import tempfile
+    from src.dataloader.egolife import egolife_clip_plan, _speech_for
+    from src.build_memory.core.frame_pipeline import (
+        extract_frames, is_blank, is_blank_pixel, is_blurry, select_sharpest,
+        _persist_frame, BLUR_FAILSAFE_RATIO,
+    )
+
+    egolife_root = cfg["benchmark"]["egolife_root"]
+    person_out = out_dir / person
+    person_out.mkdir(parents=True, exist_ok=True)
+    narr_path, vec_path = person_out / "narrative.json", person_out / "vectors.npz"
+
+    clips, transcript = egolife_clip_plan(egolife_root, person)
+    log.info("[%s] %d clips, %d transcript lines", person, len(clips), len(transcript))
+    if not clips:
+        log.warning("[%s] no clips at %s", person, person_dir)
+        return
+
+    def _cdir(clip):
+        return person_out / "_clips" / clip.stem
+
+    def _extract(clip, tmp):
+        """NVDEC decode on --extract-gpu, per-clip CPU fallback on any failure."""
+        if args.extract_gpu is not None:
+            try:
+                raw = extract_frames(str(clip), tmp, fps=args.fps,
+                                     hwaccel_device=str(args.extract_gpu))
+                if raw:
+                    return raw
+            except Exception as e:  # noqa: BLE001 — NVDEC hiccup → fall back to CPU
+                log.warning("[%s] %s NVDEC failed (%s), CPU fallback", person, clip.name, e)
+            for f in tmp.glob("*.jpg"):
+                f.unlink(missing_ok=True)
+        return extract_frames(str(clip), tmp, fps=args.fps, hwaccel_device="")
+
+    import shutil
+
+    def _frames_for(clip):
+        """(survivor_frames, tmp_dir_to_clean_or_None).
+
+        Reuse persisted frames_raw/0000 if present (tmp=None, keep them). Else extract
+        to a /tmp SSD dir + blank/blur filter. With --no-persist-frames we do NOT copy
+        the ~30 frames to the (saturated HDD) frames_raw: caption reads them straight
+        from /tmp and the consumer deletes the dir after the batch (only the keyframe
+        is persisted). Resume then re-extracts, which is cheap via NVDEC."""
+        raw0 = _cdir(clip) / "frames_raw" / "0000"
+        have = sorted(raw0.glob("*.jpg")) if raw0.is_dir() else []
+        if have:
+            return have, None
+        tmp = Path(tempfile.mkdtemp(prefix="veil_ego_"))
+        raw = _extract(clip, tmp)
+        surv: List = []
+        if raw:
+            # is_blank = 损坏/空帧(文件过小); is_blank_pixel = 全黑/纯色均匀帧(无内容).
+            # 暗但有细节的帧不再被 is_blank_pixel 误删(核心滤镜已改为只按 std), 会保留
+            # 进 caption. 只有整段全是损坏/纯黑均匀帧时 nb 才为空 → 跳过该 clip.
+            nb = [p for p in raw if not is_blank(p) and not is_blank_pixel(p)]
+            if nb:
+                flags = [is_blurry(p) for p in nb]
+                surv = nb if sum(flags) / len(flags) > BLUR_FAILSAFE_RATIO \
+                    else [p for p, bl in zip(nb, flags) if not bl]
+        if not surv:
+            shutil.rmtree(tmp, ignore_errors=True)
+            return [], None
+        if args.no_persist_frames:
+            return surv, tmp                       # keep on /tmp SSD; consumer cleans
+        raw0.mkdir(parents=True, exist_ok=True)     # legacy: persist to HDD for reuse
+        out = []
+        for i, src in enumerate(surv):
+            dst = raw0 / f"{i:04d}.jpg"
+            _persist_frame(src, dst, None)
+            out.append(dst)
+        shutil.rmtree(tmp, ignore_errors=True)
+        return out, None
+
+    def _keyframe(clip, frames):
+        kfo = _cdir(clip) / "keyframes_origin" / "0000_0.jpg"
+        if not kfo.exists():
+            kfo.parent.mkdir(parents=True, exist_ok=True)
+            idx = select_sharpest([str(p) for p in frames], list(range(len(frames)))) \
+                if len(frames) > 1 else 0
+            _persist_frame(frames[idx], kfo, None)
+            kfr = _cdir(clip) / "keyframes_resized" / "0000_0.jpg"
+            kfr.parent.mkdir(parents=True, exist_ok=True)
+            _persist_frame(frames[idx], kfr, args.frame_max_dim)
+        return kfo
+
+    def _checkpoint(acc):
+        acc2 = sorted(acc, key=lambda x: x[0])
+        chunks, nv, vv, ids = [], [], [], []
+        for cid, (_abs, d, tv, vvec) in enumerate(acc2):
+            dd = dict(d); dd["chunk_id"] = cid
+            chunks.append(dd); nv.append(tv); vv.append(vvec); ids.append(cid)
+        dur = acc2[-1][1]["end_time"] if acc2 else 0.0
+        narr_path.write_text(json.dumps(
+            {"video_id": person, "duration": dur, "num_chunks": len(chunks),
+             "chunks": chunks}, ensure_ascii=False))
+        np.savez(vec_path,
+                 narrative_vecs=np.array(nv, dtype=np.float32),
+                 visual_vecs=np.array(vv, dtype=np.float32),
+                 chunk_ids=np.array(ids, dtype=np.int64))
+
+    # ── Resume: load cached clips; queue the rest ───────────────────────────────
+    acc, todo = [], []          # acc: (abs_start, chunk_dict, text_vec, visual_vec)
+    for abs_start, clip in clips:
+        cj, cv = _cdir(clip) / "chunk.json", _cdir(clip) / "chunk_vec.npz"
+        if cj.exists() and cv.exists():
+            try:
+                d = json.loads(cj.read_text()); z = np.load(cv)
+                acc.append((abs_start, d, z["text_vec"], z["visual_vec"]))
+                continue
+            except Exception:
+                pass
+        todo.append((abs_start, clip))
+    log.info("[%s] resume: %d cached, %d to build", person, len(acc), len(todo))
+
+    # ── Per-clip prep (ffmpeg extract + blank/blur filter + keyframe pick). This
+    #    is CPU/IO-bound and independent per clip, so it runs on a thread pool
+    #    while the previous batch's captions are still hitting the VLM. ─────────
+    from concurrent.futures import ThreadPoolExecutor
+    def _prep_one(abs_start, clip):
+        frames, tmp = _frames_for(clip)
+        if not frames:
+            log.warning("[%s] %s no frames — skip", person, clip.name)
+            return None
+        N = len(frames)
+        ts = [abs_start + i for i in range(N)]               # fps=1 ⇒ 1 s/frame
+        t0, t1 = abs_start, abs_start + N
+        fsel, tsel = _select_narrative_frames(frames, ts, args.narrative_max_frames)
+        sl, sp = _speech_for(transcript, t0, t1)
+        kf = _keyframe(clip, frames)                          # keyframe → HDD (eval)
+        return {"abs": abs_start, "clip": clip, "kf": kf, "sp": sp, "tmp": tmp,
+                "ts": ts, "t0": t0, "t1": t1,
+                "ci": {"narrative_frame_paths": fsel,
+                       "narrative_timestamps": tsel, "speech": sp,
+                       "speech_lines": sl, "t_start": t0, "t_end": t1}}
+
+    t_all = time.time()
+    B = max(args.api_concurrency * 3, 48)
+    prep_pool = ThreadPoolExecutor(max_workers=max(1, args.prep_workers))
+
+    # ── Producer/consumer pipeline ──────────────────────────────────────────────
+    # A background thread preps the NEXT batch (ffmpeg extract + keyframe pick,
+    # CPU/GPU0-bound) while the main thread captions the CURRENT batch on the vLLM
+    # endpoints. Without this, prep and caption ping-pong: during a batch's long
+    # prep all 5 endpoints sit idle, and during its caption GPU0 sits idle. With a
+    # 2-deep queue the endpoints stay continuously fed → ~1.5-2x throughput.
+    from queue import Queue
+    from threading import Thread
+    SENTINEL: object = object()
+    batch_q: Queue = Queue(maxsize=2)
+
+    def _producer():
+        try:
+            for bi in range(0, len(todo), B):
+                batch = todo[bi:bi + B]
+                preps = [p for p in prep_pool.map(lambda ac: _prep_one(*ac), batch) if p]
+                batch_q.put(preps)
+        finally:
+            batch_q.put(SENTINEL)
+
+    Thread(target=_producer, name="ego-prep", daemon=True).start()
+
+    # The durable resume state is the per-clip chunk.json/chunk_vec.npz (written
+    # every clip below). The full-bank narrative.json (grows to 8 MB+) + vectors.npz
+    # (30 MB+) are only the eval artifact, so rewriting them EVERY batch just floods
+    # the shared disk (balance_dirty_pages throttling). Rewrite them every N batches
+    # instead; a crash loses nothing (resume rebuilds from the per-clip caches).
+    CKPT_EVERY = 10
+    batch_i = 0
+    while True:
+        preps = batch_q.get()
+        if preps is SENTINEL:
+            break
+        if not preps:
+            continue
+        # One SigLIP call for the batch's keyframes → per-chunk visual vecs.
+        vvs = siglip.encode_images([str(p["kf"]) for p in preps])
+        narrs = narrate_chunks([p["ci"] for p in preps], args.api_url,
+                               args.api_model, concurrency=args.api_concurrency)
+        etexts = [f"{n}\n\n{p['sp']}" if p["sp"].strip() else n
+                  for n, p in zip(narrs, preps)]
+        tvs = embedder.encode(etexts)
+        for i, (p, narr) in enumerate(zip(preps, narrs)):
+            cd = _cdir(p["clip"])
+            kf_rel = str(p["kf"].relative_to(person_out))
+            d = {"start_time": p["t0"], "end_time": p["t1"], "narrative": narr,
+                 "caption": [], "speech_text": p["sp"], "sampled_frames": p["ts"],
+                 "keyframe_ts": (p["t0"] + p["t1"]) / 2.0, "keyframe_path": kf_rel}
+            tv = np.asarray(tvs[i], dtype=np.float32)
+            vv = np.asarray(vvs[i], dtype=np.float32)
+            (cd / "chunk.json").write_text(json.dumps(d, ensure_ascii=False))
+            np.savez(cd / "chunk_vec.npz", text_vec=tv, visual_vec=vv)
+            acc.append((p["abs"], d, tv, vv))
+        # Frames lived on /tmp only for captioning (--no-persist-frames) — drop now.
+        for p in preps:
+            if p.get("tmp"):
+                shutil.rmtree(p["tmp"], ignore_errors=True)
+        batch_i += 1
+        if batch_i % CKPT_EVERY == 0:
+            _checkpoint(acc)          # periodic full-bank flush (eval artifact)
+        log.info("[%s] built %d/%d clips (%.0fs elapsed)",
+                 person, len(acc), len(clips), time.time() - t_all)
+
+    prep_pool.shutdown(wait=True)
+    _checkpoint(acc)
+    log.info("[%s] saved %d chunks (%.0fs)", person, len(acc), time.time() - t_all)
+
+    if ml is not None:
+        from src.build_memory.build_multilayer import build_multilayer_for_video
+        ml_out, ml_llm, ml_cfg, ml_pool = ml
+        try:
+            msg = build_multilayer_for_video(
+                person_out, ml_out / person, ml_llm, embedder, ml_cfg, ml_pool)
+            log.info("[%s] multilayer %s", person, msg)
+        except Exception as e:  # noqa: BLE001
+            log.exception("[%s] multilayer failed: %s", person, e)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -414,7 +674,7 @@ def _get_video_paths(cfg: dict, video_dir: str | None = None) -> dict[str, str]:
 def main():
     ap = argparse.ArgumentParser()
     src = ap.add_mutually_exclusive_group(required=True)
-    src.add_argument("--benchmark", choices=["videomme", "lvbench"])
+    src.add_argument("--benchmark", choices=["videomme", "lvbench", "egolife", "longvideobench"])
     src.add_argument("--config", help="Legacy YAML path")
     ap.add_argument("--video-dir", default=None,
                     help="Generic mode: build every video in this folder (recursive, "
@@ -425,6 +685,22 @@ def main():
     ap.add_argument("--bge-gpu",          default="cuda:0")
     ap.add_argument("--subtitle-dir",     default=None)
     ap.add_argument("--filter-from",      default=None)
+    # ── EgoLife only: a "video" is a person (dir of ~30-s clips on a global
+    #    timeline). --people gates which persons to build. ──
+    ap.add_argument("--people", nargs="*", default=None,
+                    help="EgoLife: subset of person keys to build (e.g. A1_JAKE).")
+    ap.add_argument("--prep-workers", type=int, default=8,
+                    help="EgoLife: threads for per-clip frame extract+keyframe "
+                         "(ffmpeg/cv2, CPU-bound). Runs while captions hit the VLM.")
+    ap.add_argument("--extract-gpu", default=None,
+                    help="EgoLife: GPU index for ffmpeg NVDEC frame decode (e.g. 4). "
+                         "Offloads decode from the contended CPU (~4x faster on "
+                         "1408p clips). Falls back to CPU per-clip if NVDEC fails.")
+    ap.add_argument("--no-persist-frames", action="store_true",
+                    help="EgoLife: do NOT copy the ~30 per-clip frames to frames_raw "
+                         "on disk. They stay on the /tmp SSD only for captioning, then "
+                         "are deleted; only the keyframe is persisted. Slashes writes "
+                         "to a saturated HDD; resume re-extracts (cheap via NVDEC).")
     ap.add_argument("--fps",              type=float, default=1.0)
     ap.add_argument("--theta",            type=float, default=0.80)
     ap.add_argument("--n-max",            type=int,   default=30)
@@ -540,6 +816,25 @@ def main():
                 pass
         video_paths = {k: v for k, v in video_paths.items() if k in keep}
         log.info("Filtered to %d videos", len(video_paths))
+
+    if args.people:  # EgoLife: gate which persons to build
+        want = set(args.people)
+        video_paths = {k: v for k, v in video_paths.items() if k in want}
+        log.info("Filtered to %d persons: %s", len(video_paths), list(video_paths))
+
+    # ── EgoLife: dedicated clip-incremental builder (clip=chunk, resumable). It
+    #    has its own loop instead of the per-video producer/consumer below, since
+    #    a person is thousands of clips that must be built + check-pointed one at a
+    #    time. lvbench/videomme keep the shared path untouched. ─────────────────
+    if (cfg.get("benchmark", {}) or {}).get("name") == "egolife":
+        ml = (ml_out_dir, ml_llm, ml_cfg, ml_pool) if args.emit_multilayer else None
+        for person, person_dir in video_paths.items():
+            build_egolife_person(person, person_dir, out_dir, siglip, embedder, args, cfg, ml)
+        if ml_pool is not None:
+            ml_pool.shutdown(wait=True)
+            log.info("Multilayer banks in %s", ml_out_dir)
+        log.info("Done — output in %s", out_dir)
+        return
 
     from src.build_memory.core.frame_pipeline import clean_and_group_frames
     from queue import Queue

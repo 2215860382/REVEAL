@@ -1,6 +1,7 @@
 """Answerer — produce final letter-choice given evidence."""
 from __future__ import annotations
 
+import os
 import re
 from typing import List, Sequence
 
@@ -18,11 +19,24 @@ def _format_options(candidates: List[str]) -> str:
 _PROMPT = (
     "You are answering a multiple-choice question about a long video.\n"
     "Below are {n} relevant video segments retrieved from the video.\n\n"
-    "{evidence}\n\n"
+    "{speaker}{evidence}\n\n"
     "Question: {question}\n"
     "Choices: {choices}\n"
     "Answer with a single letter (A/B/C/D) only, no explanation:"
 )
+
+# Opt-in (VEIL_SPEAKER_PROMPT=1): nudge the answerer to use speaker labels when a
+# question asks WHO said/did something (EgoLife need_name/need_audio questions).
+_SPEAKER_NOTE = (
+    "IMPORTANT: The segments contain speaker-labeled dialogue in the form "
+    "'Name: utterance'. When the question asks WHO said, suggested, asked, or "
+    "did something, attribute each statement and action to the correct named "
+    "speaker using these labels — do not confuse who said what.\n\n"
+)
+
+
+def _speaker_note() -> str:
+    return _SPEAKER_NOTE if os.environ.get("VEIL_SPEAKER_PROMPT") == "1" else ""
 
 _QF_HEADER = (
     "You are answering a multiple-choice question about a long video.\n"
@@ -33,7 +47,7 @@ _QF_HEADER = (
 )
 
 _QF_TAIL = (
-    "{evidence}\n\n"
+    "{speaker}{evidence}\n\n"
     "Question: {question}\n"
     "Choices: {choices}\n"
     "Answer with a single letter (A/B/C/D) only, no explanation:"
@@ -102,7 +116,7 @@ class Answerer:
         # ── Default path: no flags → original chat_with_frames behaviour ─────
         if not image_timestamps and not question_first:
             prompt = _PROMPT.format(
-                n=n_seg, evidence=evidence,
+                n=n_seg, evidence=evidence, speaker=_speaker_note(),
                 question=question, choices=choices,
             )
             raw = self.model.chat_with_frames(
@@ -132,13 +146,13 @@ class Answerer:
                 content.append({
                     "type": "text",
                     "text": _QF_TAIL.format(
-                        evidence=evidence,
+                        evidence=evidence, speaker=_speaker_note(),
                         question=question, choices=choices,
                     ),
                 })
             else:
                 prompt = _PROMPT.format(
-                    n=n_seg, evidence=evidence,
+                    n=n_seg, evidence=evidence, speaker=_speaker_note(),
                     question=question, choices=choices,
                 )
                 content.append({"type": "text", "text": prompt})
