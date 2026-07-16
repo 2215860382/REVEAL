@@ -2,14 +2,13 @@
 
 Two-stage planning:
   iter-0: sub-question decomposition (LLM-decomposed or option-grounded).
-  iter≥1: unified planner — given verifier signals (unknown_options / failed rubric
-          criteria / missing_evidence_analysis), pick {targeted (1-4 queries),
-          broadcast (uniform timeline coverage)}.
+  iter≥1: unified planner — given verifier signals (unknown_options /
+          missing_evidence_analysis), pick either query retrieval or time retrieval.
 
 Safety nets on iter≥1 query generation (applied via ``filter_targeted_queries``):
   - Jaccard ≥ ``dedup_thresh`` vs prior queries → drop the query.
   - BGE cosine ≥ ``drift_threshold`` vs accumulated evidence → drop the query.
-  - All targeted queries dropped → fall back to broadcast for this iter.
+  - All query retrievals dropped → fall back to time retrieval for this iter.
 """
 from __future__ import annotations
 
@@ -76,25 +75,101 @@ Given the current evidence and what is still missing, decide the BEST next retri
 
 ## Strategies
 
-**targeted** — Issue 1–4 focused queries to retrieve specific missing evidence.
-  Each query must be self-contained, target a single retrievable fact,
-  and not repeat queries already tried.
+**query** — Issue focused semantic retrieval queries.
+  Each query must be self-contained, target a single retrievable fact, and not repeat
+  queries already tried. Use this when the missing evidence is best described by
+  people, objects, actions, dialogue, places, or relations.
 
-**broadcast** — Sample frames uniformly across the uncovered video timeline (no queries needed).
-  Use when coverage must span the ENTIRE video, including:
-  - Main theme, topic overview, synopsis, or overall narrative of the video
-  - Events spread throughout / across all segments / entire duration
-  - Chronological order, sequence of events, or timeline across the full video
-  - Targeted queries have repeatedly failed to find sufficient evidence
+**time** — Retrieve by timestamp or time range.
+  Use this when the missing evidence is tied to a concrete time span, timestamp,
+  sequence position, or requires coverage across a broad interval. Output one or more
+  time ranges in seconds.
 
 ## Output format
 Return ONLY a JSON object:
 {
-  "strategy": "targeted" | "broadcast",
+  "think": "<brief reason for the retrieval choice>",
+  "strategy": "query" | "time",
   "queries": ["..."],
-  "reasoning": "<one sentence explaining the choice>"
+  "time_ranges": [{"start_sec": 0, "end_sec": 60}]
 }
-For broadcast, set queries to []."""
+
+For strategy="query", fill queries and set time_ranges to [].
+For strategy="time", fill time_ranges and set queries to [].
+If the needed interval is the whole currently available video but exact times are unknown,
+use strategy="time" with time_ranges=[] so the system samples uncovered time uniformly.
+
+Use time retrieval when coverage must span the ENTIRE video, including:
+  - Main theme, topic overview, synopsis, or overall narrative of the video
+  - Events spread throughout / across all segments / entire duration
+  - Chronological order, sequence of events, or timeline across the full video
+  - Query retrieval has repeatedly failed to find sufficient evidence"""
+
+
+# Same as _PLANNER_UNIFIED_SYS but offers a third, VISUAL retrieval strategy. Gated by
+# VEIL_VISUAL_STRATEGY=1 so the default (query/time) planner — and every in-flight
+# experiment/threshold sweep — is byte-identical unless a run explicitly opts in.
+_PLANNER_UNIFIED_SYS_IMG = """You are a retrieval strategy planner for a video question-answering system.
+Given the current evidence and what is still missing, decide the BEST next retrieval strategy.
+
+## Strategies
+
+**query** — Issue focused semantic retrieval queries over the caption TEXT.
+  Each query must be self-contained, target a single retrievable fact, and not repeat
+  queries already tried. Use this when the missing evidence is best described by
+  people, objects, actions, dialogue, places, or relations in words.
+
+**image** — Retrieve KEYFRAMES (the actual video frames) for the moment your query
+  describes and look at them directly. Use this when the missing evidence is a VISUAL
+  detail captions tend to miss or get wrong — exact colour, count, on-screen text,
+  facial expression, spatial layout, who-holds-what — something you must SEE to confirm
+  or rule out an option. Put the moment description in queries.
+
+**time** — Retrieve by timestamp or time range.
+  Use this when the missing evidence is tied to a concrete time span, timestamp,
+  sequence position, or requires coverage across a broad interval. Output one or more
+  time ranges in seconds.
+
+## Output format
+Return ONLY a JSON object:
+{
+  "think": "<brief reason for the retrieval choice>",
+  "strategy": "query" | "image" | "time",
+  "queries": ["..."],
+  "time_ranges": [{"start_sec": 0, "end_sec": 60}]
+}
+
+For strategy="query" or "image", fill queries and set time_ranges to [].
+For strategy="time", fill time_ranges and set queries to [].
+If the needed interval is the whole currently available video but exact times are unknown,
+use strategy="time" with time_ranges=[] so the system samples uncovered time uniformly.
+
+Use time retrieval when coverage must span the ENTIRE video, including:
+  - Main theme, topic overview, synopsis, or overall narrative of the video
+  - Events spread throughout / across all segments / entire duration
+  - Chronological order, sequence of events, or timeline across the full video
+  - Query retrieval has repeatedly failed to find sufficient evidence"""
+
+
+def _coerce_time_ranges(raw) -> list[dict]:
+    ranges: list[dict] = []
+    if not isinstance(raw, list):
+        return ranges
+    for item in raw:
+        start = end = None
+        if isinstance(item, dict):
+            start = item.get("start_sec", item.get("start", item.get("from")))
+            end = item.get("end_sec", item.get("end", item.get("to")))
+        elif isinstance(item, (list, tuple)) and len(item) >= 2:
+            start, end = item[0], item[1]
+        try:
+            a, b = float(start), float(end)
+        except (TypeError, ValueError):
+            continue
+        if b < a:
+            a, b = b, a
+        ranges.append({"start_sec": max(0.0, a), "end_sec": max(0.0, b)})
+    return ranges
 
 
 def _extract_covered_times(evidence_texts: List[str]) -> str:
@@ -118,9 +193,10 @@ def _plan_next(
     unknown_options: Optional[List[str]] = None,
     prune_satisfied: bool = False,
 ) -> dict:
-    """Unified planner for iter ≥1: pick {targeted (n queries), broadcast}.
+    """Unified planner for iter ≥1: pick query or time retrieval.
 
-    Returns ``{"strategy": "targeted"|"broadcast", "queries": [...], "reasoning": "..."}``.
+    Returns ``{"think": "...", "strategy": "query"|"time", "queries": [...],
+    "time_ranges": [...]}``.
     """
     unknown_set = set(unknown_options or [])
     opts_lines = []
@@ -160,10 +236,30 @@ def _plan_next(
             "Generate queries for the concrete visual/dialogue evidence needed to resolve this fact."
         )
 
+    # VEIL_PEROPT_REPAIR: per-option repair. iter-0 decomposes by option, but the
+    # repair rounds normally emit generic reformulations even though the verifier
+    # already flags which options are UNRESOLVED. This makes the repair round
+    # mirror iter-0: one self-contained probe per unresolved option (option text ×
+    # the missing fact), so per-option verification is matched by per-option
+    # retrieval. Differs from the deleted single-query option-repair (which starved
+    # evidence): here every unresolved option is probed in the SAME round.
+    if os.environ.get("VEIL_PEROPT_REPAIR") == "1" and unknown_set:
+        parts.append(
+            "Use strategy=\"query\". For EACH option marked [UNRESOLVED], write ONE "
+            "self-contained query that would retrieve the specific visual/dialogue evidence "
+            "needed to CONFIRM OR RULE OUT that option (bind the option's content to the "
+            "missing fact above). Output one query per unresolved option; do not merge them "
+            "and do not repeat any earlier query."
+        )
+
     parts.append("Output the retrieval strategy JSON now.")
 
+    # Visual strategy (VEIL_VISUAL_STRATEGY=1) offers a third `image` retrieval mode;
+    # off by default so the query/time planner and every in-flight sweep are unchanged.
+    _visual = os.environ.get("VEIL_VISUAL_STRATEGY") == "1"
+    _default_sys = _PLANNER_UNIFIED_SYS_IMG if _visual else _PLANNER_UNIFIED_SYS
     messages = [
-        {"role": "system", "content": _env_prompt("VEIL_PLANNER_SYS", _PLANNER_UNIFIED_SYS)},
+        {"role": "system", "content": _env_prompt("VEIL_PLANNER_SYS", _default_sys)},
         {"role": "user",   "content": "\n\n".join(parts)},
     ]
     raw = llm.chat(messages, max_new_tokens=200, enable_thinking=False)
@@ -171,21 +267,113 @@ def _plan_next(
     if m:
         try:
             d        = _json.loads(m.group())
-            strategy = str(d.get("strategy", "targeted")).lower()
-            if strategy not in ("targeted", "broadcast"):
-                strategy = "targeted"
+            raw_strategy = str(d.get("strategy", "query")).lower()
+            if raw_strategy in ("targeted", "semantic"):
+                strategy = "query"
+            elif raw_strategy in ("broadcast", "timeline", "temporal"):
+                strategy = "time"
+            elif raw_strategy in ("image", "visual", "frame", "keyframe", "keyframes"):
+                strategy = "image" if _visual else "query"   # falls back to text when gated off
+            elif raw_strategy in ("query", "time"):
+                strategy = raw_strategy
+            else:
+                strategy = "query"
             queries  = [str(q).strip() for q in (d.get("queries") or []) if str(q).strip()]
-            if strategy != "broadcast" and not queries:
-                strategy = "targeted"
+            time_ranges = _coerce_time_ranges(d.get("time_ranges") or d.get("time_range") or d.get("times"))
+            if strategy in ("query", "image") and not queries:
                 queries  = [question]
             return {
+                "think":     str(d.get("think") or d.get("reasoning") or ""),
                 "strategy":  strategy,
                 "queries":   queries,
-                "reasoning": str(d.get("reasoning", "")),
+                "time_ranges": time_ranges,
+                "reasoning": str(d.get("think") or d.get("reasoning") or ""),
             }
         except Exception:
             pass
-    return {"strategy": "targeted", "queries": [question], "reasoning": "parse_failed"}
+    return {"think": "parse_failed", "strategy": "query", "queries": [question],
+            "time_ranges": [], "reasoning": "parse_failed"}
+
+
+# ── Iter ≥1: single-query repair (VEIL_OPTION_REPAIR) ────────────────────────
+
+_PLANNER_SINGLE_SYS = """You are a retrieval query planner for a video question-answering system \
+running an iterative verify-repair loop. Each round you issue EXACTLY ONE retrieval query to \
+fetch the single most valuable piece of still-missing evidence.
+
+You are given:
+- the question and its options, each tagged [UNRESOLVED] or [PROBED];
+- the verifier's analysis of what evidence is still missing;
+- the queries already tried — do NOT repeat or paraphrase any of them.
+
+Produce ONE query that:
+1. STAYS FAITHFUL to the original question — keep the people, place, objects and the specific \
+relation it asks about. (A relative time word like "yesterday" cannot be matched by the retriever \
+and should be dropped from the query text — the time filter is handled separately — but keep \
+every other concrete detail.)
+2. targets the specific missing evidence needed to confirm or rule out ONE option that is \
+[UNRESOLVED] and not yet [PROBED] — use the option only to choose WHICH concrete detail to probe.
+3. is phrased as a concrete factual question about the actual event (who / what / where), NOT an \
+imperative like "show the scene" — so it matches the real event, not any superficially similar clip.
+4. is clearly DIFFERENT from every already-tried query.
+
+Return ONLY a JSON object:
+{"think": "<brief reason>", "query": "<one retrieval query>", "target_option": "A|B|C|D"}"""
+
+
+def _plan_single_repair(
+    question: str,
+    candidates: List[str],
+    missing_analysis: str,
+    llm,
+    plan_history: List[List[str]] = (),
+    unknown_options: Optional[List[str]] = None,
+    probed_options: Optional[set] = None,
+) -> dict:
+    """One dissimilar, verifier-guided query aimed at an unresolved & unprobed option."""
+    unknown_set = set(unknown_options or [])
+    probed = probed_options or set()
+    opts_lines = []
+    for i, c in enumerate(candidates):
+        letter = chr(ord('A') + i)
+        tags = ""
+        if letter in unknown_set:
+            tags += " [UNRESOLVED]"
+        if letter in probed:
+            tags += " [PROBED]"
+        opts_lines.append(f"  ({letter}) {c}{tags}")
+    opts = "\n".join(opts_lines)
+
+    parts = [f"Question: {question}", f"Options:\n{opts}"]
+    if missing_analysis:
+        parts.append(f"Verifier says still missing:\n{missing_analysis}")
+    if plan_history:
+        tried = [f'  "{q}"' for qs in plan_history for q in qs if q]
+        if tried:
+            parts.append("Already tried (do NOT repeat or paraphrase):\n" + "\n".join(tried))
+    parts.append("Output the single-query JSON now.")
+
+    messages = [
+        {"role": "system", "content": _env_prompt("VEIL_PLANNER_SINGLE_SYS", _PLANNER_SINGLE_SYS)},
+        {"role": "user",   "content": "\n\n".join(parts)},
+    ]
+    raw = llm.chat(messages, max_new_tokens=160, enable_thinking=False)
+    m = re.search(r'\{.*\}', raw, re.DOTALL)
+    if m:
+        try:
+            d = _json.loads(m.group())
+            q = str(d.get("query", "")).strip()
+            tgt = str(d.get("target_option", "")).strip().upper()[:1]
+            if q:
+                return {"strategy": "query", "queries": [q], "time_ranges": [],
+                        "reasoning": str(d.get("think") or d.get("reasoning") or ""),
+                        "think": str(d.get("think") or d.get("reasoning") or ""),
+                        "target_option": tgt if tgt in "ABCD" else None}
+        except Exception:
+            pass
+    return {"strategy": "query", "queries": [question], "time_ranges": [],
+            "think": "single_parse_failed", "reasoning": "single_parse_failed",
+            "target_option": None}
 
 
 # ── Verifier → planner repair context ────────────────────────────────────────
@@ -237,8 +425,10 @@ class Planner:
     ) -> dict:
         """Iter-0 plan: LLM splits the question into 2-4 atomic sub-queries."""
         return {
-            "strategy":  "targeted",
+            "think":     "iter0_decompose",
+            "strategy":  "query",
             "queries":   _decompose_into_subquestions(question, candidates, self.llm),
+            "time_ranges": [],
             "reasoning": "iter0_decompose",
         }
 
@@ -267,6 +457,27 @@ class Planner:
         )
         return plan, m_desc
 
+    def plan_single_repair(
+        self,
+        question: str,
+        candidates: List[str],
+        evidence_texts: List[str],
+        verdict: dict,
+        plan_history: List[List[str]],
+        probed_options: set,
+        *,
+        rubric_judgment: bool = True,
+    ) -> dict:
+        """VEIL_OPTION_REPAIR: exactly ONE verifier-guided query for the next unresolved,
+        not-yet-probed option, reasoned jointly over the missing-evidence trace, the
+        options, and the query history (and told to stay dissimilar from it)."""
+        m_desc = _planner_repair_context(verdict, rubric_judgment)
+        unk_opts = verdict.get("unknown_options") if rubric_judgment else None
+        return _plan_single_repair(
+            question, candidates, m_desc, self.llm, plan_history,
+            unknown_options=unk_opts, probed_options=probed_options,
+        )
+
     def filter_targeted_queries(
         self,
         plan: dict,
@@ -281,7 +492,7 @@ class Planner:
 
         Falls back to broadcast if all targeted queries are dropped.
         """
-        if plan["strategy"] != "targeted":
+        if plan["strategy"] not in ("query", "targeted"):
             return plan
 
         prev_queries = [q for qs in plan_history for q in qs]
@@ -299,5 +510,5 @@ class Planner:
             kept.append(q)
         if kept:
             return {**plan, "queries": kept}
-        return {"strategy": "broadcast", "queries": [],
-                "reasoning": "all_targeted_filtered"}
+        return {"think": "all_query_retrievals_filtered", "strategy": "time",
+                "queries": [], "time_ranges": [], "reasoning": "all_query_retrievals_filtered"}

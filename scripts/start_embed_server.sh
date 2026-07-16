@@ -8,7 +8,8 @@
 set -u
 cd "$(dirname "$0")/.."
 export PYTHONPATH=.
-export NO_PROXY=127.0.0.1,10.82.1.145,10.82.1.147,localhost,::1 no_proxy=$NO_PROXY
+export NO_PROXY=127.0.0.1,10.82.1.145,10.82.1.147,localhost,::1
+export no_proxy="$NO_PROXY"
 unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY 2>/dev/null || true
 
 GPU=${GPU:-6}                     # physical GPU; maps to cuda:0 inside the process

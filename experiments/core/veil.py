@@ -21,6 +21,108 @@ from ._keyframes import keyframe_path, keyframe_paths, load_keyframe_pil
 from src.build_memory.core.schema import MemoryBank
 from src.agents.planner import Planner
 from src.agents.verifier import Verifier, get_rubric_dict
+from src.utils.extract_json import extract_json
+
+
+# ── Time-targeted retrieval (verifier-driven temporal repair) ────────────────
+
+_TIME_PAT = re.compile(
+    r'(?<![\d.])(\d{1,2}):(\d{2})(?::(\d{2}))?'          # H:MM:SS or MM:SS
+    r'|(\d{1,3})\s*[-–]?\s*(?:minute|min)\b'         # N-minute / N min
+    r'|(\d{2,4})\s*(?:seconds|secs|sec)\b',               # N seconds
+    re.IGNORECASE)
+
+
+def _parse_time_seconds(text: str) -> list[float]:
+    """Extract absolute-second time references from a verifier missing-evidence
+    sentence (e.g. ``lacks a marker at the 25-minute mark`` → [1500.0])."""
+    out: list[float] = []
+    for m in _TIME_PAT.finditer(text or ""):
+        if m.group(1) is not None:                        # colon form
+            a, b, c = int(m.group(1)), int(m.group(2)), m.group(3)
+            out.append(a * 3600 + b * 60 + int(c) if c is not None else a * 60 + b)
+        elif m.group(4) is not None:                      # minutes
+            out.append(int(m.group(4)) * 60.0)
+        elif m.group(5) is not None:                      # seconds
+            out.append(float(m.group(5)))
+    return out
+
+
+def _time_retrieve(
+    bank: "MemoryBank",
+    seen_ids: Set[int],
+    windows: list[float],
+    n: int = 8,
+    margin: float = 30.0,
+    max_time: float | None = None,
+) -> tuple[list, list, list]:
+    """Fetch unseen chunks whose [start,end] (±margin) overlaps any target time,
+    ranked by proximity. This is the repair action a dense/broadcast query lacks:
+    the verifier says *when* evidence is missing, and we index straight to it."""
+    texts_ev = bank.memory_texts(with_time=True, with_asr=True)
+    idx_map  = {c.chunk_id: i for i, c in enumerate(bank.chunks)}
+    cand = []
+    for c in bank.chunks:
+        if c.chunk_id in seen_ids:
+            continue
+        if max_time is not None and c.end_time > max_time:
+            continue
+        if any(c.start_time - margin <= t <= c.end_time + margin for t in windows):
+            mid = (c.start_time + c.end_time) / 2.0
+            cand.append((min(abs(mid - t) for t in windows), c))
+    cand.sort(key=lambda x: x[0])
+    texts, ids, vecs = [], [], []
+    for _, c in cand[:n]:
+        i = idx_map.get(c.chunk_id)
+        if i is None:
+            continue
+        texts.append(texts_ev[i]); ids.append(c.chunk_id); vecs.append(c.v_text or [])
+    return texts, ids, vecs
+
+
+def _time_range_retrieve(
+    bank: "MemoryBank",
+    seen_ids: Set[int],
+    ranges: list[dict],
+    n: int = 8,
+    max_time: float | None = None,
+) -> tuple[list, list, list]:
+    """Fetch unseen chunks overlapping planner-provided time ranges.
+
+    Empty ranges mean uniform uncovered-time sampling, which is the explicit
+    replacement for the old broadcast strategy.
+    """
+    if not ranges:
+        return _broadcast_retrieve(bank, seen_ids, n=n, max_time=max_time)
+
+    texts_ev = bank.memory_texts(with_time=True, with_asr=True)
+    idx_map = {c.chunk_id: i for i, c in enumerate(bank.chunks)}
+    cand = []
+    for c in bank.chunks:
+        if c.chunk_id in seen_ids:
+            continue
+        if max_time is not None and c.end_time > max_time:
+            continue
+        for r in ranges:
+            try:
+                a, b = float(r["start_sec"]), float(r["end_sec"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if c.end_time >= a and c.start_time <= b:
+                mid = (c.start_time + c.end_time) / 2.0
+                center = (a + b) / 2.0
+                cand.append((abs(mid - center), c))
+                break
+    cand.sort(key=lambda x: x[0])
+    texts, ids, vecs = [], [], []
+    for _, c in cand[:n]:
+        i = idx_map.get(c.chunk_id)
+        if i is None:
+            continue
+        texts.append(texts_ev[i])
+        ids.append(c.chunk_id)
+        vecs.append(c.v_text or [])
+    return texts, ids, vecs
 
 
 # ── Broadcast (uniform timeline sampling) ────────────────────────────────────
@@ -63,6 +165,7 @@ def _rerank_by_rubric(
     evidence_texts: List[str],
     rubric: dict,
     llm,
+    verifier=None,
 ) -> List[int]:
     """Ask LLM to rank evidence chunks best-first by rubric-satisfaction +
     question relevance. Returns sorted indices."""
@@ -72,14 +175,37 @@ def _rerank_by_rubric(
     opts    = "\n".join(f"({chr(65+i)}) {c}" for i, c in enumerate(candidates))
     ev_fmt  = "\n".join(f"[E{i+1}] {t[:300]}" for i, t in enumerate(evidence_texts))
 
-    from src.agents.verifier import _format_rubric_as_text
-    rubric_text = _format_rubric_as_text(rubric)
+    # A/B on whether the reranker sees the rubric:
+    #  - default: rank by question+options relevance alone (model self-ranks).
+    #  - VEIL_RERANK_RUBRIC=1: inject ONLY the relevance-selected criteria for THIS
+    #    question (~3-8, compact). We NEVER inject the full pool (~300 criteria /
+    #    ~67K tokens overflows the 48K context).
+    rubric_block = ""
+    if (os.environ.get("VEIL_RERANK_RUBRIC") == "1" and verifier is not None
+            and isinstance(rubric, dict) and "_legacy_text" not in rubric):
+        opts_for_sel = "\n".join(f"  ({chr(65+i)}) {c}" for i, c in enumerate(candidates))
+        try:
+            sel = verifier._relevant_criteria(question, opts_for_sel, rubric)  # cached per-question
+        except Exception:
+            sel = set()
+        sel_crits = [c for c in (rubric.get("rubric_criteria") or [])
+                     if str(c.get("name") or "").strip() in sel]
+        if sel_crits:
+            from src.agents.verifier import _format_rubric_for_user
+            rtext = _format_rubric_for_user({
+                **{k: v for k, v in rubric.items() if k != "rubric_criteria"},
+                "rubric_criteria": sel_crits})
+            rubric_block = f"Rubric (criteria this question hinges on):\n{rtext}\n\n"
+    rank_hint = ("Rank the evidence chunks from MOST to LEAST useful for answering the "
+                 "question and deciding between the options")
+    if rubric_block:
+        rank_hint += ", prioritising evidence that satisfies the criteria above"
     user = (
         f"Question: {question}\n"
         f"Options:\n{opts}\n\n"
-        f"Rubric:\n{rubric_text}\n\n"
+        f"{rubric_block}"
         f"Evidence chunks:\n{ev_fmt}\n\n"
-        "Rank the evidence chunks from MOST to LEAST useful for satisfying the rubric and answering the question.\n"
+        f"{rank_hint}.\n"
         "Output ONLY a JSON array of 0-based indices, e.g.: [2, 0, 3, 1]\n"
         "Every index must appear exactly once."
     )
@@ -174,6 +300,74 @@ def _query_retrieve(
     )
 
 
+def _visual_retrieve(
+    query: str,
+    bank: MemoryBank,
+    siglip_embedder,
+    final_top_k: int,
+    exclude_ids: Set[int],
+    max_time: float | None = None,
+) -> tuple[List[str], List[int], List[List[float]]]:
+    """SigLIP text→frame retrieval (planner `image` strategy): rank L1 chunks by the cosine
+    between the query text (SigLIP text encoder) and each chunk's stored keyframe SigLIP vector
+    (``v_visual``), then return the top ``final_top_k`` unseen chunks in the SAME shape as
+    ``_query_retrieve``. The chunk's caption text still enters evidence; its keyframe is pulled
+    downstream. ``max_time`` (EgoLife) masks future chunks. Falls back to empty if no visual
+    vectors exist (e.g. text-only bank without SigLIP)."""
+    texts_ev = bank.memory_texts(with_time=True, with_asr=True)
+    idxs = [i for i, c in enumerate(bank.chunks) if c.v_visual]
+    if not idxs:
+        return [], [], []
+    mat = np.asarray([bank.chunks[i].v_visual for i in idxs], dtype=np.float32)
+    q = np.asarray(siglip_embedder.encode_text([query])[0], dtype=np.float32)
+    scores = mat @ q                       # both L2-normed → cosine
+    order = np.argsort(-scores)
+    out_t, out_i, out_v = [], [], []
+    for j in order:
+        i = int(idxs[j])
+        c = bank.chunks[i]
+        if c.chunk_id in exclude_ids:
+            continue
+        if max_time is not None and c.end_time > max_time:
+            continue
+        out_t.append(texts_ev[i]); out_i.append(c.chunk_id); out_v.append(c.v_text)
+        if len(out_t) >= final_top_k:
+            break
+    return out_t, out_i, out_v
+
+
+# ── Relative-time window (egocentric) ────────────────────────────────────────
+
+_REL_DAY_WORDS = {"yesterday": 1, "the day before yesterday": 2}
+
+
+def _question_time_window(question: str, query_time_abs: float | None) -> tuple | None:
+    """Map a relative-time cue in the question to an absolute [lo,hi] window on the
+    DAY1-anchored timeline, using ``query_time_abs`` (the query_time cutoff). Returns
+    None if there is no query time or no recognisable cue. Relative-time WORDS cannot
+    be matched by BGE, so we resolve them structurally into a time window instead."""
+    if query_time_abs is None:
+        return None
+    q = question.lower()
+    day0 = (query_time_abs // 86400) * 86400          # start of the query day
+    DAY = 86400.0
+    m = re.search(r"(\d+)\s+days?\s+ago", q)
+    if "day before yesterday" in q:
+        return (day0 - 2 * DAY, day0 - DAY)
+    if m:
+        n = int(m.group(1))
+        return (day0 - n * DAY, day0 - (n - 1) * DAY)
+    if "yesterday" in q:
+        return (day0 - DAY, day0)
+    if "last night" in q:
+        return (day0 - DAY + 18 * 3600, day0)         # previous evening
+    if "this morning" in q:
+        return (day0, min(day0 + 12 * 3600, query_time_abs))
+    if "earlier today" in q or "this afternoon" in q or "today" in q:
+        return (day0, query_time_abs)
+    return None
+
+
 # ── Multi-layer pyramid retrieval ────────────────────────────────────────────
 
 def _multi_pool_retrieve(
@@ -184,6 +378,7 @@ def _multi_pool_retrieve(
     final_top_k: int,
     exclude_ids: Set[int],
     max_time: float | None = None,
+    time_window: tuple | None = None,
 ) -> tuple[List[str], List[int], List[List[float]]]:
     """Retrieve from the L1 detail pool + L2/L3 summary pools, merged by score.
 
@@ -219,6 +414,20 @@ def _multi_pool_retrieve(
     if max_time is not None:  # future chunks can't enter the L1 pool
         l1_mask = np.array([c.end_time <= max_time for c in bank.chunks])
         l1_scores = np.where(l1_mask, l1_scores, -np.inf)
+
+    # VEIL_TIME_WINDOW: relative-time cue in the question ("yesterday", "this
+    # morning") → an absolute [lo,hi] window; boost in-window L1 chunks so the
+    # right INSTANCE (not a topically-similar one on another day) ranks first.
+    # The relative-time WORD is useless to BGE, so it is handled structurally here.
+    if time_window is not None:
+        lo, hi = time_window
+        try:
+            bonus = float(os.environ.get("VEIL_TIME_WINDOW_BONUS", "0.15") or 0.15)
+        except ValueError:
+            bonus = 0.15
+        tw = np.array([(lo <= c.start_time <= hi) or (lo <= c.end_time <= hi)
+                       for c in bank.chunks])
+        l1_scores = l1_scores + np.where(tw, bonus, 0.0)  # -inf (future) stays -inf
 
     # Opt-in hybrid (VEIL_HYBRID_BM25=1): fuse dense + BM25 by RRF for the L1 pool
     # membership so lexical hits (names/objects) that dense buries can still enter.
@@ -277,6 +486,90 @@ def _multi_pool_retrieve(
 
 # ── Main loop ────────────────────────────────────────────────────────────────
 
+# ── WorldMM-style implicit ablation (VEIL_WORLDMM_IMPLICIT=1) ────────────────────
+#    Removes the verifier module entirely: instead of planner → rubric-verifier →
+#    answerer, a SINGLE reasoner call per round looks at the evidence gathered so far
+#    and decides, holistically, whether to keep searching (emitting the next query) or
+#    to answer (emitting the letter). This is the WorldMM baseline — the loop's stop
+#    condition IS the model choosing "answer", with no explicit sufficiency signal.
+#    Retrieval reuses ``_multi_pool_retrieve`` so the layer caps (VEIL_MP_L*_CAP) are
+#    the only difference between the M_iter (L1-only) and M_iter+hybrid (8/4/2) rungs.
+_WORLDMM_SYS = """\
+You are answering a multiple-choice question about a video. You have a searchable memory of the \
+video. Each round you are shown the evidence gathered so far and must decide ONE action:
+  - "search": the evidence is NOT yet enough to answer confidently — give a short keyword search \
+query naming the specific missing fact, event, or time.
+  - "answer": the evidence IS enough — give the letter of the correct option.
+Return ONLY this JSON, no prose, no markdown fences:
+  {"decision": "search", "query": "<keywords>"}
+  or
+  {"decision": "answer", "answer": "<A/B/C/D>"}"""
+
+_WORLDMM_FORCE = """\
+You must ANSWER NOW using only the evidence you already have — no more searching. If the evidence \
+is unclear, make the most reasonable inference. Return ONLY this JSON:
+  {"decision": "answer", "answer": "<A/B/C/D>"}"""
+
+
+def _worldmm_reason(llm, question, opts_str, ev_texts, force_answer):
+    ev = "\n".join(f"[E{i+1}] {t}" for i, t in enumerate(ev_texts)) or "(no evidence retrieved yet)"
+    sys = _WORLDMM_FORCE if force_answer else _WORLDMM_SYS
+    user = f"Question: {question}\n\nOptions:\n{opts_str}\n\nEvidence:\n{ev}\n\nReturn the JSON now."
+    raw = llm.chat([{"role": "system", "content": sys},
+                    {"role": "user", "content": user}],
+                   max_new_tokens=300, enable_thinking=False)
+    parsed = extract_json(raw) or {}
+    dec = str(parsed.get("decision") or parsed.get("action") or "").lower()
+    ans = str(parsed.get("answer") or "").strip()
+    q   = str(parsed.get("query") or parsed.get("search_query") or "").strip()
+    return dec, q, ans, raw
+
+
+def _run_worldmm(question, candidates, bank, embedder, llm,
+                 coarse_top_k, final_top_k, max_iter, max_time):
+    """WorldMM-style verifier-free loop; returns the same dict contract as run_veil."""
+    opts_str = "\n".join(f"({chr(65+i)}) {c}" for i, c in enumerate(candidates))
+    seen: Set[int]      = set()
+    ev_texts: List[str] = []
+    ev_ids:   List[int] = []
+    iterations: List[dict] = []
+    next_query  = question
+    pred_letter = ""
+    for it in range(max_iter):
+        t, i, _v = _multi_pool_retrieve(next_query, bank, embedder, coarse_top_k,
+                                        final_top_k, seen, max_time=max_time)
+        for tt, ii in zip(t, i):
+            if ii not in seen:
+                seen.add(ii); ev_texts.append(tt); ev_ids.append(ii)
+        force = (it == max_iter - 1)
+        dec, q, ans, _raw = _worldmm_reason(llm, question, opts_str, ev_texts, force_answer=force)
+        iterations.append({
+            "verdict":   "ANSWER" if (dec == "answer" or force) else "SEARCH",
+            "evidence":  list(ev_texts),
+            "iter":      it,
+            "plan":      {"think": "worldmm_implicit", "strategy": "worldmm", "queries": [next_query]},
+            "retrieval": {"query": next_query, "new_ids": i,
+                          "n_evidence_to_verifier": len(ev_texts)},
+            "worldmm_decision": dec, "worldmm_query": q, "worldmm_answer": ans,
+        })
+        if dec == "answer" or force:
+            pred_letter = ans[:1].upper()
+            break
+        next_query = q or question
+    if not pred_letter:  # parse failure on the forced round → one more forced answer
+        _, _, ans, _ = _worldmm_reason(llm, question, opts_str, ev_texts, force_answer=True)
+        pred_letter = ans[:1].upper()
+    return {
+        "answer":                pred_letter,
+        "raw":                   pred_letter,
+        "evidence_chunk_ids":    ev_ids,
+        "evidence_texts":        ev_texts,
+        "n_keyframes_to_answer": 0,
+        "n_evidence_to_answer":  len(ev_texts),
+        "trace_iters":           iterations,
+    }
+
+
 def run_veil(
     question:      str,
     candidates:    List[str],
@@ -284,6 +577,7 @@ def run_veil(
     embedder,
     answerer,
     llm,
+    siglip_embedder              = None,
     task_type:     Optional[str] = None,
     coarse_top_k:  int           = 8,
     final_top_k:   int           = 8,
@@ -305,6 +599,12 @@ def run_veil(
     (``query_evidence_dedup_threshold``) filters; if all targeted queries are filtered, the iter
     falls back to broadcast.
     """
+    # WorldMM-style implicit ablation: verifier module removed, single reasoner decides
+    # search-vs-answer each round. Returns early with the same dict contract.
+    if os.environ.get("VEIL_WORLDMM_IMPLICIT") == "1":
+        return _run_worldmm(question, candidates, bank, embedder, llm,
+                            coarse_top_k, final_top_k, max_iter, max_time)
+
     verifier = Verifier(llm)
     planner  = Planner(llm)
     rubric   = get_rubric_dict(question, task_type)
@@ -319,6 +619,7 @@ def run_veil(
     seen_ids:           Set[int]          = set()
     plan_history:       List[List[str]]   = [[question]]  # seed with original question for dedup
     iterations:         List[dict]        = []
+    option_repair_done: Set[str]          = set()  # VEIL_OPTION_REPAIR: options already queried
     chunk_by_id = {c.chunk_id: c for c in bank.chunks}
     # Include L2 chunks so keyframe lookup doesn't skip them (L2 chunks have no
     # frames, so they naturally produce no keyframes).
@@ -326,47 +627,158 @@ def run_veil(
 
     # ── Iter-0 plan: sub-question decomposition ──────────────────────────────
     current_plan: dict = planner.decompose_iter0(question, candidates)
+    if os.environ.get("VEIL_SINGLE_QUERY_ITER0") == "1":
+        # Ablation knob: skip decomposition so round 0 fires a single question
+        # embedding. Deliberately weakens the first round so the verify-repair
+        # loop has headroom to recover the accuracy in rounds >=1.
+        current_plan = {"think": "single_query_iter0", "strategy": "query",
+                        "queries": [question], "time_ranges": []}
     plan_history.append(current_plan["queries"])
     last_verdict: dict = {}
 
-    for it in range(max_iter):
+    # VEIL_TIME_WINDOW: resolve a relative-time cue in the question into an absolute
+    # window once, then boost in-window chunks at every retrieval (egocentric only —
+    # needs max_time = query_time). Off ⇒ None ⇒ no effect.
+    _time_window = (_question_time_window(question, max_time)
+                    if os.environ.get("VEIL_TIME_WINDOW") == "1" else None)
+
+    # Round budget: ``max_iter`` counts TEXT (query/time) rounds ONLY. An `image` round is
+    # image-only (frames, no text) and does NOT consume the text budget — it's a bonus visual
+    # look, capped separately by VEIL_IMAGE_MAX_ROUNDS. A hard total-round cap prevents an
+    # image-only loop from running forever. With no image strategy this is identical to the old
+    # ``for it in range(max_iter)`` (text_rounds increments every round).
+    text_rounds = 0
+    img_rounds  = 0
+    _img_max    = int(os.environ.get("VEIL_IMAGE_MAX_ROUNDS", "2") or 2)
+    it          = -1
+    _max_total  = max_iter + _img_max + 1
+    while text_rounds < max_iter and it + 1 < _max_total:
+        it += 1
 
         # ── Plan (iter ≥ 1): generate new queries from last verdict + history ─
         if it > 0:
-            verdict_for_planning = last_verdict
-            next_plan, m_desc = planner.plan_next(
-                question, candidates, all_evidence_texts, verdict_for_planning, plan_history,
-                rubric_judgment=rubric_judgment,
-            )
-            next_plan = planner.filter_targeted_queries(
-                next_plan, plan_history, embedder, all_ev_vecs,
-                dedup_thresh=query_history_dedup_threshold,
-                drift_threshold=query_evidence_dedup_threshold,
-            )
-            plan_history.append(next_plan["queries"])
-            current_plan = next_plan
+            if os.environ.get("VEIL_BLIND_REPAIR") == "1":
+                # Equal-compute ablation control (B1): keep the same round budget and
+                # the same per-round verifier call, but generate the repair query
+                # WITHOUT the verifier's missing-evidence trace — a uniform-timeline
+                # broadcast instead of a targeted query. Isolates whether the gain
+                # comes from the verifier's guidance or merely from extra retrieval.
+                current_plan = {"think": "blind_repair", "strategy": "time",
+                                "queries": [], "time_ranges": []}
+                plan_history.append([])
+            elif os.environ.get("VEIL_OPTION_REPAIR") == "1":
+                # Single-query-per-round, verifier-guided repair: one factual query per
+                # round aimed at the missing evidence for an unresolved, not-yet-probed
+                # option (fixed prompt: keep question framing, drop useless relative-time
+                # words, no distractor-fishing imperatives).
+                next_plan = planner.plan_single_repair(
+                    question, candidates, all_evidence_texts, last_verdict, plan_history,
+                    option_repair_done, rubric_judgment=rubric_judgment,
+                )
+                tgt = next_plan.get("target_option")
+                if tgt:
+                    option_repair_done.add(tgt)
+                next_plan = planner.filter_targeted_queries(
+                    next_plan, plan_history, embedder, all_ev_vecs,
+                    dedup_thresh=query_history_dedup_threshold,
+                    drift_threshold=query_evidence_dedup_threshold,
+                )
+                plan_history.append(next_plan["queries"])
+                current_plan = next_plan
+            else:
+                verdict_for_planning = last_verdict
+                next_plan, m_desc = planner.plan_next(
+                    question, candidates, all_evidence_texts, verdict_for_planning, plan_history,
+                    rubric_judgment=rubric_judgment,
+                )
+                next_plan = planner.filter_targeted_queries(
+                    next_plan, plan_history, embedder, all_ev_vecs,
+                    dedup_thresh=query_history_dedup_threshold,
+                    drift_threshold=query_evidence_dedup_threshold,
+                )
+                plan_history.append(next_plan["queries"])
+                current_plan = next_plan
 
-        do_broadcast      = (current_plan["strategy"] == "broadcast")
-        queries_this_iter = current_plan["queries"] if not do_broadcast else []
+        strategy = current_plan.get("strategy", "query")
+        if strategy == "targeted":
+            strategy = "query"
+        if strategy == "broadcast":
+            strategy = "time"
+        # `image` = visual strategy (VEIL_VISUAL_STRATEGY): retrieve like `query` (dense over
+        # caption text) but attach the top-similar chunk's keyframes below. Defensive: if the
+        # gate is off, treat any stray `image` as plain text query so behaviour is unchanged.
+        if strategy == "image" and os.environ.get("VEIL_VISUAL_STRATEGY") != "1":
+            strategy = "query"
+        do_time = (strategy == "time")
+        # `image` retrieves visually (SigLIP text→frame) when a SigLIP encoder is available and
+        # the per-question image-round budget isn't spent; otherwise it degrades to a plain text
+        # query so behaviour stays defined.
+        do_image = (strategy == "image" and siglip_embedder is not None
+                    and img_rounds < _img_max)
+        # Round accounting: an image round is a bonus visual look and does NOT consume the text
+        # budget; everything else (query/time, or an image that fell back to text) counts.
+        if do_image:
+            img_rounds += 1
+        else:
+            text_rounds += 1
+        queries_this_iter = current_plan.get("queries", []) if not do_time else []
 
         # ── Retrieve ──────────────────────────────────────────────────────────
         new_texts, new_ids, new_vecs = [], [], []
+        # SigLIP-retrieved chunk ids this round (frames pulled from these, even if additive
+        # text retrieval also ran); empty on non-image rounds.
+        img_ids_this_round: List[int] = []
 
-        if do_broadcast:
-            new_texts, new_ids, new_vecs = _broadcast_retrieve(
-                bank, seen_ids, n=final_top_k, max_time=max_time,
+        if do_image:
+            # `image` round retrieves ONLY frames — a text (query/time) round is text-only, an
+            # image round is image-only (the two are mutually exclusive). SigLIP text→frame picks
+            # the visually most-relevant moments and we feed their keyframes; NO text is added to
+            # evidence (image adds images, not text). This round is a bonus visual look — it does
+            # NOT consume the text-round budget (see the loop's text_rounds counter). Frames
+            # de-dup against everything already fed via ``all_kf_chunk_ids``.
+            for q in (queries_this_iter or [question]):
+                _vt, vi, _vv = _visual_retrieve(
+                    q, bank, siglip_embedder, final_top_k, set(all_kf_chunk_ids),
+                    max_time=max_time)
+                img_ids_this_round.extend(vi)
+            iter_query = "[visual] " + (
+                " | ".join(queries_this_iter) if queries_this_iter else question)
+        elif do_time:
+            time_ranges = current_plan.get("time_ranges") or []
+            new_texts, new_ids, new_vecs = _time_range_retrieve(
+                bank, seen_ids, time_ranges, n=final_top_k, max_time=max_time,
             )
-            iter_query = "[broadcast]"
+            if time_ranges:
+                iter_query = " | ".join(
+                    f"[time {float(r['start_sec']):.0f}s-{float(r['end_sec']):.0f}s]"
+                    for r in time_ranges
+                    if "start_sec" in r and "end_sec" in r
+                ) or "[time]"
+            else:
+                iter_query = "[time uniform]"
         else:
             for q in queries_this_iter:
                 t, i, v = _multi_pool_retrieve(
                     q, bank, embedder,
                     coarse_top_k, final_top_k, seen_ids, max_time=max_time,
+                    time_window=_time_window,
                 )
                 new_texts.extend(t); new_ids.extend(i); new_vecs.extend(v)
                 seen_ids.update(i)
             iter_query = (" | ".join(queries_this_iter) if len(queries_this_iter) > 1
                           else (queries_this_iter[0] if queries_this_iter else ""))
+
+            # Verifier-driven temporal repair (VEIL_TIME_REPAIR=1): if the last
+            # verdict's missing-evidence sentence names a time, index straight to
+            # chunks at that timestamp instead of hoping a dense query lands there.
+            if it > 0 and os.environ.get("VEIL_TIME_REPAIR") == "1":
+                windows = _parse_time_seconds(last_verdict.get("missing_evidence_analysis") or "")
+                if windows:
+                    tt, ti, tv = _time_retrieve(
+                        bank, seen_ids, windows, n=final_top_k, max_time=max_time)
+                    new_texts.extend(tt); new_ids.extend(ti); new_vecs.extend(tv)
+                    seen_ids.update(ti)
+                    iter_query = f"{iter_query} | [time@{','.join(f'{w:.0f}s' for w in windows)}]"
 
         new_texts, new_ids, new_vecs = _dedup_by_similarity(
             new_texts, new_ids, new_vecs, all_ev_vecs, evidence_dedup_threshold)
@@ -379,17 +791,35 @@ def run_veil(
         # Cross-chunk dedup decision based on chunk-level v_visual (one vector
         # per chunk). If chunk is accepted, append up to one frame from its
         # already-deduped within-chunk frame set.
-        if keyframe_dir is not None:
-            for cid in new_ids:
+        # VEIL_KF_ONLY_ON_IMAGE: frames enter ONLY through the planner's `image` strategy.
+        # On a text (query/time) round no frames are attached, so a purely-textual question
+        # never gets visual distractors fed to the answerer — the model must first *decide*
+        # it needs to look (pick `image`), and only then are the corresponding frames pulled.
+        # Default off preserves the legacy one-frame-per-chunk behaviour (helps VideoMME).
+        _kf_only_on_image = os.environ.get("VEIL_KF_ONLY_ON_IMAGE") == "1"
+        if keyframe_dir is not None and not (_kf_only_on_image and strategy != "image"):
+            # Visual strategy (strategy == "image", VEIL_VISUAL_STRATEGY): `new_ids` is already
+            # ranked by SigLIP text→frame similarity (_visual_retrieve), so pull one frame from
+            # each of the top ``VEIL_IMAGE_KF_CAP`` visually-relevant chunks — i.e. the frames
+            # that actually depict what the question asked about — WITHOUT the accumulated
+            # visual-dedup (which would drop near-duplicate but on-topic moments). Otherwise
+            # (text query round with legacy keyframes on): one deduped frame per new chunk.
+            img_focus = (strategy == "image")
+            _img_cap = int(os.environ.get("VEIL_IMAGE_KF_CAP", "6") or 6)
+            # image round: frames come from the SigLIP-retrieved chunks only (img_ids_this_round),
+            # NOT the text-query chunks in new_ids.
+            kf_targets = img_ids_this_round[:_img_cap] if img_focus else new_ids
+            kf_cap = 1
+            for cid in kf_targets:
                 c = chunk_by_id.get(cid)
                 if c is None:
                     continue
-                if c.v_visual and all_kf_vecs:
+                if not img_focus and c.v_visual and all_kf_vecs:
                     v = np.array(c.v_visual, dtype=np.float32)
                     if float(np.max(np.array(all_kf_vecs, dtype=np.float32) @ v)) >= kf_dedup_threshold:
                         continue
                 paths = keyframe_paths(keyframe_dir, bank.video_id, c.chunk_id,
-                                       cap=1, chunk=c)
+                                       cap=kf_cap, chunk=c)
                 added = False
                 for p in paths:
                     img = load_keyframe_pil(p)
@@ -414,19 +844,26 @@ def run_veil(
 
         # ── Trace ────────────────────────────────────────────────────────────
         iterations.append({
-            "iter":                      it,
-            "query":                     iter_query,
-            "new_ids":                   new_ids,
             "verdict":                   last_verdict["label"],
-            "option_judgment":           last_verdict.get("option_judgment"),
-            "unknown_options":           last_verdict.get("unknown_options"),
-            "option_rubric_scores":      last_verdict.get("option_rubric_scores"),
+            "evidence":                  list(ev_for_verifier),
+            "unknown_options":           last_verdict.get("unknown_options") or [],
             "missing_evidence_analysis": last_verdict.get("missing_evidence_analysis") or None,
-            "plan_strategy":             current_plan.get("strategy"),
-            "plan_reasoning":            current_plan.get("reasoning"),
-            "n_keyframes_accumulated":   len(all_keyframes),
-            "n_keyframes_to_verifier":   len(kf_for_verifier),
-            "n_evidence_to_verifier":    len(ev_for_verifier),
+            "iter":                      it,
+            "plan": {
+                "think":                 current_plan.get("think") or current_plan.get("reasoning"),
+                "strategy":              strategy,
+                "queries":               queries_this_iter,
+                "time_ranges":           current_plan.get("time_ranges") or [],
+            },
+            "retrieval": {
+                "query":                 iter_query,
+                "new_ids":               new_ids,
+                "n_keyframes_accumulated": len(all_keyframes),
+                "n_keyframes_to_verifier": len(kf_for_verifier),
+                "n_evidence_to_verifier":  len(ev_for_verifier),
+            },
+            "rubric_criteria_scores":    last_verdict.get("rubric_criteria_scores"),
+            "rubric_score":              last_verdict.get("rubric_score"),
         })
 
         if last_verdict["label"] in ("sufficient", "SUFFICIENT", "FULLY_SUFFICIENT", "ANSWER_SUFFICIENT"):
@@ -439,7 +876,7 @@ def run_veil(
     ev_ids   = all_chunk_ids
 
     if rubric_rerank and len(ev_texts) > 1:
-        order    = _rerank_by_rubric(question, candidates, ev_texts, rubric, llm)
+        order    = _rerank_by_rubric(question, candidates, ev_texts, rubric, llm, verifier=verifier)
         ev_texts = [ev_texts[i] for i in order]
         ev_ids   = [ev_ids[i]   for i in order]
 

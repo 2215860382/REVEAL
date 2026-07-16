@@ -145,6 +145,7 @@ def main():
                     help="JSONL containing sample_idx fields, or a text file with one sample_idx per line")
     ap.add_argument("--vlm-gpu",        default="cuda:0")
     ap.add_argument("--bge-gpu",        default="cuda:3")
+    ap.add_argument("--siglip-gpu",     default=None, help="GPU for SigLIP text encoder (image strategy); defaults to --bge-gpu")
     ap.add_argument("--llm-gpu",        default="cuda:1")
     ap.add_argument("--embed-api-url",  default=None,
                     help="Embedding service URL (BGE); skips loading locally")
@@ -351,6 +352,16 @@ def main():
 
     if embedder: embedder = _LockedModel(embedder)
 
+    # ── SigLIP text encoder (planner `image` strategy: text→frame retrieval) ──
+    siglip = None
+    if os.environ.get("VEIL_VISUAL_STRATEGY") == "1":
+        from src.clients.siglip_embedder import SigLIPEmbedder
+        _sg_dev = args.siglip_gpu or args.bge_gpu or "cuda:6"
+        log.info("loading SigLIP on %s ...", _sg_dev)
+        t0 = time.time()
+        siglip = _LockedModel(SigLIPEmbedder(device=_sg_dev))
+        log.info("  SigLIP ready (%.1fs)", time.time() - t0)
+
     # ── Bank cache ────────────────────────────────────────────────────────────
     _bank_cache:  dict = {}
     _cache_lock = threading.Lock()
@@ -377,9 +388,10 @@ def main():
         bank = get_bank(s.video_id)
         if bank is None:
             return None, "bank_missing"
+        _ftopk = int(os.environ.get("VEIL_FINAL_TOPK", "8") or 8)  # evidence-budget expts
         kw = dict(
-            coarse_top_k=8,
-            final_top_k=8,
+            coarse_top_k=max(8, _ftopk),
+            final_top_k=_ftopk,
             max_iter=veil_max_iter,
             query_history_dedup_threshold=q_hist_dedup,
             evidence_dedup_threshold=ev_dedup,
@@ -391,7 +403,7 @@ def main():
             max_time=_egolife_query_cutoff(s),
         )
         return run_veil(s.question, s.candidates, bank, embedder, answerer, llm,
-                        task_type=s.question_type, **kw), None
+                        siglip_embedder=siglip, task_type=s.question_type, **kw), None
 
     # ── Run loop ──────────────────────────────────────────────────────────────
     write_header = (not out_path.exists()) or out_path.stat().st_size == 0

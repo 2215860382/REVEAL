@@ -13,6 +13,7 @@ its criteria to ``general``; unmatched types fall back to ``general`` only. (Leg
 """
 from __future__ import annotations
 
+import logging
 import statistics
 from functools import lru_cache
 import os
@@ -22,6 +23,8 @@ from typing import Dict, List, Optional, Tuple
 import yaml
 
 from src.utils.extract_json import as_str, extract_json
+
+log = logging.getLogger(__name__)
 
 
 def _inject_images(message: dict, pil_images) -> dict:
@@ -164,27 +167,22 @@ Score whether the evidence ALLOWS JUDGMENT of this option, not whether it suppor
 Evidence that clearly rules out an option scores as high as evidence that clearly confirms it.
 When unsure between 1.0 and 0.5, choose 0.5; between 0.5 and 0.0, choose 0.0.
 
-## Step 2 — Option Judgment
-Based on the overall evidence for each option:
-  true    : evidence clearly establishes this option is correct
-  false   : evidence clearly establishes this option is incorrect
-  unknown : evidence is insufficient to determine whether this option is correct or not
+## Step 2 — Unknown Options
+List answer options whose evidence is still insufficient to confidently confirm OR rule out.
+This field guides the next retrieval round.
 
 ## Step 3 — Missing Evidence Analysis
-If any option is "unknown", write ONE actionable sentence in "missing_evidence_analysis"
-naming the specific fact, time range, or event still needed to resolve it.
-Leave it empty string if no option is unknown.
+Write ONE actionable sentence in "missing_evidence_analysis" naming the specific fact,
+time range, or event still needed to resolve the unknown options. If the evidence is
+sufficient, honestly write an empty string or "Nothing missing."
 
 Return ONLY this JSON (use actual criterion names from the Rubric):
 {
-  "option_criteria_scores": {
+  "rubric_criteria_scores": {
     "A": {"<criterion>": 0.0, ...},
     "B": {"<criterion>": 0.0, ...}
   },
-  "option_judgment": {
-    "A": "true|false|unknown",
-    "B": "true|false|unknown"
-  },
+  "unknown_options": ["A", "C"],
   "missing_evidence_analysis": "..."
 }"""
 
@@ -210,6 +208,17 @@ Score EVERY criterion listed in the Rubric — do NOT omit any — with 0, 0.5, 
 Use 0.5 deliberately to separate "somewhat supported" from "fully grounded" and from
 "absent" — do not collapse everything to 0 or 1.
 
+MODALITY-AGNOSTIC — score the FACT, not how it was captured:
+A criterion may be phrased in visual terms ("visible", "on-screen", "visual grounding",
+"clearly seen"). You are judging whether the EVIDENCE ESTABLISHES the required fact, NOT
+whether a picture is present. A concrete TEXT description that states the needed detail —
+an object's location, colour, count, who did what, the order of events — FULLY satisfies
+such a criterion and scores 1, exactly as a frame showing it would. NEVER dock a criterion
+merely because the evidence is text with no image, and never treat "no image" as the fact
+being absent. Score 0 only when the FACT ITSELF is missing from the evidence (text or
+image alike). "Visual"/"on-screen" wording in a criterion is descriptive, not a demand for
+pixels.
+
 CRITICAL — same criteria for every evidence set of a question:
 Whether a dimension "applies" is a property of the QUESTION, never of the evidence in
 front of you. You are scoring a FIXED list of criteria; two evidence sets for the SAME
@@ -228,9 +237,33 @@ otherwise leave it "".
 Return ONLY this JSON (use the actual criterion names from the Rubric; every value is 0, 0.5,
 or 1, and include EVERY criterion):
 {
-  "criteria_scores": {"<criterion>": 1, "<criterion>": 0.5, "<criterion>": 0, ...},
+  "rubric_criteria_scores": {"<criterion>": 1, "<criterion>": 0.5, "<criterion>": 0, ...},
+  "unknown_options": ["<letters (A/B/C/D) of options the current evidence cannot yet confirm or rule out; empty if sufficient>"],
   "missing_evidence_analysis": "..."
 }"""
+
+
+# ── Holistic sufficiency + per-option tagging (VEIL_HOLISTIC_UNKNOWN_OPTS): keep the cheap
+#    whole-question holistic scoring, but ALSO name which options remain undecidable so the
+#    planner can anchor repair to a specific option. Isolates whether option-anchoring — not
+#    the expensive per-option criterion scoring — is what makes repair fetch discriminating
+#    evidence instead of topical noise.
+VERIFIER_SYS_HOLISTIC_OPT = VERIFIER_SYS_HOLISTIC
+
+
+# ── Implicit sufficiency (VEIL_VERIFIER_IMPLICIT): a rubric-FREE baseline that mirrors
+#    the WorldMM-style retrieval agent, which judges "is the gathered evidence enough?"
+#    with a plain LLM call. Used to isolate the value of the explicit rubric: same loop,
+#    same options + evidence, only the sufficiency SIGNAL differs (rubric criteria vs. this).
+VERIFIER_SYS_IMPLICIT = """\
+You judge whether the retrieved video evidence is SUFFICIENT to confidently answer a
+multiple-choice question. Read the question, the options, and the evidence, then decide:
+  SUFFICIENT   = the evidence clearly determines which option is correct.
+  INSUFFICIENT = the evidence is missing, ambiguous, or does not pin the answer down.
+If INSUFFICIENT, write ONE actionable sentence in "missing_evidence_analysis" naming the
+specific fact, time range, or event still needed to decide; otherwise leave it "".
+Return ONLY this JSON — no prose, no markdown fences:
+{"verdict": "SUFFICIENT" | "INSUFFICIENT", "missing_evidence_analysis": "..."}"""
 
 
 # ── Pass 1 of the two-pass holistic verifier: select the criteria RELEVANT to the
@@ -252,57 +285,6 @@ why/how is asked). Keep it tight — typically 3–8 criteria.
 
 Output ONE strict JSON object — no prose, no fences:
 {"relevant": ["<criterion_name>", "<criterion_name>", ...]}"""
-
-
-# ── Two-pass rubric verifier (--verifier-two-pass) ───────────────────────────
-# Pass 1 scores sufficiency ONLY (no true/false), so the model is not anchored by
-# its own answer guess. Python then thresholds per option, and Pass 2 judges
-# true/false conditioned on which options cleared the threshold.
-VERIFIER_SYS_TWOPASS_SCORE = """\
-You evaluate whether retrieved video evidence is SUFFICIENT to judge each answer option.
-Do NOT decide which option is correct — only score evidence sufficiency.
-Output ONE strict JSON object — no prose, no markdown fences.
-
-## Per-Option Evidence Sufficiency Scoring
-For each answer option, convert it into a proposition and score each rubric criterion:
-  1.0 = evidence fully sufficient to judge this option on this criterion
-        (clearly confirms OR clearly rules it out — both count as sufficient)
-  0.5 = evidence partially sufficient — some relevant information present but incomplete
-  0.0 = evidence insufficient to judge this option on this criterion
-Score whether the evidence ALLOWS JUDGMENT of this option, not whether it supports it.
-Evidence that clearly rules out an option scores as high as evidence that confirms it.
-When unsure between 1.0 and 0.5, choose 0.5; between 0.5 and 0.0, choose 0.0.
-
-Return ONLY this JSON (use actual criterion names from the Rubric):
-{
-  "option_criteria_scores": {
-    "A": {"<criterion>": 0.0, ...},
-    "B": {"<criterion>": 0.0, ...}
-  }
-}"""
-
-VERIFIER_SYS_TWOPASS_JUDGE = """\
-You judge multiple-choice answer options for a video question. A separate scoring step
-already decided which options have SUFFICIENT evidence to judge and which do not; each
-option below is tagged [SUFFICIENT] or [INSUFFICIENT].
-Output ONE strict JSON object — no prose, no markdown fences.
-
-## Step 1 — Judge the [SUFFICIENT] options
-For each option tagged [SUFFICIENT], commit to:
-  true   : evidence clearly establishes this option is correct
-  false  : evidence clearly establishes this option is incorrect
-Do NOT output a judgment for [INSUFFICIENT] options — they are already "unknown".
-
-## Step 2 — Missing Evidence Analysis
-If any option is [INSUFFICIENT], write ONE actionable sentence in "missing_evidence_analysis"
-naming the specific fact, time range, or event still needed to resolve it.
-Leave it empty string if every option is [SUFFICIENT].
-
-Return ONLY this JSON:
-{
-  "option_judgment": { "A": "true|false", ... },
-  "missing_evidence_analysis": "..."
-}"""
 
 
 
@@ -336,6 +318,15 @@ def _criterion_weights(rubric: dict) -> Dict[str, float]:
             weight = 1.0
         weights[name] = max(weight, 0.0)
     return weights
+
+
+def _weighted_score(scores: Dict[str, float], weights: Dict[str, float]) -> float:
+    total_w = weighted_sum = 0.0
+    for name, val in scores.items():
+        w = weights.get(name, 1.0)
+        total_w += w
+        weighted_sum += w * float(val)
+    return (weighted_sum / total_w) if total_w > 0 else 0.0
 
 
 def _format_evidence(evidence_texts: List[str]) -> str:
@@ -392,10 +383,10 @@ class Verifier:
             self._relevance_cache[key] = sel
         return sel
 
-    def _parse_criteria_scores(self, parsed: dict) -> Dict[str, Dict[str, float]]:
-        """Parse the LLM's option_criteria_scores into {opt: {criterion: float}}."""
+    def _parse_per_option_scores(self, parsed: dict) -> Dict[str, Dict[str, float]]:
+        """Parse per-option rubric_criteria_scores into {opt: {criterion: float}}."""
         out: Dict[str, Dict[str, float]] = {}
-        raw = parsed.get("option_criteria_scores") or {}
+        raw = parsed.get("rubric_criteria_scores") or {}
         if isinstance(raw, dict):
             for opt_key, crit_dict in raw.items():
                 opt = as_str(opt_key).strip().upper()[:1]
@@ -411,98 +402,48 @@ class Verifier:
                     out[opt] = scores
         return out
 
-    def _verify_twopass(
-        self, question, candidates, opts, rubric_section, ev, rubric_dict,
-        keyframe_images, sufficient_threshold_delta,
-    ) -> Dict:
-        """Two-pass rubric verify: pass 1 scores sufficiency, pass 2 judges t/f.
+    def _parse_flat_criteria_scores(self, parsed: dict) -> Dict[str, float]:
+        """Parse holistic rubric_criteria_scores into {criterion: float}."""
+        raw = parsed.get("rubric_criteria_scores") or {}
+        scores: Dict[str, float] = {}
+        if isinstance(raw, dict):
+            for name, val in raw.items():
+                if isinstance(val, dict):
+                    continue
+                try:
+                    scores[str(name).strip()] = float(val)
+                except (TypeError, ValueError):
+                    scores[str(name).strip()] = 0.0
+        return scores
 
-        Pass 1 outputs ONLY option_criteria_scores (no answer guess). Python
-        thresholds per option, then pass 2 commits true/false on the options that
-        cleared the threshold and writes missing_evidence_analysis for the rest.
-        Returns the same 6-field verdict as the single-pass rubric path.
-        """
-        has_imgs = bool(keyframe_images) and bool(getattr(self.llm, '_api_endpoints', None))
-
-        # ── Pass 1: sufficiency scoring only ──────────────────────────────────
-        sys1 = os.environ.get("VEIL_VERIFIER_SYS_SCORE", "").strip() or VERIFIER_SYS_TWOPASS_SCORE
-        user1 = "\n\n".join([
+    def _verify_implicit(self, question, opts, ev, keyframe_images) -> Dict:
+        """Rubric-free sufficiency (VEIL_VERIFIER_IMPLICIT): the LLM decides whether the
+        evidence is enough to answer and names what is missing. Returns the same verdict
+        contract as the rubric path so the repair loop is byte-identical except for the
+        sufficiency signal — this is the WorldMM-style implicit baseline for the rubric."""
+        user = "\n\n".join([
             f"Question: {question}", f"Options:\n{opts}",
-            f"Rubric:\n{rubric_section}", f"Evidence Chain:\n{ev}",
-            "Return the sufficiency-scores JSON now.",
+            f"Evidence:\n{ev}", "Return the JSON now.",
         ])
-        msg1 = [{"role": "system", "content": sys1}, {"role": "user", "content": user1}]
-        if has_imgs:
-            msg1[-1] = _inject_images(msg1[-1], keyframe_images)
-        parsed1 = extract_json(self.llm.chat(msg1, max_new_tokens=600, enable_thinking=False))
-
-        option_criteria_scores = self._parse_criteria_scores(parsed1)
-
-        weights = _criterion_weights(rubric_dict)
-        option_rubric_scores: Dict[str, float] = {}
-        for opt, crit_scores in option_criteria_scores.items():
-            total_w = weighted_sum = 0.0
-            for name, val in crit_scores.items():
-                w = weights.get(name, 1.0)
-                total_w += w
-                weighted_sum += w * val
-            option_rubric_scores[opt] = (weighted_sum / total_w) if total_w > 0 else 0.0
-
-        sufficient_threshold = min(
-            1.0,
-            float(rubric_dict.get("sufficient_threshold", 0.75)) + float(sufficient_threshold_delta),
-        )
-        all_opts   = [chr(ord('A') + i) for i in range(len(candidates))]
-        suff_opts  = [o for o in all_opts if option_rubric_scores.get(o, 0.0) >= sufficient_threshold]
-        insuff_set = {o for o in all_opts if o not in suff_opts}
-
-        # ── Pass 2: judge the sufficient options, ask missing for the rest ────
-        opts_tagged = "\n".join(
-            f"  ({chr(ord('A') + i)}) {c} "
-            + ("[INSUFFICIENT]" if chr(ord('A') + i) in insuff_set else "[SUFFICIENT]")
-            for i, c in enumerate(candidates)
-        )
-        sys2 = os.environ.get("VEIL_VERIFIER_SYS_JUDGE", "").strip() or VERIFIER_SYS_TWOPASS_JUDGE
-        user2 = "\n\n".join([
-            f"Question: {question}", f"Options:\n{opts_tagged}",
-            f"Evidence Chain:\n{ev}", "Return the judgment JSON now.",
-        ])
-        msg2 = [{"role": "system", "content": sys2}, {"role": "user", "content": user2}]
-        if has_imgs:
-            msg2[-1] = _inject_images(msg2[-1], keyframe_images)
-        parsed2 = extract_json(self.llm.chat(msg2, max_new_tokens=400, enable_thinking=False))
-
-        raw_judgment = parsed2.get("option_judgment") or {}
-        llm_judgment: Dict[str, str] = {}
-        if isinstance(raw_judgment, dict):
-            for k, v in raw_judgment.items():
-                key = as_str(k).strip().upper()[:1]
-                val = as_str(v).strip().lower()
-                if key and val in ("true", "false", "unknown"):
-                    llm_judgment[key] = val
-
-        option_judgment: Dict[str, str] = {}
-        for opt in all_opts:
-            option_judgment[opt] = "unknown" if opt in insuff_set else llm_judgment.get(opt, "unknown")
-
-        n_opts       = len(candidates)
-        true_opts    = [k for k, v in option_judgment.items() if v == "true"]
-        false_opts   = [k for k, v in option_judgment.items() if v == "false"]
-        unknown_opts = [k for k, v in option_judgment.items() if v == "unknown"]
-        label = "SUFFICIENT" if len(true_opts) == 1 and len(false_opts) == n_opts - 1 else "INSUFFICIENT"
-
-        missing: Optional[str] = None
-        if label == "INSUFFICIENT" and unknown_opts:
-            raw_missing = parsed2.get("missing_evidence_analysis")
-            if isinstance(raw_missing, str) and raw_missing.strip():
-                missing = raw_missing.strip()
-
+        messages = [{"role": "system", "content": VERIFIER_SYS_IMPLICIT},
+                    {"role": "user", "content": user}]
+        if keyframe_images and getattr(self.llm, '_api_endpoints', None):
+            messages[-1] = _inject_images(messages[-1], keyframe_images)
+        raw = self.llm.chat(messages, max_new_tokens=300, enable_thinking=False)
+        parsed = extract_json(raw)
+        v = str(parsed.get("verdict") or parsed.get("label") or "").upper()
+        # Guard the classic 'SUFF' in 'INSUFFICIENT' trap.
+        label = "SUFFICIENT" if ("INSUF" not in v and "SUFF" in v) else "INSUFFICIENT"
+        missing = None
+        if label == "INSUFFICIENT":
+            rm = parsed.get("missing_evidence_analysis") or parsed.get("missing")
+            if isinstance(rm, str) and rm.strip():
+                missing = rm.strip()
         return {
             "label":                  label,
-            "option_judgment":        option_judgment,
-            "unknown_options":        unknown_opts,
-            "option_rubric_scores":   {k: round(v, 4) for k, v in option_rubric_scores.items()},
-            "option_criteria_scores": option_criteria_scores,
+            "rubric_criteria_scores": {},
+            "rubric_score":           None,
+            "unknown_options":        [],
             "missing_evidence_analysis": missing,
         }
 
@@ -528,7 +469,9 @@ class Verifier:
         })
 
         binary = bool(os.environ.get("VEIL_VERIFIER_BINARY", "").strip())
-        sys_h = os.environ.get("VEIL_VERIFIER_SYS", "").strip() or VERIFIER_SYS_HOLISTIC
+        want_opts = bool(os.environ.get("VEIL_HOLISTIC_UNKNOWN_OPTS", "").strip())
+        _default_sys = VERIFIER_SYS_HOLISTIC_OPT if want_opts else VERIFIER_SYS_HOLISTIC
+        sys_h = os.environ.get("VEIL_VERIFIER_SYS", "").strip() or _default_sys
         parts = [f"Question: {question}", f"Options:\n{opts}",
                  f"Rubric:\n{rubric_section}", f"Evidence Chain:\n{ev}"]
         if binary:
@@ -542,7 +485,7 @@ class Verifier:
             messages[-1] = _inject_images(messages[-1], keyframe_images)
         raw = self.llm.chat(messages, max_new_tokens=600, enable_thinking=False)
         parsed = extract_json(raw)
-        raw_scores = parsed.get("criteria_scores") or {}
+        raw_scores = parsed.get("rubric_criteria_scores") or {}
         weights = _criterion_weights(rubric_dict)
         tot = wsum = 0.0
         scores: Dict[str, float] = {}
@@ -572,14 +515,19 @@ class Verifier:
             rm = parsed.get("missing_evidence_analysis")
             if isinstance(rm, str) and rm.strip():
                 missing = rm.strip()
+        # Option tagging: holistic decides sufficiency, but unknown_options anchors repair.
+        unknown_opts: List[str] = []
+        if label == "INSUFFICIENT":
+            raw_unres = parsed.get("unknown_options") or parsed.get("unresolved_options")
+            if isinstance(raw_unres, list):
+                unknown_opts = [u for u in
+                                (str(x).strip().upper()[:1] for x in raw_unres)
+                                if u in "ABCD"]
         return {
             "label":                  label,
-            "option_judgment":        {},
-            "unknown_options":        [],
-            "option_rubric_scores":   {},
-            "option_criteria_scores": {},
-            "holistic_score":         round(holistic, 4),
-            "criteria_scores":        scores,
+            "unknown_options":        unknown_opts,
+            "rubric_criteria_scores": scores,
+            "rubric_score":           round(holistic, 4),
             "missing_evidence_analysis": missing,
         }
 
@@ -591,7 +539,6 @@ class Verifier:
         rubric: str | dict,
         keyframe_images=(),
         sufficient_threshold_delta: float = 0.0,
-        two_pass: bool = False,
     ) -> Dict:
         """Judge evidence sufficiency with rubric-guided per-option scoring.
 
@@ -614,17 +561,32 @@ class Verifier:
         opts = "\n".join(f"  ({chr(ord('A')+i)}) {c}" for i, c in enumerate(candidates))
         ev   = _format_evidence(evidence_texts)
 
+        if os.environ.get("VEIL_VERIFIER_IMPLICIT", "").strip():
+            return self._verify_implicit(question, opts, ev, keyframe_images)
+
         if os.environ.get("VEIL_VERIFIER_HOLISTIC", "").strip():
             return self._verify_holistic(
                 question, opts, rubric_section, ev, rubric_dict,
                 keyframe_images, sufficient_threshold_delta,
             )
 
-        if two_pass:
-            return self._verify_twopass(
-                question, candidates, opts, rubric_section, ev, rubric_dict,
-                keyframe_images, sufficient_threshold_delta,
-            )
+        # ── Relevance gating (mainline default; dataset-independent) ───────────
+        # Pass 1 picks the criteria RELEVANT to THIS question so irrelevant
+        # type-criteria don't dilute the per-option denominator (on egolife only
+        # ~6 of 33 apply → scoring all → every option ~0.18 → always INSUFFICIENT).
+        # This IS the paper's mainline sufficiency judgment and is the SAME across
+        # datasets, so it defaults ON. Opt out with VEIL_VERIFIER_NO_RELEVANCE=1
+        # (legacy score-all ablation) — mirrors the holistic path's opt-out (~L459).
+        if (not os.environ.get("VEIL_VERIFIER_NO_RELEVANCE", "").strip()
+                and "_legacy_text" not in rubric_dict):
+            relevant = self._relevant_criteria(question, opts, rubric_dict)
+            sel_crits = [c for c in (rubric_dict.get("rubric_criteria") or [])
+                         if str(c.get("name") or "").strip() in relevant]
+            if sel_crits:
+                rubric_section = _format_rubric_for_user({
+                    **{k: v for k, v in rubric_dict.items() if k != "rubric_criteria"},
+                    "rubric_criteria": sel_crits,
+                })
 
         user = "\n\n".join([
             f"Question: {question}", f"Options:\n{opts}",
@@ -639,84 +601,85 @@ class Verifier:
         ]
         if keyframe_images and getattr(self.llm, '_api_endpoints', None):
             messages[-1] = _inject_images(messages[-1], keyframe_images)
-        raw    = self.llm.chat(messages, max_new_tokens=800, enable_thinking=False)
+        # Output size scales with 4 options × N criteria. At ~30 criteria the JSON
+        # runs ~1900 tokens; an 800 cap silently truncated it mid-scores, dropping
+        # missing_evidence_analysis and scores. Give it real headroom.
+        raw    = self.llm.chat(messages, max_new_tokens=2500, enable_thinking=False)
         parsed = extract_json(raw)
+        if not parsed.get("rubric_criteria_scores") and raw.rstrip() and not raw.rstrip().endswith("}"):
+            # Truncated/unparseable despite the higher cap — surface it instead of
+            # silently degrading to an empty (all-unknown) verdict.
+            log.warning("verifier: truncated/unparseable scoring JSON (%d chars); "
+                        "rubric_criteria_scores empty", len(raw))
 
-        # ── Parse option_criteria_scores ───────────────────────────────────────
-        raw_ocs = parsed.get("option_criteria_scores") or {}
-        option_criteria_scores: Dict[str, Dict[str, float]] = {}
-        if isinstance(raw_ocs, dict):
-            for opt_key, crit_dict in raw_ocs.items():
-                opt = as_str(opt_key).strip().upper()[:1]
-                if not opt or not isinstance(crit_dict, dict):
-                    continue
-                scores: Dict[str, float] = {}
-                for cname, cscore in crit_dict.items():
-                    try:
-                        scores[str(cname).strip()] = float(cscore)
-                    except (TypeError, ValueError):
-                        scores[str(cname).strip()] = 0.0
-                if scores:
-                    option_criteria_scores[opt] = scores
+        # ── Parse per-option rubric_criteria_scores ───────────────────────────
+        per_option_scores = self._parse_per_option_scores(parsed)
 
-        # ── Compute option_rubric_scores (weighted average per option) ─────────
+        # ── Compute weighted average per option ───────────────────────────────
         weights = _criterion_weights(rubric_dict)
-        option_rubric_scores: Dict[str, float] = {}
-        for opt, crit_scores in option_criteria_scores.items():
+        per_option_rubric_scores: Dict[str, float] = {}
+        for opt, crit_scores in per_option_scores.items():
             total_w = weighted_sum = 0.0
             for name, val in crit_scores.items():
                 w = weights.get(name, 1.0)
                 total_w += w
                 weighted_sum += w * val
-            option_rubric_scores[opt] = (weighted_sum / total_w) if total_w > 0 else 0.0
+            per_option_rubric_scores[opt] = (weighted_sum / total_w) if total_w > 0 else 0.0
 
-        # ── Parse LLM option_judgment, then enforce threshold ──────────────────
+        # ── Enforce threshold and derive unknown options ───────────────────────
         # rubric_score measures evidence sufficiency to judge an option (not support direction).
-        # Python overrides to "unknown" when rubric_score < sufficient_threshold.
+        # VEIL_SUFFICIENT_DELTA shifts the threshold globally (for threshold sweeps without
+        # editing the rubric): e.g. -0.2 turns a rubric threshold of 0.8 into 0.6.
+        env_delta = float(os.environ.get("VEIL_SUFFICIENT_DELTA", "0") or "0")
         sufficient_threshold = min(
             1.0,
-            float(rubric_dict.get("sufficient_threshold", 0.75)) + float(sufficient_threshold_delta),
+            float(rubric_dict.get("sufficient_threshold", 0.75))
+            + float(sufficient_threshold_delta) + env_delta,
         )
-        raw_judgment = parsed.get("option_judgment") or {}
-        llm_judgment: Dict[str, str] = {}
-        if isinstance(raw_judgment, dict):
-            for k, v in raw_judgment.items():
-                key = as_str(k).strip().upper()[:1]
-                val = as_str(v).strip().lower()
-                if key and val in ("true", "false", "unknown"):
-                    llm_judgment[key] = val
-
-        option_judgment: Dict[str, str] = {}
         all_opts = [chr(ord('A') + i) for i in range(len(candidates))]
-        for opt in all_opts:
-            rscore = option_rubric_scores.get(opt)
-            if rscore is None or rscore < sufficient_threshold:
-                option_judgment[opt] = "unknown"
-            else:
-                # Threshold only gates whether evidence is sufficient to make a
-                # judgment; the LLM may still leave the option unresolved.
-                option_judgment[opt] = llm_judgment.get(opt, "unknown")
+        raw_unknown = parsed.get("unknown_options") or []
+        model_unknown = {
+            u for u in (str(x).strip().upper()[:1] for x in raw_unknown)
+            if u in all_opts
+        } if isinstance(raw_unknown, list) else set()
+        score_unknown = {
+            opt for opt in all_opts
+            if per_option_rubric_scores.get(opt, 0.0) < sufficient_threshold
+        }
+        unknown_opts = sorted(model_unknown | score_unknown)
+        # Aggregation of per-option scores → rubric_score (VEIL_VERIFIER_AGG).
+        #   min  (default): sufficient only when EVERY option is decidable — high precision, but
+        #                   in open-world egocentric QA distractors are rarely excludable, so it
+        #                   fires ~5%. max: sufficient when the WINNING option is confidently
+        #                   decidable — matches "answerable" far better (sim: ~5× fire at equal
+        #                   correlation gap). mean: middle ground.
+        agg = os.environ.get("VEIL_VERIFIER_AGG", "min").strip().lower()
+        if per_option_rubric_scores:
+            _vals = [per_option_rubric_scores.get(opt, 0.0) for opt in all_opts]
+            rubric_score = (max(_vals) if agg == "max"
+                            else sum(_vals) / len(_vals) if agg == "mean"
+                            else min(_vals))
+        else:
+            rubric_score = 0.0
+        # For min, min≥threshold already implies no score-unknown; keep the model_unknown veto.
+        # For max/mean the point is that ONE confident option suffices, so the per-score unknown
+        # set must NOT veto sufficiency — only the aggregated score gates the label.
+        if agg == "min":
+            label = "SUFFICIENT" if rubric_score >= sufficient_threshold and not unknown_opts else "INSUFFICIENT"
+        else:
+            label = "SUFFICIENT" if rubric_score >= sufficient_threshold else "INSUFFICIENT"
 
-        # ── Compute label ──────────────────────────────────────────────────────
-        n_opts      = len(candidates)
-        true_opts   = [k for k, v in option_judgment.items() if v == "true"]
-        false_opts  = [k for k, v in option_judgment.items() if v == "false"]
-        unknown_opts = [k for k, v in option_judgment.items() if v == "unknown"]
-
-        label = "SUFFICIENT" if len(true_opts) == 1 and len(false_opts) == n_opts - 1 else "INSUFFICIENT"
-
-        # ── Missing evidence analysis (from unknown options only) ──────────────
+        # ── Missing evidence analysis ─────────────────────────────────────────
         missing: Optional[str] = None
-        if label == "INSUFFICIENT" and unknown_opts:
+        if label == "INSUFFICIENT":
             raw_missing = parsed.get("missing_evidence_analysis")
             if isinstance(raw_missing, str) and raw_missing.strip():
                 missing = raw_missing.strip()
 
         return {
             "label":                  label,
-            "option_judgment":        option_judgment,
             "unknown_options":        unknown_opts,
-            "option_rubric_scores":   {k: round(v, 4) for k, v in option_rubric_scores.items()},
-            "option_criteria_scores": option_criteria_scores,
+            "rubric_criteria_scores": per_option_scores,
+            "rubric_score":           round(rubric_score, 4),
             "missing_evidence_analysis": missing,
         }

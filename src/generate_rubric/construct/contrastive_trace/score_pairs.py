@@ -1,4 +1,4 @@
-"""Score every pair's weak & strong chain with the holistic verifier, ONCE per unique
+"""Score every pair's weak & strong chain with the verifier, ONCE per unique
 chain, then sweep the sufficient-threshold OFFLINE to find the value that best separates
 weak from strong across all pairs.
 
@@ -6,7 +6,7 @@ A pair is "separated" at threshold t iff  strong_score >= t > weak_score.
 Emitting scores (not just booleans) lets the threshold float during iteration, so
 "rubric judges pairs correctly" is measured at the rubric's BEST threshold, not a fixed one.
 
-Requires VEIL_VERIFIER_HOLISTIC=1 (holistic path returns 'holistic_score').
+Requires a verifier path that returns 'rubric_score'.
 
 Outputs:
   --out         jsonl, one row per pair: {pair_id, sample_idx, question_type,
@@ -133,7 +133,7 @@ def main() -> None:
         try:
             v = verifier.verify(s.question, s.candidates, _chain_texts(c), rd,
                                 keyframe_images=frames)
-            return cid, float(v.get("holistic_score", 0.0)), (v.get("criteria_scores") or {})
+            return cid, float(v.get("rubric_score", 0.0)), (v.get("rubric_criteria_scores") or {})
         except Exception as exc:
             print(f"[score] chain {cid} failed: {exc}")
             return cid, None, None

@@ -67,6 +67,28 @@ def _files_for(bench: str, root: Path) -> List[Path]:
     return files
 
 
+# EgoLife-family question types are inconsistently spelled across the two benchmarks
+# (egolifeqa is clean; Ego-R1 splits the SAME semantic type across English/中文,
+# singular/plural, spaced/camel variants). Normalise to one canonical taxonomy so the
+# per-type rubric consolidates instead of fragmenting into ~15 thin blocks.
+_QTYPE_CANON = {
+    "entity log": "EntityLog", "entitylog": "EntityLog",
+    "event memory": "EventRecall", "event recollection": "EventRecall",
+    "event recall": "EventRecall", "eventrecall": "EventRecall", "事件回忆": "EventRecall",
+    "relationmap": "RelationMap", "relation map": "RelationMap",
+    "interpersonal relationships": "RelationMap", "interpersonal relationship": "RelationMap",
+    "habitinsight": "HabitInsight", "habit insight": "HabitInsight",
+    "behavior habit": "HabitInsight", "behavior habits": "HabitInsight",
+    "taskmaster": "TaskMaster", "task master": "TaskMaster",
+    "future plan": "FuturePlan", "future plans": "FuturePlan",
+}
+
+
+def canon_qtype(t: str) -> str:
+    """Map a raw EgoLife-family question type to its canonical name (identity if unknown)."""
+    return _QTYPE_CANON.get(str(t or "").strip().lower(), str(t or "").strip())
+
+
 def load_egolife(
     bench: str,
     bench_root: str | Path,
@@ -112,7 +134,7 @@ def load_egolife(
                 question=str(q.get("question", "")).strip(),
                 candidates=cands,
                 answer=cands[ai],
-                question_type=str(q.get("type", "")),
+                question_type=canon_qtype(q.get("type", "")),
                 sample_idx=idx,
                 query_time=q.get("query_time", {}) or {},
                 target_time=q.get("target_time", {}) or {},

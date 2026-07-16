@@ -245,7 +245,6 @@ Object Reasoning:
       weight: 3.0
       failure_repair_action: dense_sample
   scoring_rule: average
-  sufficient_threshold: 0.8
 Information Synopsis:
   rubric_criteria:
     - name: narrative_scope_completeness
@@ -368,7 +367,6 @@ Information Synopsis:
       weight: 1
       failure_repair_action: refine_query
   scoring_rule: average
-  sufficient_threshold: 0.8
 Action Recognition:
   rubric_criteria:
     - name: evidence_state_interaction
@@ -463,7 +461,6 @@ Action Recognition:
       weight: 5
       failure_repair_action: refine_query
   scoring_rule: average
-  sufficient_threshold: 0.8
 Temporal Reasoning:
   rubric_criteria:
     - name: temporal_ordering
@@ -544,7 +541,6 @@ Temporal Reasoning:
       weight: 3.0
       failure_repair_action: refine_query
   scoring_rule: average
-  sufficient_threshold: 0.8
 Action Reasoning:
   rubric_criteria:
     - name: comprehensive_attribute_resolution
@@ -758,7 +754,6 @@ Action Reasoning:
       weight: 3.0
       failure_repair_action: refine_query
   scoring_rule: average
-  sufficient_threshold: 0.8
 Object Recognition:
   rubric_criteria:
     - name: entity_temporal_recurrence
@@ -839,7 +834,6 @@ Object Recognition:
       weight: 3.0
       failure_repair_action: dense_sample
   scoring_rule: average
-  sufficient_threshold: 0.8
 Counting Problem:
   rubric_criteria:
     - name: explicit_enumeration_of_instances
@@ -920,7 +914,6 @@ Counting Problem:
       weight: 3.0
       failure_repair_action: refine_query
   scoring_rule: average
-  sufficient_threshold: 0.8
 OCR Problems:
   rubric_criteria:
     - name: functional_demonstration
@@ -952,7 +945,6 @@ OCR Problems:
       weight: 3.0
       failure_repair_action: refine_query
   scoring_rule: average
-  sufficient_threshold: 0.8
 Spatial Perception:
   rubric_criteria:
     - name: simultaneous_visual_co_presence
@@ -977,7 +969,6 @@ Spatial Perception:
       weight: 3.0
       failure_repair_action: dense_sample
   scoring_rule: average
-  sufficient_threshold: 0.8
 Temporal Perception:
   rubric_criteria:
     - name: superlative_density
@@ -995,7 +986,6 @@ Temporal Perception:
       weight: 3.0
       failure_repair_action: time_sorted
   scoring_rule: average
-  sufficient_threshold: 0.8
 Attribute Perception:
   rubric_criteria:
     - name: attribute_explicitness
@@ -1013,4 +1003,3 @@ Attribute Perception:
       weight: 3.0
       failure_repair_action: refine_query
   scoring_rule: average
-  sufficient_threshold: 0.8

@@ -22,6 +22,7 @@ class BGEM3Embedder:
         if self.api_url:
             import requests
             self._session = requests.Session()
+            self._session.trust_env = False
             return
         from FlagEmbedding import BGEM3FlagModel
         self.model = BGEM3FlagModel(
@@ -35,13 +36,26 @@ class BGEM3Embedder:
         if not texts:
             return np.zeros((0, 1024), dtype=np.float32)
         if self.api_url:
-            resp = self._session.post(
-                f"{self.api_url}/bge/encode",
-                json={"texts": list(texts)},
-                timeout=300,
-            )
-            resp.raise_for_status()
-            return np.asarray(resp.json()["vectors"], dtype=np.float32)
+            if self.api_url.endswith("/v1/embeddings"):
+                resp = self._session.post(
+                    self.api_url,
+                    json={"input": list(texts), "model": "bge-m3"},
+                    timeout=300,
+                )
+                resp.raise_for_status()
+                data = resp.json().get("data") or []
+                vecs = [row.get("embedding") for row in sorted(data, key=lambda r: r.get("index", 0))]
+            else:
+                resp = self._session.post(
+                    f"{self.api_url}/bge/encode",
+                    json={"texts": list(texts)},
+                    timeout=300,
+                )
+                resp.raise_for_status()
+                vecs = resp.json()["vectors"]
+            out = np.asarray(vecs, dtype=np.float32)
+            norms = np.linalg.norm(out, axis=1, keepdims=True) + 1e-12
+            return out / norms
         out = self.model.encode(
             list(texts),
             batch_size=self.batch_size,

@@ -136,21 +136,43 @@ def verify_rubric_dict(rubric: dict, question_type: Optional[str]) -> dict:
     return {"rubric_criteria": crits, "scoring_rule": rule, "sufficient_threshold": thr}
 
 
+_RESERVED = {"general", "types", "type_aliases", "templates", "keyword_rules"}
+
+
 def load_rubric(path: str | Path) -> dict:
+    """Load into the internal {general, templates, type_aliases} form, accepting BOTH
+    on-disk layouts: the canonical rubric_contrastive layout (each question type is a
+    top-level key + a ``types`` list) and the legacy ``templates:`` nesting."""
     p = Path(path)
     if not p.is_file():
         return default_rubric()
     data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-    data.setdefault("general", default_rubric()["general"])
-    data.setdefault("templates", {})
-    data.setdefault("type_aliases", {})
-    return data
+    general = data.get("general") or default_rubric()["general"]
+    templates: dict = {}
+    for k, v in (data.get("templates") or {}).items():          # legacy nesting
+        if isinstance(v, dict):
+            templates[k] = v
+    for k, v in data.items():                                   # canonical top-level blocks
+        if k not in _RESERVED and isinstance(v, dict) and v.get("rubric_criteria"):
+            templates[k] = v
+    return {"general": general, "templates": templates,
+            "type_aliases": {k: k for k in templates}}
 
 
 def save_rubric(path: str | Path, rubric: dict) -> None:
+    """Write the canonical rubric_contrastive layout: a top-level ``types`` list, the
+    ``general`` block, then each question type as its OWN top-level key (matching
+    outputs/rubric/rubric_contrastive.yaml, the format experiments consume)."""
+    general = rubric.get("general") or default_rubric()["general"]
+    templates = dict(rubric.get("templates") or {})
+    for k, v in rubric.items():                                 # absorb any top-level blocks
+        if k not in _RESERVED and isinstance(v, dict) and v.get("rubric_criteria"):
+            templates.setdefault(k, v)
+    out = {"types": list(templates.keys()), "general": general}
+    out.update(templates)
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(yaml.safe_dump(rubric, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    p.write_text(yaml.safe_dump(out, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
 
 def inject_groundedness(rubric: dict) -> None:
