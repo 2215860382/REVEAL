@@ -388,7 +388,7 @@ def main():
         bank = get_bank(s.video_id)
         if bank is None:
             return None, "bank_missing"
-        _ftopk = int(os.environ.get("VEIL_FINAL_TOPK", "8") or 8)  # evidence-budget expts
+        _ftopk = 8
         kw = dict(
             coarse_top_k=max(8, _ftopk),
             final_top_k=_ftopk,

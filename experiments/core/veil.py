@@ -26,60 +26,6 @@ from src.utils.extract_json import extract_json
 
 # ── Time-targeted retrieval (verifier-driven temporal repair) ────────────────
 
-_TIME_PAT = re.compile(
-    r'(?<![\d.])(\d{1,2}):(\d{2})(?::(\d{2}))?'          # H:MM:SS or MM:SS
-    r'|(\d{1,3})\s*[-–]?\s*(?:minute|min)\b'         # N-minute / N min
-    r'|(\d{2,4})\s*(?:seconds|secs|sec)\b',               # N seconds
-    re.IGNORECASE)
-
-
-def _parse_time_seconds(text: str) -> list[float]:
-    """Extract absolute-second time references from a verifier missing-evidence
-    sentence (e.g. ``lacks a marker at the 25-minute mark`` → [1500.0])."""
-    out: list[float] = []
-    for m in _TIME_PAT.finditer(text or ""):
-        if m.group(1) is not None:                        # colon form
-            a, b, c = int(m.group(1)), int(m.group(2)), m.group(3)
-            out.append(a * 3600 + b * 60 + int(c) if c is not None else a * 60 + b)
-        elif m.group(4) is not None:                      # minutes
-            out.append(int(m.group(4)) * 60.0)
-        elif m.group(5) is not None:                      # seconds
-            out.append(float(m.group(5)))
-    return out
-
-
-def _time_retrieve(
-    bank: "MemoryBank",
-    seen_ids: Set[int],
-    windows: list[float],
-    n: int = 8,
-    margin: float = 30.0,
-    max_time: float | None = None,
-) -> tuple[list, list, list]:
-    """Fetch unseen chunks whose [start,end] (±margin) overlaps any target time,
-    ranked by proximity. This is the repair action a dense/broadcast query lacks:
-    the verifier says *when* evidence is missing, and we index straight to it."""
-    texts_ev = bank.memory_texts(with_time=True, with_asr=True)
-    idx_map  = {c.chunk_id: i for i, c in enumerate(bank.chunks)}
-    cand = []
-    for c in bank.chunks:
-        if c.chunk_id in seen_ids:
-            continue
-        if max_time is not None and c.end_time > max_time:
-            continue
-        if any(c.start_time - margin <= t <= c.end_time + margin for t in windows):
-            mid = (c.start_time + c.end_time) / 2.0
-            cand.append((min(abs(mid - t) for t in windows), c))
-    cand.sort(key=lambda x: x[0])
-    texts, ids, vecs = [], [], []
-    for _, c in cand[:n]:
-        i = idx_map.get(c.chunk_id)
-        if i is None:
-            continue
-        texts.append(texts_ev[i]); ids.append(c.chunk_id); vecs.append(c.v_text or [])
-    return texts, ids, vecs
-
-
 def _time_range_retrieve(
     bank: "MemoryBank",
     seen_ids: Set[int],
@@ -341,35 +287,6 @@ def _visual_retrieve(
 _REL_DAY_WORDS = {"yesterday": 1, "the day before yesterday": 2}
 
 
-def _question_time_window(question: str, query_time_abs: float | None) -> tuple | None:
-    """Map a relative-time cue in the question to an absolute [lo,hi] window on the
-    DAY1-anchored timeline, using ``query_time_abs`` (the query_time cutoff). Returns
-    None if there is no query time or no recognisable cue. Relative-time WORDS cannot
-    be matched by BGE, so we resolve them structurally into a time window instead."""
-    if query_time_abs is None:
-        return None
-    q = question.lower()
-    day0 = (query_time_abs // 86400) * 86400          # start of the query day
-    DAY = 86400.0
-    m = re.search(r"(\d+)\s+days?\s+ago", q)
-    if "day before yesterday" in q:
-        return (day0 - 2 * DAY, day0 - DAY)
-    if m:
-        n = int(m.group(1))
-        return (day0 - n * DAY, day0 - (n - 1) * DAY)
-    if "yesterday" in q:
-        return (day0 - DAY, day0)
-    if "last night" in q:
-        return (day0 - DAY + 18 * 3600, day0)         # previous evening
-    if "this morning" in q:
-        return (day0, min(day0 + 12 * 3600, query_time_abs))
-    if "earlier today" in q or "this afternoon" in q or "today" in q:
-        return (day0, query_time_abs)
-    return None
-
-
-# ── Multi-layer pyramid retrieval ────────────────────────────────────────────
-
 def _multi_pool_retrieve(
     query: str,
     bank: "MemoryBank",
@@ -378,7 +295,6 @@ def _multi_pool_retrieve(
     final_top_k: int,
     exclude_ids: Set[int],
     max_time: float | None = None,
-    time_window: tuple | None = None,
 ) -> tuple[List[str], List[int], List[List[float]]]:
     """Retrieve from the L1 detail pool + L2/L3 summary pools, merged by score.
 
@@ -415,29 +331,7 @@ def _multi_pool_retrieve(
         l1_mask = np.array([c.end_time <= max_time for c in bank.chunks])
         l1_scores = np.where(l1_mask, l1_scores, -np.inf)
 
-    # VEIL_TIME_WINDOW: relative-time cue in the question ("yesterday", "this
-    # morning") → an absolute [lo,hi] window; boost in-window L1 chunks so the
-    # right INSTANCE (not a topically-similar one on another day) ranks first.
-    # The relative-time WORD is useless to BGE, so it is handled structurally here.
-    if time_window is not None:
-        lo, hi = time_window
-        try:
-            bonus = float(os.environ.get("VEIL_TIME_WINDOW_BONUS", "0.15") or 0.15)
-        except ValueError:
-            bonus = 0.15
-        tw = np.array([(lo <= c.start_time <= hi) or (lo <= c.end_time <= hi)
-                       for c in bank.chunks])
-        l1_scores = l1_scores + np.where(tw, bonus, 0.0)  # -inf (future) stays -inf
-
-    # Opt-in hybrid (VEIL_HYBRID_BM25=1): fuse dense + BM25 by RRF for the L1 pool
-    # membership so lexical hits (names/objects) that dense buries can still enter.
-    from . import _hybrid
-    _hybrid_on = _hybrid.enabled()
-    _bm = _hybrid.bm25_for_l1(bank).get_scores(query) if _hybrid_on else None
-    if _hybrid_on:
-        l1_order = _hybrid.rrf_order(l1_scores, _bm, valid_mask=l1_mask)[:l1_pool_cap]
-    else:
-        l1_order = np.argsort(-l1_scores)[:l1_pool_cap]
+    l1_order = np.argsort(-l1_scores)[:l1_pool_cap]
 
     # Merge by score
     def _l1_ev(c):
@@ -450,7 +344,7 @@ def _multi_pool_retrieve(
     for i in l1_order:
         c = bank.chunks[i]
         if c.chunk_id not in exclude_ids and (max_time is None or c.end_time <= max_time):
-            _b = float(_bm[i]) if _bm is not None else 0.0
+            _b = 0.0
             candidates.append((float(l1_scores[i]), _b, c, _l1_ev(c)))
 
     # L2/L3 summary pools
@@ -468,15 +362,8 @@ def _multi_pool_retrieve(
             if c.chunk_id not in exclude_ids and (max_time is None or c.end_time <= max_time):
                 candidates.append((float(scores[int(i)]), 0.0, c, c.memory_text))
 
-    if _hybrid_on and candidates:
-        # RRF over the merged pool so BM25-surfaced L1 (low dense) survive the cut.
-        ds = np.array([x[0] for x in candidates], dtype=np.float32)
-        bs = np.array([x[1] for x in candidates], dtype=np.float32)
-        order = _hybrid.rrf_order(ds, bs)
-        selected = [candidates[int(i)] for i in order[:final_top_k]]
-    else:
-        candidates.sort(key=lambda x: -x[0])
-        selected = candidates[:final_top_k]
+    candidates.sort(key=lambda x: -x[0])
+    selected = candidates[:final_top_k]
     return (
         [ev for _, _, _, ev in selected],
         [c.chunk_id for _, _, c, _ in selected],
@@ -619,7 +506,6 @@ def run_veil(
     seen_ids:           Set[int]          = set()
     plan_history:       List[List[str]]   = [[question]]  # seed with original question for dedup
     iterations:         List[dict]        = []
-    option_repair_done: Set[str]          = set()  # VEIL_OPTION_REPAIR: options already queried
     chunk_by_id = {c.chunk_id: c for c in bank.chunks}
     # Include L2 chunks so keyframe lookup doesn't skip them (L2 chunks have no
     # frames, so they naturally produce no keyframes).
@@ -627,20 +513,8 @@ def run_veil(
 
     # ── Iter-0 plan: sub-question decomposition ──────────────────────────────
     current_plan: dict = planner.decompose_iter0(question, candidates)
-    if os.environ.get("VEIL_SINGLE_QUERY_ITER0") == "1":
-        # Ablation knob: skip decomposition so round 0 fires a single question
-        # embedding. Deliberately weakens the first round so the verify-repair
-        # loop has headroom to recover the accuracy in rounds >=1.
-        current_plan = {"think": "single_query_iter0", "strategy": "query",
-                        "queries": [question], "time_ranges": []}
     plan_history.append(current_plan["queries"])
     last_verdict: dict = {}
-
-    # VEIL_TIME_WINDOW: resolve a relative-time cue in the question into an absolute
-    # window once, then boost in-window chunks at every retrieval (egocentric only —
-    # needs max_time = query_time). Off ⇒ None ⇒ no effect.
-    _time_window = (_question_time_window(question, max_time)
-                    if os.environ.get("VEIL_TIME_WINDOW") == "1" else None)
 
     # Round budget: ``max_iter`` counts TEXT (query/time) rounds ONLY. An `image` round is
     # image-only (frames, no text) and does NOT consume the text budget — it's a bonus visual
@@ -657,47 +531,18 @@ def run_veil(
 
         # ── Plan (iter ≥ 1): generate new queries from last verdict + history ─
         if it > 0:
-            if os.environ.get("VEIL_BLIND_REPAIR") == "1":
-                # Equal-compute ablation control (B1): keep the same round budget and
-                # the same per-round verifier call, but generate the repair query
-                # WITHOUT the verifier's missing-evidence trace — a uniform-timeline
-                # broadcast instead of a targeted query. Isolates whether the gain
-                # comes from the verifier's guidance or merely from extra retrieval.
-                current_plan = {"think": "blind_repair", "strategy": "time",
-                                "queries": [], "time_ranges": []}
-                plan_history.append([])
-            elif os.environ.get("VEIL_OPTION_REPAIR") == "1":
-                # Single-query-per-round, verifier-guided repair: one factual query per
-                # round aimed at the missing evidence for an unresolved, not-yet-probed
-                # option (fixed prompt: keep question framing, drop useless relative-time
-                # words, no distractor-fishing imperatives).
-                next_plan = planner.plan_single_repair(
-                    question, candidates, all_evidence_texts, last_verdict, plan_history,
-                    option_repair_done, rubric_judgment=rubric_judgment,
-                )
-                tgt = next_plan.get("target_option")
-                if tgt:
-                    option_repair_done.add(tgt)
-                next_plan = planner.filter_targeted_queries(
-                    next_plan, plan_history, embedder, all_ev_vecs,
-                    dedup_thresh=query_history_dedup_threshold,
-                    drift_threshold=query_evidence_dedup_threshold,
-                )
-                plan_history.append(next_plan["queries"])
-                current_plan = next_plan
-            else:
-                verdict_for_planning = last_verdict
-                next_plan, m_desc = planner.plan_next(
-                    question, candidates, all_evidence_texts, verdict_for_planning, plan_history,
-                    rubric_judgment=rubric_judgment,
-                )
-                next_plan = planner.filter_targeted_queries(
-                    next_plan, plan_history, embedder, all_ev_vecs,
-                    dedup_thresh=query_history_dedup_threshold,
-                    drift_threshold=query_evidence_dedup_threshold,
-                )
-                plan_history.append(next_plan["queries"])
-                current_plan = next_plan
+            verdict_for_planning = last_verdict
+            next_plan, m_desc = planner.plan_next(
+                question, candidates, all_evidence_texts, verdict_for_planning, plan_history,
+                rubric_judgment=rubric_judgment,
+            )
+            next_plan = planner.filter_targeted_queries(
+                next_plan, plan_history, embedder, all_ev_vecs,
+                dedup_thresh=query_history_dedup_threshold,
+                drift_threshold=query_evidence_dedup_threshold,
+            )
+            plan_history.append(next_plan["queries"])
+            current_plan = next_plan
 
         strategy = current_plan.get("strategy", "query")
         if strategy == "targeted":
@@ -761,24 +606,12 @@ def run_veil(
                 t, i, v = _multi_pool_retrieve(
                     q, bank, embedder,
                     coarse_top_k, final_top_k, seen_ids, max_time=max_time,
-                    time_window=_time_window,
                 )
                 new_texts.extend(t); new_ids.extend(i); new_vecs.extend(v)
                 seen_ids.update(i)
             iter_query = (" | ".join(queries_this_iter) if len(queries_this_iter) > 1
                           else (queries_this_iter[0] if queries_this_iter else ""))
 
-            # Verifier-driven temporal repair (VEIL_TIME_REPAIR=1): if the last
-            # verdict's missing-evidence sentence names a time, index straight to
-            # chunks at that timestamp instead of hoping a dense query lands there.
-            if it > 0 and os.environ.get("VEIL_TIME_REPAIR") == "1":
-                windows = _parse_time_seconds(last_verdict.get("missing_evidence_analysis") or "")
-                if windows:
-                    tt, ti, tv = _time_retrieve(
-                        bank, seen_ids, windows, n=final_top_k, max_time=max_time)
-                    new_texts.extend(tt); new_ids.extend(ti); new_vecs.extend(tv)
-                    seen_ids.update(ti)
-                    iter_query = f"{iter_query} | [time@{','.join(f'{w:.0f}s' for w in windows)}]"
 
         new_texts, new_ids, new_vecs = _dedup_by_similarity(
             new_texts, new_ids, new_vecs, all_ev_vecs, evidence_dedup_threshold)
@@ -879,14 +712,6 @@ def run_veil(
         order    = _rerank_by_rubric(question, candidates, ev_texts, rubric, llm, verifier=verifier)
         ev_texts = [ev_texts[i] for i in order]
         ev_ids   = [ev_ids[i]   for i in order]
-
-    # Opt-in evidence focus (VEIL_EVIDENCE_CAP=N): after the rubric rerank puts the
-    # useful segments first, keep only the top N so the gold segment isn't diluted
-    # among ~57 near-duplicate egocentric segments.
-    _ev_cap = int(os.environ.get("VEIL_EVIDENCE_CAP", "0") or 0)
-    if _ev_cap > 0 and len(ev_texts) > _ev_cap:
-        ev_texts = ev_texts[:_ev_cap]
-        ev_ids   = ev_ids[:_ev_cap]
 
     kf_for_answer        = all_keyframes
     kf_chunk_ids_for_ans = all_kf_chunk_ids

@@ -20,12 +20,6 @@ from typing import List, Optional, Tuple
 import numpy as np
 
 
-def _env_prompt(name: str, default: str) -> str:
-    """Allow a prompt to be overridden at runtime via an env var (for prompt-
-    iteration experiments without editing source). Empty/unset → default."""
-    return os.environ.get(name, "").strip() or default
-
-
 # ── Iter-0: sub-question decomposition ────────────────────────────────────────
 
 _SUBQ_SYS = """You are a question decomposer for a video question-answering system.
@@ -236,22 +230,6 @@ def _plan_next(
             "Generate queries for the concrete visual/dialogue evidence needed to resolve this fact."
         )
 
-    # VEIL_PEROPT_REPAIR: per-option repair. iter-0 decomposes by option, but the
-    # repair rounds normally emit generic reformulations even though the verifier
-    # already flags which options are UNRESOLVED. This makes the repair round
-    # mirror iter-0: one self-contained probe per unresolved option (option text ×
-    # the missing fact), so per-option verification is matched by per-option
-    # retrieval. Differs from the deleted single-query option-repair (which starved
-    # evidence): here every unresolved option is probed in the SAME round.
-    if os.environ.get("VEIL_PEROPT_REPAIR") == "1" and unknown_set:
-        parts.append(
-            "Use strategy=\"query\". For EACH option marked [UNRESOLVED], write ONE "
-            "self-contained query that would retrieve the specific visual/dialogue evidence "
-            "needed to CONFIRM OR RULE OUT that option (bind the option's content to the "
-            "missing fact above). Output one query per unresolved option; do not merge them "
-            "and do not repeat any earlier query."
-        )
-
     parts.append("Output the retrieval strategy JSON now.")
 
     # Visual strategy (VEIL_VISUAL_STRATEGY=1) offers a third `image` retrieval mode;
@@ -259,7 +237,7 @@ def _plan_next(
     _visual = os.environ.get("VEIL_VISUAL_STRATEGY") == "1"
     _default_sys = _PLANNER_UNIFIED_SYS_IMG if _visual else _PLANNER_UNIFIED_SYS
     messages = [
-        {"role": "system", "content": _env_prompt("VEIL_PLANNER_SYS", _default_sys)},
+        {"role": "system", "content": _default_sys},
         {"role": "user",   "content": "\n\n".join(parts)},
     ]
     raw = llm.chat(messages, max_new_tokens=200, enable_thinking=False)
@@ -294,89 +272,6 @@ def _plan_next(
     return {"think": "parse_failed", "strategy": "query", "queries": [question],
             "time_ranges": [], "reasoning": "parse_failed"}
 
-
-# ── Iter ≥1: single-query repair (VEIL_OPTION_REPAIR) ────────────────────────
-
-_PLANNER_SINGLE_SYS = """You are a retrieval query planner for a video question-answering system \
-running an iterative verify-repair loop. Each round you issue EXACTLY ONE retrieval query to \
-fetch the single most valuable piece of still-missing evidence.
-
-You are given:
-- the question and its options, each tagged [UNRESOLVED] or [PROBED];
-- the verifier's analysis of what evidence is still missing;
-- the queries already tried — do NOT repeat or paraphrase any of them.
-
-Produce ONE query that:
-1. STAYS FAITHFUL to the original question — keep the people, place, objects and the specific \
-relation it asks about. (A relative time word like "yesterday" cannot be matched by the retriever \
-and should be dropped from the query text — the time filter is handled separately — but keep \
-every other concrete detail.)
-2. targets the specific missing evidence needed to confirm or rule out ONE option that is \
-[UNRESOLVED] and not yet [PROBED] — use the option only to choose WHICH concrete detail to probe.
-3. is phrased as a concrete factual question about the actual event (who / what / where), NOT an \
-imperative like "show the scene" — so it matches the real event, not any superficially similar clip.
-4. is clearly DIFFERENT from every already-tried query.
-
-Return ONLY a JSON object:
-{"think": "<brief reason>", "query": "<one retrieval query>", "target_option": "A|B|C|D"}"""
-
-
-def _plan_single_repair(
-    question: str,
-    candidates: List[str],
-    missing_analysis: str,
-    llm,
-    plan_history: List[List[str]] = (),
-    unknown_options: Optional[List[str]] = None,
-    probed_options: Optional[set] = None,
-) -> dict:
-    """One dissimilar, verifier-guided query aimed at an unresolved & unprobed option."""
-    unknown_set = set(unknown_options or [])
-    probed = probed_options or set()
-    opts_lines = []
-    for i, c in enumerate(candidates):
-        letter = chr(ord('A') + i)
-        tags = ""
-        if letter in unknown_set:
-            tags += " [UNRESOLVED]"
-        if letter in probed:
-            tags += " [PROBED]"
-        opts_lines.append(f"  ({letter}) {c}{tags}")
-    opts = "\n".join(opts_lines)
-
-    parts = [f"Question: {question}", f"Options:\n{opts}"]
-    if missing_analysis:
-        parts.append(f"Verifier says still missing:\n{missing_analysis}")
-    if plan_history:
-        tried = [f'  "{q}"' for qs in plan_history for q in qs if q]
-        if tried:
-            parts.append("Already tried (do NOT repeat or paraphrase):\n" + "\n".join(tried))
-    parts.append("Output the single-query JSON now.")
-
-    messages = [
-        {"role": "system", "content": _env_prompt("VEIL_PLANNER_SINGLE_SYS", _PLANNER_SINGLE_SYS)},
-        {"role": "user",   "content": "\n\n".join(parts)},
-    ]
-    raw = llm.chat(messages, max_new_tokens=160, enable_thinking=False)
-    m = re.search(r'\{.*\}', raw, re.DOTALL)
-    if m:
-        try:
-            d = _json.loads(m.group())
-            q = str(d.get("query", "")).strip()
-            tgt = str(d.get("target_option", "")).strip().upper()[:1]
-            if q:
-                return {"strategy": "query", "queries": [q], "time_ranges": [],
-                        "reasoning": str(d.get("think") or d.get("reasoning") or ""),
-                        "think": str(d.get("think") or d.get("reasoning") or ""),
-                        "target_option": tgt if tgt in "ABCD" else None}
-        except Exception:
-            pass
-    return {"strategy": "query", "queries": [question], "time_ranges": [],
-            "think": "single_parse_failed", "reasoning": "single_parse_failed",
-            "target_option": None}
-
-
-# ── Verifier → planner repair context ────────────────────────────────────────
 
 def _planner_repair_context(verdict: dict, rubric_judgment: bool) -> str:
     """Build the verifier-derived missing-evidence description for the planner."""
@@ -456,27 +351,6 @@ class Planner:
             prune_satisfied=prune_satisfied,
         )
         return plan, m_desc
-
-    def plan_single_repair(
-        self,
-        question: str,
-        candidates: List[str],
-        evidence_texts: List[str],
-        verdict: dict,
-        plan_history: List[List[str]],
-        probed_options: set,
-        *,
-        rubric_judgment: bool = True,
-    ) -> dict:
-        """VEIL_OPTION_REPAIR: exactly ONE verifier-guided query for the next unresolved,
-        not-yet-probed option, reasoned jointly over the missing-evidence trace, the
-        options, and the query history (and told to stay dissimilar from it)."""
-        m_desc = _planner_repair_context(verdict, rubric_judgment)
-        unk_opts = verdict.get("unknown_options") if rubric_judgment else None
-        return _plan_single_repair(
-            question, candidates, m_desc, self.llm, plan_history,
-            unknown_options=unk_opts, probed_options=probed_options,
-        )
 
     def filter_targeted_queries(
         self,

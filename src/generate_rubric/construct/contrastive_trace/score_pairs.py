@@ -54,13 +54,7 @@ def main() -> None:
     ap.add_argument("--out", required=True)
     ap.add_argument("--resume", action="store_true", help="resume from <out>.state.json")
     ap.add_argument("--progress-every", type=int, default=50)
-    ap.add_argument("--binary", action="store_true",
-                    help="score each criterion 0/1 (no 0.5); hard yes/no per criterion")
     args = ap.parse_args()
-
-    os.environ["VEIL_VERIFIER_HOLISTIC"] = "1"  # force holistic path
-    if args.binary:
-        os.environ["VEIL_VERIFIER_BINARY"] = "1"
 
     from src.config import load_config
     cfg = load_config(args.config)

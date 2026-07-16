@@ -15,10 +15,6 @@ import numpy as np
 _TOKEN = re.compile(r"[a-zA-Z0-9]+")
 
 
-def enabled() -> bool:
-    return os.environ.get("VEIL_HYBRID_BM25") == "1"
-
-
 def _tok(s: str):
     return _TOKEN.findall(s.lower())
 
