@@ -6,9 +6,9 @@ benchmark:
   duration_groups: null
 
 paths:
-  outputs_root: /home2/ycj/Project/VEIL/outputs
+  outputs_root: /home2/ycj/Project/REVEAL/outputs
 
-veil_loop:
+reveal_loop:
   max_iter: 3
   query_history_dedup_threshold: 0.9
   evidence_dedup_threshold: 0.9
@@ -16,7 +16,7 @@ veil_loop:
   kf_dedup_threshold: 0.92
 
 eval:
-  output_dir: /home2/ycj/Project/VEIL/outputs/results/lvbench
+  output_dir: /home2/ycj/Project/REVEAL/outputs/results/lvbench
 
 models:
   vlm:

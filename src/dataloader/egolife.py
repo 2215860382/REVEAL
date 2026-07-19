@@ -96,7 +96,7 @@ def load_egolife(
     max_samples: Optional[int] = None,
     filter_people: Optional[List[str]] = None,
 ) -> List[EgoLifeSample]:
-    """Load an EgoLife-family MCQ benchmark into VEIL samples.
+    """Load an EgoLife-family MCQ benchmark into REVEAL samples.
 
     ``bench``: egor1_manual | egor1_gemini | egor1_both | egolifeqa
     ``bench_root``: dir containing the benchmark subfolders / json files.

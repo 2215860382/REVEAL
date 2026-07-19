@@ -1,4 +1,4 @@
-"""Opt-in hybrid dense+BM25 retrieval (VEIL_HYBRID_BM25=1).
+"""Opt-in hybrid dense+BM25 retrieval (REVEAL_HYBRID_BM25=1).
 
 A lightweight BM25 index over a bank's L1 chunks (memory_text + ASR), cached on
 the bank object so it is built once per bank, not per query. Fused with the dense

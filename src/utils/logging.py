@@ -6,8 +6,8 @@ import sys
 _FMT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 
 
-def get_logger(name: str = "veil", level: str | None = None) -> logging.Logger:
-    level = level or os.environ.get("VEIL_LOG", "INFO")
+def get_logger(name: str = "reveal", level: str | None = None) -> logging.Logger:
+    level = level or os.environ.get("REVEAL_LOG", "INFO")
     logger = logging.getLogger(name)
     if logger.handlers:
         return logger

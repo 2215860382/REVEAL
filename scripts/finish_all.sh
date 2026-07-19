@@ -13,7 +13,7 @@ log(){ echo "[finish $(date +%F_%T)] $*" >>"$OLOG"; }
 
 vllm_up(){ curl -s --noproxy '*' -m5 http://127.0.0.1:8006/v1/models 2>/dev/null | grep -q Qwen3.5-27B; }
 shards_gone(){ [ "$(pgrep -fc 'filter-from outputs/lvb_half')" = "0" ]; }
-eval_gone(){ [ "$(pgrep -fc veil_27b)" = "0" ]; }
+eval_gone(){ [ "$(pgrep -fc reveal_27b)" = "0" ]; }
 io_quiet(){  # calm enough for a 45GB sequential load? avg of last 3 of 4 samples
   iostat -dx sdc 4 4 2>/dev/null | awk '
     /^sdc/{n++; if(n>1){u+=$NF; a+=$10; c++}}

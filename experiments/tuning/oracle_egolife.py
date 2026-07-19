@@ -22,7 +22,7 @@ from src.build_memory.core.bank_loader import load_bank
 from src.agents.answerer import Answerer
 from src.clients.vlm_client import VLMClient
 
-ROOT       = Path("/home2/ycj/Project/VEIL")
+ROOT       = Path("/home2/ycj/Project/REVEAL")
 MEMDIR     = ROOT / "outputs/memory/egolife"
 BENCH_ROOT = "/home2/ycj/Datas/EgoLife_bench"
 VIDEO_DIR  = "/home2/ycj/Datas/EgoLife"

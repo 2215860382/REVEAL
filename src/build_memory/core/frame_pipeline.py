@@ -126,12 +126,12 @@ def extract_frames(video_path: str, out_dir: Path, fps: float = DEFAULT_FPS,
     the 448-side downscale at the API boundary.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    # Long-edge cap on extracted frames, env-tunable via VEIL_EXTRACT_MAX_SIDE
+    # Long-edge cap on extracted frames, env-tunable via REVEAL_EXTRACT_MAX_SIDE
     # (default 0 = no cap, preserves original behavior). Set e.g. 1920 to keep
     # ultra-high-res sources (8K) from choking ffmpeg's scale+JPEG-encode stage.
     # Never upscales smaller videos (min() with iw/ih + decrease-only fit).
     import os
-    _max = int(os.environ.get("VEIL_EXTRACT_MAX_SIDE", "0"))
+    _max = int(os.environ.get("REVEAL_EXTRACT_MAX_SIDE", "0"))
     vf = f"fps={fps}"
     if _max > 0:
         vf += (f",scale='min({_max},iw)':'min({_max},ih)'"
@@ -139,10 +139,10 @@ def extract_frames(video_path: str, out_dir: Path, fps: float = DEFAULT_FPS,
     # Optional GPU (NVDEC) decode for ultra-high-res sources. CPU software decode
     # chokes on 8K (must decode 100k+ full-res frames at 24fps before the fps=1
     # downsample); NVDEC hardware decode clears it in ~1/10 the wall time. Enable
-    # via VEIL_HWACCEL_DEVICE=<gpu idx> (empty = CPU software decode, default).
+    # via REVEAL_HWACCEL_DEVICE=<gpu idx> (empty = CPU software decode, default).
     # Explicit hwaccel_device arg overrides the env (None = read env, preserving
     # the default behaviour for lvbench/videomme callers).
-    _hw = hwaccel_device if hwaccel_device is not None else os.environ.get("VEIL_HWACCEL_DEVICE", "")
+    _hw = hwaccel_device if hwaccel_device is not None else os.environ.get("REVEAL_HWACCEL_DEVICE", "")
     pre = ["ffmpeg"]
     if _hw != "":
         pre += ["-hwaccel", "cuda", "-hwaccel_device", str(_hw)]
@@ -432,7 +432,7 @@ def clean_and_group_frames(
     out_kf_resized.mkdir(parents=True, exist_ok=True)
     out_raw_dir.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory(prefix="veil_frames_") as tmp:
+    with tempfile.TemporaryDirectory(prefix="reveal_frames_") as tmp:
         tmp_dir = Path(tmp)
 
         # 1. Extract

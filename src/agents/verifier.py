@@ -48,7 +48,7 @@ def _inject_images(message: dict, pil_images) -> dict:
 
 @lru_cache(maxsize=1)
 def _rubric_config() -> Tuple[Dict, Dict, Dict[str, str], List[Tuple[List[str], str]]]:
-    override = os.environ.get("VEIL_RUBRIC_PATH")
+    override = os.environ.get("REVEAL_RUBRIC_PATH")
     path = (
         Path(override).expanduser()
         if override
@@ -58,7 +58,7 @@ def _rubric_config() -> Tuple[Dict, Dict, Dict[str, str], List[Tuple[List[str], 
         / "rubric_contrastive.yaml"
     )
     if not path.is_file():
-        raise FileNotFoundError(f"VEIL rubric templates missing: {path}")
+        raise FileNotFoundError(f"REVEAL rubric templates missing: {path}")
     with path.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
@@ -359,9 +359,9 @@ class Verifier:
         # type-criteria don't dilute the per-option denominator (on egolife only
         # ~6 of 33 apply → scoring all → every option ~0.18 → always INSUFFICIENT).
         # This IS the paper's mainline sufficiency judgment and is the SAME across
-        # datasets, so it defaults ON. Opt out with VEIL_VERIFIER_NO_RELEVANCE=1
+        # datasets, so it defaults ON. Opt out with REVEAL_VERIFIER_NO_RELEVANCE=1
         # (legacy score-all ablation) — mirrors the holistic path's opt-out (~L459).
-        if (not os.environ.get("VEIL_VERIFIER_NO_RELEVANCE", "").strip()
+        if (not os.environ.get("REVEAL_VERIFIER_NO_RELEVANCE", "").strip()
                 and "_legacy_text" not in rubric_dict):
             relevant = self._relevant_criteria(question, opts, rubric_dict)
             sel_crits = [c for c in (rubric_dict.get("rubric_criteria") or [])
@@ -427,13 +427,13 @@ class Verifier:
             if per_option_rubric_scores.get(opt, 0.0) < sufficient_threshold
         }
         unknown_opts = sorted(model_unknown | score_unknown)
-        # Aggregation of per-option scores → rubric_score (VEIL_VERIFIER_AGG).
+        # Aggregation of per-option scores → rubric_score (REVEAL_VERIFIER_AGG).
         #   min  (default): sufficient only when EVERY option is decidable — high precision, but
         #                   in open-world egocentric QA distractors are rarely excludable, so it
         #                   fires ~5%. max: sufficient when the WINNING option is confidently
         #                   decidable — matches "answerable" far better (sim: ~5× fire at equal
         #                   correlation gap). mean: middle ground.
-        agg = os.environ.get("VEIL_VERIFIER_AGG", "min").strip().lower()
+        agg = os.environ.get("REVEAL_VERIFIER_AGG", "min").strip().lower()
         if per_option_rubric_scores:
             _vals = [per_option_rubric_scores.get(opt, 0.0) for opt in all_opts]
             rubric_score = (max(_vals) if agg == "max"

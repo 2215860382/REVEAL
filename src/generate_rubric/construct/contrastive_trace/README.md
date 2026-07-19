@@ -42,7 +42,7 @@ bash scripts/run_online_rubric.sh
 
 ## 产物
 
-- `<OUT_ROOT>/rubric_final.yaml` — 部署用，`export VEIL_RUBRIC_PATH=<OUT_ROOT>/rubric_final.yaml`。
+- `<OUT_ROOT>/rubric_final.yaml` — 部署用，`export REVEAL_RUBRIC_PATH=<OUT_ROOT>/rubric_final.yaml`。
 - 本次完整跑的存档：`outputs/rubric/online_full_20260703_061243/`（含 `rubric_v2_consolidated.yaml` 等）。
 
 ## 备注

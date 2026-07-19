@@ -23,7 +23,7 @@ from src.clients.vlm_client import VLMClient
 import cv2
 from PIL import Image
 
-ROOT   = Path("/home2/ycj/Project/VEIL")
+ROOT   = Path("/home2/ycj/Project/REVEAL")
 MEMDIR = ROOT / "outputs/memory/egolife"
 VIDDIR = Path("/home2/ycj/Datas/EgoLife")
 PERSON = "A1_JAKE"

@@ -1,4 +1,4 @@
-# Pinned roughly to what's been verified in the `veil` conda env.
+# Pinned roughly to what's been verified in the `reveal` conda env.
 # Install order matters: torch first via pytorch.org cu128 wheels.
 # pip install --index-url https://download.pytorch.org/whl/cu128 torch torchvision
 # pip install -r requirements.txt

@@ -14,13 +14,13 @@
 # qVZOKel-gpE idx 843-845, so they must wait for that bank to be rebuilt or they'd blank
 # too. Serialized to keep the shared endpoints clean.
 set -uo pipefail
-cd /home2/ycj/Project/VEIL
+cd /home2/ycj/Project/REVEAL
 export PYTHONPATH=.
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY 2>/dev/null || true
 export NO_PROXY=127.0.0.1,10.82.1.145,10.82.1.147,localhost,::1
 export no_proxy="$NO_PROXY"
 
-PY=/home2/ycj/miniconda3/envs/veil/bin/python
+PY=/home2/ycj/miniconda3/envs/reveal/bin/python
 CFG=configs/videomme.yaml
 MEM=outputs/memory/videommeL_1344
 EMB=http://127.0.0.1:9000
@@ -63,24 +63,24 @@ COMMON=(--config "$CFG" --memory-dir "$MEM" --embed-api-url "$EMB"
 run () {   # $1=pipeline  $2=max_iter ; env pre-exported by caller
   local name="$1" mi="$2"
   echo "[$(date +%F_%T)] === $name (max-iter=$mi) START ==="
-  $PY experiments/tuning/veil_27b.py "${COMMON[@]}" \
+  $PY experiments/tuning/reveal_27b.py "${COMMON[@]}" \
       --max-iter "$mi" --pipeline-name "$name" --out "$OUTDIR/$name.jsonl"
   echo "[$(date +%F_%T)] === $name DONE (rc=$?) ==="
 }
 
 # Implicit (verifier-free) rungs: one reasoner per round decides search-vs-answer and
-# emits its own query — no verifier/planner/answerer (VEIL_WORLDMM_IMPLICIT=1).
+# emits its own query — no verifier/planner/answerer (REVEAL_WORLDMM_IMPLICIT=1).
 # "caption" = the raw caption bank (L1 only, before our layered-memory processing);
 # "memory"  = our constructed memory bank (3-level 8/4/2). The caption↔memory gap is
 # the value of building the memory bank; the implicit↔rubric gap is the value of the rubric.
 # 1) caption + implicit, single round (retrieve once → forced answer)
-VEIL_MP_L1_CAP=8 VEIL_MP_L2_CAP=0 VEIL_MP_L3_CAP=0 VEIL_WORLDMM_IMPLICIT=1 \
+REVEAL_MP_L1_CAP=8 REVEAL_MP_L2_CAP=0 REVEAL_MP_L3_CAP=0 REVEAL_WORLDMM_IMPLICIT=1 \
   run vmme_caption_implicit_r1 1
 # 2) caption + implicit, iterate
-VEIL_MP_L1_CAP=8 VEIL_MP_L2_CAP=0 VEIL_MP_L3_CAP=0 VEIL_WORLDMM_IMPLICIT=1 \
+REVEAL_MP_L1_CAP=8 REVEAL_MP_L2_CAP=0 REVEAL_MP_L3_CAP=0 REVEAL_WORLDMM_IMPLICIT=1 \
   run vmme_caption_implicit 3
 # 3) our memory + implicit, iterate
-VEIL_WORLDMM_IMPLICIT=1 \
+REVEAL_WORLDMM_IMPLICIT=1 \
   run vmme_memory_implicit 3
 
 # ── Report the 2×2(+base) ablation grid — all on videommeL_1344 ──

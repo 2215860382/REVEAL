@@ -12,7 +12,7 @@ unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY \
 export no_proxy='*' NO_PROXY='*'
 API="${API:-http://127.0.0.1:8003,http://10.82.1.145:8001}"
 
-exec python experiments/tuning/veil_27b.py \
+exec python experiments/tuning/reveal_27b.py \
   --config configs/lvbench.yaml \
   --memory-dir outputs/memory/lvbench_fullres \
   --bge-gpu "${BGE_GPU:-cuda:1}" \
@@ -20,5 +20,5 @@ exec python experiments/tuning/veil_27b.py \
   --llm-api-url "$API" --llm-api-model Qwen3.5-27B \
   --no-keyframes --answer-keyframe-k 0 \
   --workers "${WORKERS:-8}" \
-  --pipeline-name veil_fullres_all \
-  --out outputs/results/lvbench/veil_fullres_all.jsonl
+  --pipeline-name reveal_fullres_all \
+  --out outputs/results/lvbench/reveal_fullres_all.jsonl

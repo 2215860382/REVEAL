@@ -3,12 +3,12 @@
 # Goal: the strictly-attributed "full + rubric_contrastive.yaml" 900-Q number for abl_5_full.
 # LLM/VLM -> two remote endpoints on 145 (8005 + 8003). Text-only (no keyframes).
 set -u
-cd /home2/ycj/Project/VEIL
+cd /home2/ycj/Project/REVEAL
 export PYTHONPATH=.
 unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY 2>/dev/null || true
 export NO_PROXY=127.0.0.1,10.82.1.145,10.82.1.147,localhost,::1 no_proxy=$NO_PROXY
-env VEIL_RUBRIC_PATH=outputs/rubric/rubric_contrastive.yaml \
-  /home2/ycj/miniconda3/envs/veil/bin/python experiments/tuning/veil_27b.py \
+env REVEAL_RUBRIC_PATH=outputs/rubric/rubric_contrastive.yaml \
+  /home2/ycj/miniconda3/envs/reveal/bin/python experiments/tuning/reveal_27b.py \
   --config configs/videomme.yaml --memory-dir outputs/memory/videommeL \
   --embed-api-url http://127.0.0.1:9000 \
   --vlm-api-url http://10.82.1.145:8005,http://10.82.1.145:8003 \

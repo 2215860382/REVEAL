@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Ego-R1-Bench manual eval: 150 MCQs (25/person × 6). Needs ALL 6 person banks
 # (A1-A6) built in outputs/memory/egolife. Text-only baseline (matches EgoLifeQA).
-# Toggle recall/answerer levers via VEIL_* env (HYBRID_BM25 / SPEAKER_PROMPT /
+# Toggle recall/answerer levers via REVEAL_* env (HYBRID_BM25 / SPEAKER_PROMPT /
 # EVIDENCE_CAP) — same flags proven on EgoLifeQA. Resumes via already-done records.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -17,7 +17,7 @@ for p in A1_JAKE A2_ALICE A3_TASHA A4_LUCIA A5_KATRINA A6_SHURE; do
 done
 [ "$miss" = 0 ] || { echo "Not all 6 banks built — aborting."; exit 1; }
 
-exec python experiments/tuning/veil_27b.py \
+exec python experiments/tuning/reveal_27b.py \
   --config configs/egor1.yaml --memory-dir outputs/memory/egolife \
   --bge-gpu "${BGE_GPU:-cuda:1}" \
   --vlm-api-url "$API" --vlm-api-model Qwen3.5-27B \

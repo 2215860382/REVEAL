@@ -7,12 +7,12 @@ benchmark:
   subtitle_dir: null  # not used for this experiment
 
 paths:
-  outputs_root: /home2/ycj/Project/VEIL/outputs
+  outputs_root: /home2/ycj/Project/REVEAL/outputs
 
 memory:
-  cache_dir: /home2/ycj/Project/VEIL/outputs/memory/videomme_L_27B
+  cache_dir: /home2/ycj/Project/REVEAL/outputs/memory/videomme_L_27B
 
-veil_loop:
+reveal_loop:
   max_iter: 3
   query_history_dedup_threshold: 0.9      # Jaccard, query vs history
   evidence_dedup_threshold: 0.9           # BGE cosine, evidence chunk vs accumulated
@@ -20,7 +20,7 @@ veil_loop:
   kf_dedup_threshold: 0.92                # SigLIP cosine, keyframe vs keyframe
 
 eval:
-  output_dir: /home2/ycj/Project/VEIL/outputs/results/videomme
+  output_dir: /home2/ycj/Project/REVEAL/outputs/results/videomme
 
 models:
   vlm:

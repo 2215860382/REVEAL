@@ -20,7 +20,7 @@ from src.build_memory.core.bank_loader import load_bank
 from src.agents.answerer import Answerer
 from src.clients.vlm_client import VLMClient
 
-ROOT=Path("/home2/ycj/Project/VEIL"); MEMDIR=ROOT/"outputs/memory/egolife"; VIDDIR=Path("/home2/ycj/Datas/EgoLife")
+ROOT=Path("/home2/ycj/Project/REVEAL"); MEMDIR=ROOT/"outputs/memory/egolife"; VIDDIR=Path("/home2/ycj/Datas/EgoLife")
 PERSON="A1_JAKE"; W=int(os.environ.get("W","1")); NPC=int(os.environ.get("NPC","4"))
 MAXSIDE=int(os.environ.get("MAXSIDE","896")); WORKERS=int(os.environ.get("WORKERS","6")); API=os.environ["API"]
 OUT=ROOT/"outputs/results/egolife/oracle_recaption_a1_visual.jsonl"

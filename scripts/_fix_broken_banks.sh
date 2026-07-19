@@ -16,15 +16,15 @@
 #   5. drop the blank rows from the two main-table jsonls, rerun only those idxs
 #      (same --out + --pipeline-name so the numbers stay canonical), report acc.
 set -uo pipefail
-cd /home2/ycj/Project/VEIL
+cd /home2/ycj/Project/REVEAL
 export PYTHONPATH=.
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY 2>/dev/null || true
 export no_proxy='*' NO_PROXY='*'
 export TMPDIR=/dev/shm
-export VEIL_RUBRIC_PATH=outputs/rubric/rubric_pool.yaml   # threshold 0.7 baked
-export VEIL_VERIFIER_AGG=max
+export REVEAL_RUBRIC_PATH=outputs/rubric/rubric_pool.yaml   # threshold 0.7 baked
+export REVEAL_VERIFIER_AGG=max
 
-PY=/home2/ycj/miniconda3/envs/veil/bin/python
+PY=/home2/ycj/miniconda3/envs/reveal/bin/python
 EP=http://127.0.0.1:8003,http://127.0.0.1:8006,http://10.82.1.145:8002,http://10.82.1.145:8004
 EMB=http://127.0.0.1:9000
 OVLOG=outputs/logs/after_sweep_maintable.log
@@ -61,7 +61,7 @@ echo "[$(date +%F_%T)] build endpoints=$API"
 mkdir -p outputs/lists
 echo '{"video_id": "qVZOKel-gpE"}' > outputs/lists/vmme_fix_one.jsonl
 echo "[$(date +%F_%T)] === REBUILD videomme qVZOKel-gpE ==="
-VEIL_CAPTION_MAX_SIDE=1344 VEIL_EXTRACT_MAX_SIDE=1344 \
+REVEAL_CAPTION_MAX_SIDE=1344 REVEAL_EXTRACT_MAX_SIDE=1344 \
 $PY -m src.build_memory.build_single_similarity \
   --benchmark videomme --filter-from outputs/lists/vmme_fix_one.jsonl \
   --siglip-model /home2/ycj/Models/google/siglip-large-patch16-384 \
@@ -76,7 +76,7 @@ echo "[$(date +%F_%T)] === videomme rebuild rc=$? ==="
 
 # ── 3b. Rebuild longvideobench wxWo44MoCTI (resume skips the 752 built) ──
 echo "[$(date +%F_%T)] === REBUILD longvideobench wxWo44MoCTI ==="
-VEIL_CAPTION_MAX_SIDE=1344 VEIL_EXTRACT_MAX_SIDE=1344 \
+REVEAL_CAPTION_MAX_SIDE=1344 REVEAL_EXTRACT_MAX_SIDE=1344 \
 $PY -m src.build_memory.build_single_similarity \
   --benchmark longvideobench \
   --subtitle-dir /home2/ycj/Datas/LongVideoBench/subtitles_srt \
@@ -134,12 +134,12 @@ COMMON=(--embed-api-url "$EMB" --vlm-api-url "$EP" --llm-api-url "$EP"
         --no-keyframes --answer-keyframe-k 0 --max-iter 3 --workers 6)
 
 echo "[$(date +%F_%T)] === RERUN videomme 843-845 ==="
-$PY experiments/tuning/veil_27b.py --config configs/videomme.yaml \
+$PY experiments/tuning/reveal_27b.py --config configs/videomme.yaml \
     --memory-dir outputs/memory/videommeL_1344 "${COMMON[@]}" \
     --sample-start 843 --sample-end 846 \
     --pipeline-name vmme_pool_text --out "$VMME"
 echo "[$(date +%F_%T)] === RERUN longvideobench 39-40 ==="
-$PY experiments/tuning/veil_27b.py --config configs/longvideobench.yaml \
+$PY experiments/tuning/reveal_27b.py --config configs/longvideobench.yaml \
     --memory-dir outputs/memory/longvideobench "${COMMON[@]}" \
     --sample-start 39 --sample-end 41 \
     --pipeline-name lvbh_pool_text --out "$LVBH"

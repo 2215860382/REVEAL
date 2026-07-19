@@ -7,17 +7,17 @@ cd "$(dirname "$0")/.."
 export PYTHONPATH=.
 export NO_PROXY=127.0.0.1,10.82.1.145,10.82.1.147,localhost,::1 no_proxy=$NO_PROXY
 unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY 2>/dev/null || true
-export VEIL_CAPTION_MAX_SIDE=1344
-# 抽帧时即把超阈值(长边>1344)的帧降到 1344,与 caption 上界(VEIL_CAPTION_MAX_SIDE)精确对齐。
+export REVEAL_CAPTION_MAX_SIDE=1344
+# 抽帧时即把超阈值(长边>1344)的帧降到 1344,与 caption 上界(REVEAL_CAPTION_MAX_SIDE)精确对齐。
 # 8K/4K 源(如 GcRKREorGSc 7680×4320)原生抽帧会让下游 dHash/frames_raw 写盘处理 3300 万像素/帧,
 # 单视频卡 2h+;而 caption 本就被 1344 砍、SigLIP 砍到 384,留大图纯浪费。降到 caption 上界即可,
 # 下游最轻、keyframes 存储正好 1344、对 caption 零损失。CPU 软解(NVDEC 对 8K 因 host↔device
 # 拷回全分辨率帧反而更慢,实测 0.8 vs 2+ 帧/s)。可用 env 覆盖。
-export VEIL_EXTRACT_MAX_SIDE="${VEIL_EXTRACT_MAX_SIDE:-1344}"
+export REVEAL_EXTRACT_MAX_SIDE="${REVEAL_EXTRACT_MAX_SIDE:-1344}"
 # 抽帧解码器开关: 空=CPU软解(默认), 设卡号=GPU NVDEC。实测 8K(GcRKREorGSc 7680×4320)
 # 降1344: CPU 3.7帧/s vs GPU 0.9帧/s → CPU 快 4x。NVDEC 解码后要把 33MP 全帧拷回 host
-# 才能跑 scale 滤镜(scale_cuda 未接), PCIe 拷贝比解码还贵。故默认 CPU。要 GPU: VEIL_HWACCEL_DEVICE=1
-export VEIL_HWACCEL_DEVICE="${VEIL_HWACCEL_DEVICE:-}"
+# 才能跑 scale 滤镜(scale_cuda 未接), PCIe 拷贝比解码还贵。故默认 CPU。要 GPU: REVEAL_HWACCEL_DEVICE=1
+export REVEAL_HWACCEL_DEVICE="${REVEAL_HWACCEL_DEVICE:-}"
 # 临时抽帧目录走 /dev/shm(内存 tmpfs)→ 抽帧对 HDD(sdc/home2)零 IO。配合 --no-persist-frames,
 # 帧只在内存里给 caption 读、读完即丢,永不落 frames_raw。之前 frames_raw 砸满 sdc 小文件 →
 # 脏页写回饿死、load 爆 590 的 IO 风暴根因就此消除。sdc 只剩 narrative+vectors(每视频~3MB)。

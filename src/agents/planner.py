@@ -1,4 +1,4 @@
-"""Planner — generate retrieval queries for the VEIL iterative loop.
+"""Planner — generate retrieval queries for the REVEAL iterative loop.
 
 Two-stage planning:
   iter-0: sub-question decomposition (LLM-decomposed or option-grounded).
@@ -101,7 +101,7 @@ Use time retrieval when coverage must span the ENTIRE video, including:
 
 
 # Same as _PLANNER_UNIFIED_SYS but offers a third, VISUAL retrieval strategy. Gated by
-# VEIL_VISUAL_STRATEGY=1 so the default (query/time) planner — and every in-flight
+# REVEAL_VISUAL_STRATEGY=1 so the default (query/time) planner — and every in-flight
 # experiment/threshold sweep — is byte-identical unless a run explicitly opts in.
 _PLANNER_UNIFIED_SYS_IMG = """You are a retrieval strategy planner for a video question-answering system.
 Given the current evidence and what is still missing, decide the BEST next retrieval strategy.
@@ -186,6 +186,7 @@ def _plan_next(
     plan_history: List[List[str]] = (),
     unknown_options: Optional[List[str]] = None,
     prune_satisfied: bool = False,
+    trajectory_notes: Optional[str] = None,
 ) -> dict:
     """Unified planner for iter ≥1: pick query or time retrieval.
 
@@ -209,7 +210,14 @@ def _plan_next(
             "Only generate queries for facts that remain unresolved."
         )
 
-    if plan_history:
+    if trajectory_notes:
+        # Failure-aware history (REVEAL_ONLINE_TRAJECTORY_FEEDBACK): tells the planner not just
+        # WHAT was tried but the retrieval method and WHY it was unproductive, so it can switch
+        # strategy (e.g. off_target → rephrase, redundant → try time/uncovered, empty → widen).
+        parts.append(
+            "Retrieval history (method | query -> outcome; do NOT repeat what failed the same "
+            "way — change the query or strategy):\n" + trajectory_notes)
+    elif plan_history:
         lines = []
         for qs in plan_history:
             if qs:
@@ -232,9 +240,9 @@ def _plan_next(
 
     parts.append("Output the retrieval strategy JSON now.")
 
-    # Visual strategy (VEIL_VISUAL_STRATEGY=1) offers a third `image` retrieval mode;
+    # Visual strategy (REVEAL_VISUAL_STRATEGY=1) offers a third `image` retrieval mode;
     # off by default so the query/time planner and every in-flight sweep are unchanged.
-    _visual = os.environ.get("VEIL_VISUAL_STRATEGY") == "1"
+    _visual = os.environ.get("REVEAL_VISUAL_STRATEGY") == "1"
     _default_sys = _PLANNER_UNIFIED_SYS_IMG if _visual else _PLANNER_UNIFIED_SYS
     messages = [
         {"role": "system", "content": _default_sys},
@@ -337,10 +345,12 @@ class Planner:
         *,
         rubric_judgment: bool = True,
         prune_satisfied: bool = False,
+        trajectory_notes: Optional[str] = None,
     ) -> Tuple[dict, str]:
         """Pick the next iter plan from the verifier verdict.
 
-        Returns (plan, missing_description).
+        ``trajectory_notes`` (opt-in) replaces the plain "already tried" block with a
+        failure-diagnosed retrieval history. Returns (plan, missing_description).
         """
         m_desc = _planner_repair_context(verdict, rubric_judgment)
 
@@ -349,6 +359,7 @@ class Planner:
             question, candidates, evidence_texts, m_desc, self.llm, plan_history,
             unknown_options=unk_opts,
             prune_satisfied=prune_satisfied,
+            trajectory_notes=trajectory_notes,
         )
         return plan, m_desc
 

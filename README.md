@@ -1,4 +1,4 @@
-# VEIL — Video Evidence Iterative Loop
+# REVEAL — Video Evidence Iterative Loop
 
 Long-video multiple-choice QA (VideoMME *long*: 900 questions / 300 videos).
 Core idea: **decide whether the evidence is sufficient before answering** — build a
@@ -33,9 +33,9 @@ src/
   eval/                           # answer parsing + accuracy
 
 experiments/
-  core/veil.py                    # Stage 3 — the iterative plan → retrieve → verify → answer loop
+  core/reveal.py                    # Stage 3 — the iterative plan → retrieve → verify → answer loop
   core/_keyframes.py              # keyframe path/loader helpers
-  tuning/veil_27b.py              # Stage 3 entry (runner)
+  tuning/reveal_27b.py              # Stage 3 entry (runner)
 
 scripts/
   run_build.sh  run_rubric.sh  run_eval.sh     # one command per stage
@@ -68,12 +68,12 @@ BENCH=videomme MEM=outputs/memory/videommeL bash scripts/run_build.sh
 MEM=outputs/memory/videommeL RB=outputs/rubric/pairs_v6 bash scripts/run_rubric.sh
 
 # ③ main experiment — definitive config (L1=8/L2=4/L3=2, text-only, ~78.9%)
-VEIL_RUBRIC_PATH=outputs/rubric/pairs_v6/rubric.yaml \
+REVEAL_RUBRIC_PATH=outputs/rubric/pairs_v6/rubric.yaml \
 MEM=outputs/memory/videommeL END=900 bash scripts/run_eval.sh
 ```
 
 Accuracy is printed at the end of Stage 3 and written per-question to `--out`
-(`outputs/results/videomme/veil_main.jsonl` by default).
+(`outputs/results/videomme/reveal_main.jsonl` by default).
 
 ## New dataset
 

@@ -33,7 +33,7 @@ Pipeline per video:
         {out_dir}/{video_id}/frames_raw/          all post-cleanup frames per chunk (original res)
 
 Usage:
-    cd /home2/ycj/Project/VEIL
+    cd /home2/ycj/Project/REVEAL
     PYTHONPATH=. python -m src.build_memory.build_single_similarity \\
         --benchmark videomme \\
         --siglip-model /home2/ycj/Models/google/siglip-large-patch16-384 \\
@@ -118,6 +118,26 @@ def _hms(seconds: float) -> str:
     # happen (truncation drifts by up to a second per chunk boundary).
     s = int(round(seconds))
     return f"{s // 3600:02d}:{(s // 60) % 60:02d}:{s % 60:02d}"
+
+
+def _load_firstperson_caps(cap_dir, person: str) -> dict:
+    """{clip_filename: first-person caption} from EgoLifeCap <person>_30sec.json.
+
+    Keyed by os.path.basename(entry["video_path"]) which equals the REVEAL clip
+    filename (verified 1:1, 6223/6223 for A1_JAKE). Missing/empty text -> "" so
+    that clip falls back to speech-only L1 — same as a VLM caption failure."""
+    fp = Path(cap_dir) / person / f"{person}_30sec.json"
+    if not fp.is_file():
+        raise FileNotFoundError(
+            f"first-person captions not found: {fp} "
+            f"(set --firstperson-cap-dir / REVEAL_FIRSTPERSON_CAP_DIR)")
+    rows = json.loads(fp.read_text(encoding="utf-8"))
+    caps: dict = {}
+    for r in rows:
+        vp = r.get("video_path", "")
+        if vp:
+            caps[os.path.basename(vp)] = (r.get("text") or "").strip()
+    return caps
 
 
 # ── SRT parsing & subtitle alignment ──────────────────────────────────────────
@@ -276,10 +296,10 @@ def _img_block(path: Path, max_side: int | None = None) -> dict | None:
     on the long edge; sending 30 of them un-scaled triples the prompt-token
     budget and bloats attention noise, dragging caption quality down.
 
-    Long-edge cap is env-tunable via VEIL_CAPTION_MAX_SIDE (default 448); set it
+    Long-edge cap is env-tunable via REVEAL_CAPTION_MAX_SIDE (default 448); set it
     huge (e.g. 10000) to send frames at original resolution for A/B tests."""
     if max_side is None:
-        max_side = int(os.environ.get("VEIL_CAPTION_MAX_SIDE", "448"))
+        max_side = int(os.environ.get("REVEAL_CAPTION_MAX_SIDE", "448"))
     try:
         img = Image.open(path).convert("RGB")
     except Exception as e:
@@ -468,6 +488,15 @@ def build_egolife_person(person, person_dir, out_dir, siglip, embedder, args, cf
         log.warning("[%s] no clips at %s", person, person_dir)
         return
 
+    # First-person L1: load official EgoLifeCap 30-sec verbatim-dialogue captions
+    # once, keyed by clip filename (1:1 join). When set, the batch loop below uses
+    # these instead of the multi-image VLM caption (no VLM call for narrative).
+    fp_caps = None
+    if getattr(args, "narrative_source", "vlm") == "firstperson":
+        fp_caps = _load_firstperson_caps(args.firstperson_cap_dir, person)
+        log.info("[%s] first-person caps: %d entries (source=firstperson)",
+                 person, len(fp_caps))
+
     def _cdir(clip):
         return person_out / "_clips" / clip.stem
 
@@ -499,7 +528,7 @@ def build_egolife_person(person, person_dir, out_dir, siglip, embedder, args, cf
         have = sorted(raw0.glob("*.jpg")) if raw0.is_dir() else []
         if have:
             return have, None
-        tmp = Path(tempfile.mkdtemp(prefix="veil_ego_"))
+        tmp = Path(tempfile.mkdtemp(prefix="reveal_ego_"))
         raw = _extract(clip, tmp)
         surv: List = []
         if raw:
@@ -547,10 +576,11 @@ def build_egolife_person(person, person_dir, out_dir, siglip, embedder, args, cf
         narr_path.write_text(json.dumps(
             {"video_id": person, "duration": dur, "num_chunks": len(chunks),
              "chunks": chunks}, ensure_ascii=False))
-        np.savez(vec_path,
-                 narrative_vecs=np.array(nv, dtype=np.float32),
-                 visual_vecs=np.array(vv, dtype=np.float32),
-                 chunk_ids=np.array(ids, dtype=np.int64))
+        save_kw = dict(narrative_vecs=np.array(nv, dtype=np.float32),
+                       chunk_ids=np.array(ids, dtype=np.int64))
+        if not args.no_visual:
+            save_kw["visual_vecs"] = np.array(vv, dtype=np.float32)
+        np.savez(vec_path, **save_kw)
 
     # ── Resume: load cached clips; queue the rest ───────────────────────────────
     acc, todo = [], []          # acc: (abs_start, chunk_dict, text_vec, visual_vec)
@@ -559,7 +589,8 @@ def build_egolife_person(person, person_dir, out_dir, siglip, embedder, args, cf
         if cj.exists() and cv.exists():
             try:
                 d = json.loads(cj.read_text()); z = np.load(cv)
-                acc.append((abs_start, d, z["text_vec"], z["visual_vec"]))
+                vv = z["visual_vec"] if "visual_vec" in z.files else None
+                acc.append((abs_start, d, z["text_vec"], vv))
                 continue
             except Exception:
                 pass
@@ -571,6 +602,17 @@ def build_egolife_person(person, person_dir, out_dir, siglip, embedder, args, cf
     #    while the previous batch's captions are still hitting the VLM. ─────────
     from concurrent.futures import ThreadPoolExecutor
     def _prep_one(abs_start, clip):
+        if args.no_visual:
+            # Text-only: no frames at all. narrative = fp_caps[clip.name] (below),
+            # speech = transcript window. EgoLife clips are 30-s ⇒ t_end = t0 + 30.
+            N = 30
+            t0, t1 = abs_start, abs_start + N
+            sl, sp = _speech_for(transcript, t0, t1)
+            return {"abs": abs_start, "clip": clip, "kf": None, "sp": sp, "tmp": None,
+                    "ts": [], "t0": t0, "t1": t1,
+                    "ci": {"narrative_frame_paths": [],
+                           "narrative_timestamps": [], "speech": sp,
+                           "speech_lines": sl, "t_start": t0, "t_end": t1}}
         frames, tmp = _frames_for(clip)
         if not frames:
             log.warning("[%s] %s no frames — skip", person, clip.name)
@@ -627,23 +669,35 @@ def build_egolife_person(person, person_dir, out_dir, siglip, embedder, args, cf
         if not preps:
             continue
         # One SigLIP call for the batch's keyframes → per-chunk visual vecs.
-        vvs = siglip.encode_images([str(p["kf"]) for p in preps])
-        narrs = narrate_chunks([p["ci"] for p in preps], args.api_url,
-                               args.api_model, concurrency=args.api_concurrency)
+        vvs = ([None] * len(preps)) if args.no_visual \
+            else siglip.encode_images([str(p["kf"]) for p in preps])
+        if fp_caps is not None:
+            # First-person mode: no VLM call — narrative = official 30-sec
+            # first-person caption matched by clip filename (1:1). Frames were
+            # still extracted above for keyframe + SigLIP visual vec.
+            narrs = [fp_caps.get(p["clip"].name, "") for p in preps]
+        else:
+            narrs = narrate_chunks([p["ci"] for p in preps], args.api_url,
+                                   args.api_model, concurrency=args.api_concurrency)
         etexts = [f"{n}\n\n{p['sp']}" if p["sp"].strip() else n
                   for n, p in zip(narrs, preps)]
         tvs = embedder.encode(etexts)
         for i, (p, narr) in enumerate(zip(preps, narrs)):
             cd = _cdir(p["clip"])
-            kf_rel = str(p["kf"].relative_to(person_out))
+            cd.mkdir(parents=True, exist_ok=True)   # visual path made this via frames; text-only must
+            kf_rel = "" if p["kf"] is None else str(p["kf"].relative_to(person_out))
             d = {"start_time": p["t0"], "end_time": p["t1"], "narrative": narr,
                  "caption": [], "speech_text": p["sp"], "sampled_frames": p["ts"],
                  "keyframe_ts": (p["t0"] + p["t1"]) / 2.0, "keyframe_path": kf_rel}
             tv = np.asarray(tvs[i], dtype=np.float32)
-            vv = np.asarray(vvs[i], dtype=np.float32)
             (cd / "chunk.json").write_text(json.dumps(d, ensure_ascii=False))
-            np.savez(cd / "chunk_vec.npz", text_vec=tv, visual_vec=vv)
-            acc.append((p["abs"], d, tv, vv))
+            if args.no_visual:
+                np.savez(cd / "chunk_vec.npz", text_vec=tv)
+                acc.append((p["abs"], d, tv, None))
+            else:
+                vv = np.asarray(vvs[i], dtype=np.float32)
+                np.savez(cd / "chunk_vec.npz", text_vec=tv, visual_vec=vv)
+                acc.append((p["abs"], d, tv, vv))
         # Frames lived on /tmp only for captioning (--no-persist-frames) — drop now.
         for p in preps:
             if p.get("tmp"):
@@ -680,7 +734,14 @@ def main():
                     help="Generic mode: build every video in this folder (recursive, "
                          "video_id = filename stem); overrides benchmark video enumeration. "
                          "Still needs --config or --benchmark for the BGE model path / out dir.")
-    ap.add_argument("--siglip-model",     required=True)
+    ap.add_argument("--siglip-model",     default=None,
+                    help="Required unless --no-visual.")
+    ap.add_argument("--no-visual", action="store_true",
+                    help="Text-only build: skip frame extract + keyframe + SigLIP; "
+                         "write narrative_vecs only (visual_vecs omitted — bank_loader "
+                         "treats it as optional). For first-person mainline (pure text, "
+                         "--no-keyframes eval) this is ~100x faster than the visual build. "
+                         "t_end = t_start + 30s nominal (EgoLife clips are 30-s segments).")
     ap.add_argument("--siglip-gpu",       default="cuda:0")
     ap.add_argument("--bge-gpu",          default="cuda:0")
     ap.add_argument("--subtitle-dir",     default=None)
@@ -714,6 +775,19 @@ def main():
                     help="Cap frames per chunk fed to the single multi-image VLM"
                          " call; evenly down-sampled from g.all_frame_paths when"
                          " exceeded")
+    ap.add_argument("--narrative-source", choices=["vlm", "firstperson"],
+                    default=("firstperson"
+                             if os.environ.get("REVEAL_FIRSTPERSON_CAP") == "1"
+                             else "vlm"),
+                    help="EgoLife L1 narrative source. 'vlm' (default) = "
+                         "multi-image VLM caption; 'firstperson' = official "
+                         "EgoLifeCap 30-sec first-person dialogue (no VLM call).")
+    ap.add_argument("--firstperson-cap-dir",
+                    default=os.environ.get(
+                        "REVEAL_FIRSTPERSON_CAP_DIR",
+                        "/home2/ycj/Project/WorldMM/data/EgoLife/EgoLifeCap"),
+                    help="Dir holding <PERSON>/<PERSON>_30sec.json "
+                         "(for --narrative-source firstperson).")
     ap.add_argument("--frame-max-dim", type=int, default=448,
                     help="Longer-side target for keyframes_resized/. Origin"
                          " keyframes and frames_raw are always full res."
@@ -768,11 +842,17 @@ def main():
         log.info("Subtitle dir: %s", subtitle_dir)
 
     # ── Models ────────────────────────────────────────────────────────────────
-    log.info("Loading SigLIP on %s …", args.siglip_gpu)
-    t0 = time.time()
-    from src.clients.siglip_embedder import SigLIPEmbedder
-    siglip = SigLIPEmbedder(args.siglip_model, device=args.siglip_gpu)
-    log.info("  SigLIP ready (%.1fs)", time.time() - t0)
+    if args.no_visual:
+        siglip = None
+        log.info("Text-only build (--no-visual): SigLIP skipped, no frame extraction.")
+    else:
+        if not args.siglip_model:
+            ap.error("--siglip-model is required unless --no-visual")
+        log.info("Loading SigLIP on %s …", args.siglip_gpu)
+        t0 = time.time()
+        from src.clients.siglip_embedder import SigLIPEmbedder
+        siglip = SigLIPEmbedder(args.siglip_model, device=args.siglip_gpu)
+        log.info("  SigLIP ready (%.1fs)", time.time() - t0)
 
     log.info("API mode — VLM/LLM at %s (%s)", args.api_url, args.api_model)
 

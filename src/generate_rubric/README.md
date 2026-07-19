@@ -1,6 +1,6 @@
 # generate_rubric — 证据充分性 rubric 构造
 
-给 VEIL verifier 构造长视频多选 QA 的**证据充分性（evidence-sufficiency）** rubric 的纯代码包。rubric 评的是「检索到的证据链够不够**验证 / 排除每个选项**」——不是答案质量，也不是选项支持度。（一个错误选项，只要证据足以排除它，也能得高分。）
+给 REVEAL verifier 构造长视频多选 QA 的**证据充分性（evidence-sufficiency）** rubric 的纯代码包。rubric 评的是「检索到的证据链够不够**验证 / 排除每个选项**」——不是答案质量，也不是选项支持度。（一个错误选项，只要证据足以排除它，也能得高分。）
 
 ## 两套构造方法
 
@@ -25,7 +25,7 @@
 - `round2_merged_runtime.yaml` — **唯一 runtime rubric，也是代码默认**（direct_answer 谱系，abl_5_full=79.00% 定版实验用的就是它；general 3 条 + 12 题型 templates）。
 - `online_full_20260703_061243/` — contrastive_trace 方法本次完整跑的产物存档。
 
-verifier 默认加载 `round2_merged_runtime.yaml`（写死在 `src/agents/verifier.py` 与 `experiments/tuning/veil_27b.py`）；按 run 覆盖用 `VEIL_RUBRIC_PATH=<path>`（每次 run 把 rubric 路径 + sha1 记进 `*.meta.json`）。
+verifier 默认加载 `round2_merged_runtime.yaml`（写死在 `src/agents/verifier.py` 与 `experiments/tuning/reveal_27b.py`）；按 run 覆盖用 `REVEAL_RUBRIC_PATH=<path>`（每次 run 把 rubric 路径 + sha1 记进 `*.meta.json`）。
 
 ## 核心结论
 

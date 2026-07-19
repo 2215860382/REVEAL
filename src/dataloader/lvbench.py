@@ -9,7 +9,7 @@ Source: video_info.meta.jsonl (103 rows, one per video). Each row:
       answer (letter A-D), question_type (list of str), time_reference
 
 Options are embedded in the question text; we split them into `candidates`
-and map the answer letter to the gold option text (VEIL wants candidates +
+and map the answer letter to the gold option text (REVEAL wants candidates +
 answer-as-text, question stem separate).
 """
 from __future__ import annotations

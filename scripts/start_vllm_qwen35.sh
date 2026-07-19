@@ -8,7 +8,7 @@ PORT=${2:-8000}
 
 echo "启动 Qwen3.5-27B vLLM on GPU $GPU_ID, port $PORT"
 
-CUDA_VISIBLE_DEVICES=$GPU_ID nohup /home2/ycj/miniconda3/envs/veil/bin/python -m vllm.entrypoints.openai.api_server \
+CUDA_VISIBLE_DEVICES=$GPU_ID nohup /home2/ycj/miniconda3/envs/reveal/bin/python -m vllm.entrypoints.openai.api_server \
     --model /home2/ycj/Models/Qwen/Qwen3.5-27B \
     --served-model-name Qwen3.5-27B \
     --host 127.0.0.1 \

@@ -19,6 +19,56 @@ def load_keyframe_pil(path: str):
     return None
 
 
+# WorldMM-style dense frames: a chunk stores only ONE keyframe, so feeding pixels
+# gives the VLM 1 frame per retrieved moment (sparse). REVEAL_DENSE_FRAMES=N instead
+# goes back to the ORIGINAL EgoLife 30 s mp4 for the chunk and samples N frames evenly
+# across it — dense temporal coverage of the relevant segment, like WorldMM's
+# retrieve-segment-then-extract. Mapping is exact: a chunk's keyframe filename
+# (DAY1_A2_ALICE_11093000_0000_0.jpg) is the stem of its source clip mp4
+# ({root}/A2_ALICE/DAY1/DAY1_A2_ALICE_11093000.mp4).
+_EGOLIFE_ROOT_DEFAULT = "/home2/ycj/Project/WorldMM/data/EgoLife"
+
+
+def _chunk_source_mp4(chunk, root: str) -> Optional[Path]:
+    kp = getattr(chunk, "keyframe_path", "") or ""
+    if not kp:
+        return None
+    parts = Path(kp).name.split("_")          # DAY1 A2 ALICE 11093000 0000 0.jpg
+    if len(parts) < 4:
+        return None
+    day, pa, pb, wall = parts[0], parts[1], parts[2], parts[3]
+    person = f"{pa}_{pb}"
+    mp4 = Path(root) / person / day / f"{day}_{person}_{wall}.mp4"
+    return mp4 if mp4.is_file() else None
+
+
+def dense_frames_from_original(chunk, n: int, root: Optional[str] = None) -> List:
+    """Sample ``n`` PIL frames evenly from the chunk's original EgoLife clip mp4.
+
+    Returns [] if the source mp4 can't be located or decoded — callers fall back
+    to the single stored keyframe. Uses decord for in-memory decode (no disk I/O).
+    """
+    root = root or os.environ.get("REVEAL_EGOLIFE_ROOT", _EGOLIFE_ROOT_DEFAULT)
+    mp4 = _chunk_source_mp4(chunk, root)
+    if mp4 is None:
+        return []
+    try:
+        from decord import VideoReader, cpu
+        from PIL import Image
+        vr = VideoReader(str(mp4), ctx=cpu(0))
+        tot = len(vr)
+        if tot <= 0:
+            return []
+        if n >= tot:
+            idx = list(range(tot))
+        else:
+            idx = sorted(set(int(i * (tot - 1) / (n - 1)) for i in range(n)))
+        batch = vr.get_batch(idx).asnumpy()   # (k, H, W, 3) RGB
+        return [Image.fromarray(f) for f in batch]
+    except Exception:
+        return []
+
+
 DEFAULT_KEYFRAME_SUBDIR = "keyframes_resized"
 LEGACY_KEYFRAME_SUBDIR  = "frames"
 
@@ -98,7 +148,7 @@ def keyframe_paths(keyframe_dir, video_id: str, chunk_id: int, cap: int = 3,
         kp = getattr(chunk, "keyframe_path", "") or ""
         if kp:
             # --hires-keyframes: swap the resized frame for its full-res origin twin.
-            if os.environ.get("VEIL_HIRES_KEYFRAMES") == "1":
+            if os.environ.get("REVEAL_HIRES_KEYFRAMES") == "1":
                 hp = kp.replace("keyframes_resized", "keyframes_origin")
                 if os.path.isfile(hp):
                     kp = hp

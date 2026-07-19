@@ -28,7 +28,7 @@ from src.config import load_config
 from .io import read_jsonl, write_jsonl
 from .schema import EvidenceChain, EvidenceItem
 from experiments.core._keyframes import load_keyframes
-from experiments.tuning.veil_27b import load_samples
+from experiments.tuning.reveal_27b import load_samples
 
 
 def _multilayer_chain(bank, question, candidates, embedder, siglip, alpha):

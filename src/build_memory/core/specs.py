@@ -14,7 +14,7 @@ from typing import Any, Literal
 
 BenchName = Literal["videomme", "lvbench", "egolife", "longvideobench"]
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]  # …/VEIL (core → build_memory → src → VEIL)
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]  # …/REVEAL (core → build_memory → src → REVEAL)
 _OUTPUTS_ROOT = _PROJECT_ROOT / "outputs"
 
 

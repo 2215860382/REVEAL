@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.clients.embedder import BGEM3Embedder
 from src.clients.siglip_embedder import SigLIPEmbedder
 
-app = FastAPI(title="VEIL Embedding Server")
+app = FastAPI(title="REVEAL Embedding Server")
 
 BGE: BGEM3Embedder | None = None
 SIGLIP: SigLIPEmbedder | None = None

@@ -44,4 +44,4 @@ CT=src.generate_rubric.construct.contrastive_trace
   --out "$RB/score.jsonl" --resume
 
 echo "[rubric] done → $RB/rubric.yaml  (offline score → $RB/score.jsonl)"
-echo "[rubric] to use it at eval time:  export VEIL_RUBRIC_PATH=$RB/rubric.yaml"
+echo "[rubric] to use it at eval time:  export REVEAL_RUBRIC_PATH=$RB/rubric.yaml"

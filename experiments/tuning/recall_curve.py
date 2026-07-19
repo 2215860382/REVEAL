@@ -19,7 +19,7 @@ from src.build_memory.core.bank_loader import load_bank
 from src.clients.embedder import BGEM3Embedder
 from experiments.core import _hybrid
 
-MEMDIR = Path("/home2/ycj/Project/VEIL/outputs/memory/egolife")
+MEMDIR = Path("/home2/ycj/Project/REVEAL/outputs/memory/egolife")
 PERSON = "A1_JAKE"
 KS = [8, 20, 50, 100, 200, 500, 1000]
 

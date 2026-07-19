@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# ANALYSIS build: 100 VideoMME-long videos at caption/extract long-edge 448 with
+# the FIXED grouping (frame_pipeline min_size=1). Same 100 videos already built in
+# videommeL_1344 (1344+newgroup) and present in videommeL (448+oldgroup), so the
+# three banks isolate the two factors on identical questions:
+#   B(this, 448+newgroup) vs A(videommeL, 448+oldgroup)  = grouping effect
+#   C(videommeL_1344, 1344+newgroup) vs B                = resolution effect
+# Writes to videommeL_single_448 / videommeL_448. Resumable (skips built videos).
+set -uo pipefail
+cd "$(dirname "$0")/.."
+export PYTHONPATH=.
+unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY 2>/dev/null || true
+export no_proxy='*' NO_PROXY='*'
+export TMPDIR=/dev/shm
+export REVEAL_CAPTION_MAX_SIDE=448
+export REVEAL_EXTRACT_MAX_SIDE="${REVEAL_EXTRACT_MAX_SIDE:-448}"
+LOG=outputs/logs/build_videomme_448.log
+FILTER=outputs/lists/vmme_448_100.jsonl
+
+# assemble live endpoints; local (GPU3/6) listed twice → 2x weight in round-robin.
+LOCAL="http://127.0.0.1:8006 http://127.0.0.1:8003"
+REMOTE="http://10.82.1.145:8001 http://10.82.1.145:8004"
+API=""
+_add(){ curl -s -m 4 "$1/v1/models" >/dev/null 2>&1 && API="${API:+$API,}$1"; }
+for u in $LOCAL $REMOTE; do _add "$u"; done   # each live endpoint once
+for u in $LOCAL;         do _add "$u"; done   # local again → 2x weight
+echo "[build vmme448 $(date +%F_%T)] endpoints=$API  CAPTION=448 EXTRACT=$REVEAL_EXTRACT_MAX_SIDE APC=${APC:-28} SUMM=${SUMM:-64} filter=$FILTER" >>"$LOG"
+[ -n "$API" ] || { echo "no live endpoints" >>"$LOG"; exit 1; }
+
+python -m src.build_memory.build_single_similarity \
+  --benchmark videomme \
+  --filter-from "$FILTER" \
+  --siglip-model /home2/ycj/Models/google/siglip-large-patch16-384 \
+  --siglip-gpu cuda:1 --bge-gpu cuda:1 \
+  --api-url "$API" --api-model Qwen3.5-27B \
+  --api-concurrency "${APC:-28}" --fps 1.0 --theta 0.80 --n-max 30 \
+  --prep-workers "${PREP:-16}" --extract-gpu "${XGPU:-1}" --no-persist-frames \
+  --out-dir outputs/memory/videommeL_single_448 \
+  --emit-multilayer --multilayer-out-dir outputs/memory/videommeL_448 \
+  --summary-api-url "$API" --summary-concurrency "${SUMM:-64}" \
+  >>"$LOG" 2>&1
+echo "[build vmme448 $(date +%F_%T)] DONE rc=$?" >>"$LOG"

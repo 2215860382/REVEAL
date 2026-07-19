@@ -21,7 +21,7 @@ only needed for on-demand re-captioning, not answering).
 The source single-layer bank is left untouched. New banks are written to a
 SEPARATE output dir in pyramid format, loadable by
 ``bank_loader._load_pyramid_dir`` (L1.jsonl + L{2,3}.jsonl + *.npz + meta.json),
-so ``veil.py`` ``multi_layer_mode`` can consume the layers directly.
+so ``reveal.py`` ``multi_layer_mode`` can consume the layers directly.
 
 Grouping (solves "L1 is similarity-grouped so its duration is not known in
 advance"): build each upper layer BOTTOM-UP, accumulating consecutive children

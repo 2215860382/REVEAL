@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # 自包含等待器: 等 shardA+shardB 两个 lvbench build 都跑完(worker全退),
 # 再单独建 8K 视频 GcRKREorGSc(独占CPU抽帧更快、不堵其它)。会话无关,setsid挂。
-cd /home2/ycj/Project/VEIL
-LOG=/home2/ycj/Project/VEIL/outputs/logs/build_lvb_8k.log
+cd /home2/ycj/Project/REVEAL
+LOG=/home2/ycj/Project/REVEAL/outputs/logs/build_lvb_8k.log
 echo "[8k-waiter $(date +%F_%T)] 等 shardA+shardB 跑完…" >>"$LOG"
 zero=0
 while true; do

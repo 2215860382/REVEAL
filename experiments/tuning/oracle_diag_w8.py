@@ -19,7 +19,7 @@ from src.dataloader.egolife import load_egolife, _clip_abs_start
 from src.build_memory.core.bank_loader import load_bank
 from src.clients.llm_client import LLMClient
 
-ROOT       = Path("/home2/ycj/Project/VEIL")
+ROOT       = Path("/home2/ycj/Project/REVEAL")
 MEMDIR     = ROOT / "outputs/memory/egolife"
 PERSON     = "A1_JAKE"
 W          = int(os.environ.get("W", "2"))

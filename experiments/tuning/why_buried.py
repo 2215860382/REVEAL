@@ -13,7 +13,7 @@ from src.dataloader.egolife import load_egolife, _clip_abs_start
 from src.build_memory.core.bank_loader import load_bank
 from src.clients.embedder import BGEM3Embedder
 
-MEMDIR=Path("/home2/ycj/Project/VEIL/outputs/memory/egolife"); PERSON="A1_JAKE"
+MEMDIR=Path("/home2/ycj/Project/REVEAL/outputs/memory/egolife"); PERSON="A1_JAKE"
 
 def _abs(tt):
     if not tt or not tt.get("time") or not tt.get("date"): return None

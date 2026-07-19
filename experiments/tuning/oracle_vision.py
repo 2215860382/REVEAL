@@ -20,7 +20,7 @@ from src.agents.answerer import Answerer
 from src.clients.vlm_client import VLMClient
 from experiments.core._keyframes import keyframe_paths, load_keyframe_pil
 
-ROOT   = Path("/home2/ycj/Project/VEIL")
+ROOT   = Path("/home2/ycj/Project/REVEAL")
 MEMDIR = ROOT / "outputs/memory/egolife"
 PERSON = "A1_JAKE"
 W      = int(os.environ.get("W", "2"))

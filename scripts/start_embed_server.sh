@@ -15,7 +15,7 @@ unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY 2>/dev/n
 GPU=${GPU:-6}                     # physical GPU; maps to cuda:0 inside the process
 PORT=${PORT:-9000}
 IDLE=${IDLE:-300}                 # seconds of no requests before self-kill (5 min)
-PY=${PY:-/home2/ycj/miniconda3/envs/veil/bin/python}
+PY=${PY:-/home2/ycj/miniconda3/envs/reveal/bin/python}
 LOG=${LOG:-outputs/logs/embed_server_${PORT}.log}
 
 echo "[embed] launching on GPU$GPU :$PORT (idle-kill ${IDLE}s) → $LOG"

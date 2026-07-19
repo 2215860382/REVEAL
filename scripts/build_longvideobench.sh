@@ -8,8 +8,8 @@ export PYTHONPATH=.
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY 2>/dev/null || true
 export no_proxy='*' NO_PROXY='*'
 export TMPDIR=/dev/shm
-export VEIL_CAPTION_MAX_SIDE=1344
-export VEIL_EXTRACT_MAX_SIDE="${VEIL_EXTRACT_MAX_SIDE:-1344}"
+export REVEAL_CAPTION_MAX_SIDE=1344
+export REVEAL_EXTRACT_MAX_SIDE="${REVEAL_EXTRACT_MAX_SIDE:-1344}"
 LOG=outputs/logs/build_longvideobench.log
 
 # Local endpoints (GPU3/6, ~60-70C, thermal headroom) get 2x weight by being
@@ -22,7 +22,7 @@ API=""
 _add(){ curl -s -m 4 "$1/v1/models" >/dev/null 2>&1 && API="${API:+$API,}$1"; }
 for u in $LOCAL $REMOTE; do _add "$u"; done   # base: each live endpoint once
 for u in $LOCAL;         do _add "$u"; done   # local again → 2x weight
-echo "[build lvb $(date +%F_%T)] endpoints=$API  CAPTION=1344 EXTRACT=$VEIL_EXTRACT_MAX_SIDE APC=${APC:-28} SUMM=${SUMM:-64}" >>"$LOG"
+echo "[build lvb $(date +%F_%T)] endpoints=$API  CAPTION=1344 EXTRACT=$REVEAL_EXTRACT_MAX_SIDE APC=${APC:-28} SUMM=${SUMM:-64}" >>"$LOG"
 [ -n "$API" ] || { echo "no live endpoints" >>"$LOG"; exit 1; }
 
 python -m src.build_memory.build_single_similarity \

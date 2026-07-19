@@ -2,7 +2,7 @@
 # Idle reaper for GPU model servers that can't self-terminate (e.g. vanilla vLLM).
 # Watches a log for request activity and SIGTERMs (then SIGKILLs) the target
 # process after IDLE seconds with no NEW request line — freeing the GPU once an
-# experiment is done. For servers we control (VEIL embed server) idle-kill is
+# experiment is done. For servers we control (REVEAL embed server) idle-kill is
 # built in; use this to wrap third-party servers.
 #
 # Usage:

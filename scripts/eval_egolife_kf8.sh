@@ -11,7 +11,7 @@ unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY \
 export no_proxy='*' NO_PROXY='*'
 API="${API:-http://127.0.0.1:8006,http://127.0.0.1:8003,http://10.82.1.145:8001,http://10.82.1.145:8004}"
 
-exec python experiments/tuning/veil_27b.py \
+exec python experiments/tuning/reveal_27b.py \
   --config configs/egolife.yaml \
   --memory-dir outputs/memory/egolife \
   --bge-gpu "${BGE_GPU:-cuda:1}" \

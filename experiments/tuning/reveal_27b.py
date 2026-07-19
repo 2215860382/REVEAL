@@ -1,10 +1,10 @@
-"""VEIL-27B — iterative evidence retrieval with rubric judgment + rubric rerank.
+"""REVEAL-27B — iterative evidence retrieval with rubric judgment + rubric rerank.
 
 Answerer / Planner / Verifier all use Qwen3.5-27B via --vlm-api-url / --llm-api-url.
 
 Usage:
-    cd /home2/ycj/Project/VEIL
-    PYTHONPATH=. python experiments/tuning/veil_27b.py \\
+    cd /home2/ycj/Project/REVEAL
+    PYTHONPATH=. python experiments/tuning/reveal_27b.py \\
         --config configs/videomme.yaml \\
         --vlm-api-url http://localhost:8000 \\
         --llm-api-url http://localhost:8001 \\
@@ -28,9 +28,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from src.config import load_config
 from src.utils.logging import get_logger
-from experiments.core.veil import run_veil
+from experiments.core.reveal import run_reveal
 
-PIPELINE_NAME = "veil_27b"
+PIPELINE_NAME = "reveal_27b"
 
 log = get_logger(PIPELINE_NAME)
 
@@ -146,6 +146,13 @@ def main():
     ap.add_argument("--vlm-gpu",        default="cuda:0")
     ap.add_argument("--bge-gpu",        default="cuda:3")
     ap.add_argument("--siglip-gpu",     default=None, help="GPU for SigLIP text encoder (image strategy); defaults to --bge-gpu")
+    # Visual-layer switches (also settable via REVEAL_VISUAL_* env; int so 0 can turn a default off).
+    ap.add_argument("--visual-strategy", type=int, default=None, choices=[0, 1],
+                    help="REVEAL_VISUAL_STRATEGY: planner emits `image` rounds (SigLIP text→frame)")
+    ap.add_argument("--visual-recall",   type=int, default=None, choices=[0, 1],
+                    help="REVEAL_VISUAL_RECALL: image-round chunks' captions enter evidence (recall channel)")
+    ap.add_argument("--visual-frames",   type=int, default=None, choices=[0, 1],
+                    help="REVEAL_VISUAL_FRAMES: image-round keyframes fed to the VLM (pixels channel; default on)")
     ap.add_argument("--llm-gpu",        default="cuda:1")
     ap.add_argument("--embed-api-url",  default=None,
                     help="Embedding service URL (BGE); skips loading locally")
@@ -169,18 +176,26 @@ def main():
     ap.add_argument("--pipeline-name",       default=None,
                     help="Override PIPELINE_NAME (= output jsonl filename stem)")
     ap.add_argument("--max-iter", type=int, default=None,
-                    help="Override veil_loop.max_iter (e.g. 1 = single-round retrieval, no plan-repair loop)")
+                    help="Override reveal_loop.max_iter (e.g. 1 = single-round retrieval, no plan-repair loop)")
     args = ap.parse_args()
     global PIPELINE_NAME
     if args.pipeline_name:
         PIPELINE_NAME = args.pipeline_name
 
+    # Visual-layer switches: CLI flag (if given) overrides env; reveal.py reads REVEAL_VISUAL_*.
+    for _flag, _env in (("visual_strategy", "REVEAL_VISUAL_STRATEGY"),
+                        ("visual_recall",   "REVEAL_VISUAL_RECALL"),
+                        ("visual_frames",   "REVEAL_VISUAL_FRAMES")):
+        _v = getattr(args, _flag)
+        if _v is not None:
+            os.environ[_env] = str(_v)
+
     cfg      = load_config(args.config)
     bench    = cfg["benchmark"]["name"]
     out_root = Path(cfg.get("paths", {}).get("outputs_root", "outputs"))
 
-    _vl = cfg.get("veil_loop", {})
-    veil_max_iter   = int(args.max_iter) if args.max_iter is not None else int(_vl.get("max_iter", 3))
+    _vl = cfg.get("reveal_loop", {})
+    reveal_max_iter   = int(args.max_iter) if args.max_iter is not None else int(_vl.get("max_iter", 3))
     q_hist_dedup    = float(_vl.get("query_history_dedup_threshold", 0.9))
     ev_dedup        = float(_vl.get("evidence_dedup_threshold", 0.9))
     q_ev_dedup      = float(_vl.get("query_evidence_dedup_threshold", 0.9))
@@ -190,7 +205,7 @@ def main():
                  out_root / "memory" / f"{bench}_L_27B"
     default_out_dir = Path(cfg.get("eval", {}).get("output_dir") or (out_root / "results" / bench))
     out_path = Path(args.out) if args.out else \
-               default_out_dir / "veil_27b.jsonl"
+               default_out_dir / "reveal_27b.jsonl"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     # Keep run metadata in a meta/ subfolder next to the results (less clutter).
     meta_path = out_path.parent / "meta" / (out_path.stem + ".meta.json")
@@ -198,7 +213,7 @@ def main():
 
     repo_root = Path(__file__).resolve().parents[2]
     config_path = Path(args.config)
-    rubric_override = os.environ.get("VEIL_RUBRIC_PATH")
+    rubric_override = os.environ.get("REVEAL_RUBRIC_PATH")
     rubric_path = Path(rubric_override).expanduser() if rubric_override else \
         repo_root / "outputs" / "rubric" / "rubric_contrastive.yaml"
     run_metadata = {
@@ -353,8 +368,11 @@ def main():
     if embedder: embedder = _LockedModel(embedder)
 
     # ── SigLIP text encoder (planner `image` strategy: text→frame retrieval) ──
+    # Load whenever ANY visual switch is on: STRATEGY (planner emits `image`), RECALL (captions
+    # into evidence) or FRAMES (keyframes to VLM). All three route through _visual_retrieve.
     siglip = None
-    if os.environ.get("VEIL_VISUAL_STRATEGY") == "1":
+    if any(os.environ.get(k) == "1" for k in
+           ("REVEAL_VISUAL_STRATEGY", "REVEAL_VISUAL_RECALL", "REVEAL_VISUAL_FRAMES")):
         from src.clients.siglip_embedder import SigLIPEmbedder
         _sg_dev = args.siglip_gpu or args.bge_gpu or "cuda:6"
         log.info("loading SigLIP on %s ...", _sg_dev)
@@ -392,7 +410,7 @@ def main():
         kw = dict(
             coarse_top_k=max(8, _ftopk),
             final_top_k=_ftopk,
-            max_iter=veil_max_iter,
+            max_iter=reveal_max_iter,
             query_history_dedup_threshold=q_hist_dedup,
             evidence_dedup_threshold=ev_dedup,
             query_evidence_dedup_threshold=q_ev_dedup,
@@ -402,7 +420,7 @@ def main():
             rubric_rerank=True,
             max_time=_egolife_query_cutoff(s),
         )
-        return run_veil(s.question, s.candidates, bank, embedder, answerer, llm,
+        return run_reveal(s.question, s.candidates, bank, embedder, answerer, llm,
                         siglip_embedder=siglip, task_type=s.question_type, **kw), None
 
     # ── Run loop ──────────────────────────────────────────────────────────────

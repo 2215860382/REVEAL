@@ -12,7 +12,7 @@ export NO_PROXY=127.0.0.1,localhost,10.82.1.145 no_proxy=$NO_PROXY
 LOG=outputs/logs/orchestrate_1344_eval.log
 BUILD_LOG=outputs/logs/rebuild_lvbench_fullres_1344.log
 EP="http://127.0.0.1:8004,http://127.0.0.1:8006,http://127.0.0.1:8008,http://10.82.1.145:8002"
-PY=/home2/ycj/miniconda3/envs/veil/bin/python
+PY=/home2/ycj/miniconda3/envs/reveal/bin/python
 FILTER=/tmp/lvb_rebuild_filter.jsonl
 
 log(){ echo "[orch $(date +%F_%H:%M:%S)] $*" >>"$LOG"; }
@@ -29,7 +29,7 @@ done
 
 # ── helper: run one build pass (skips done, builds missing) ──────────────────
 build_pass(){
-  VEIL_CAPTION_MAX_SIDE=1344 $PY -m src.build_memory.build_single_similarity \
+  REVEAL_CAPTION_MAX_SIDE=1344 $PY -m src.build_memory.build_single_similarity \
     --benchmark lvbench \
     --siglip-model /home2/ycj/Models/google/siglip-large-patch16-384 \
     --siglip-gpu cuda:1 --bge-gpu cuda:1 \
@@ -95,15 +95,15 @@ for v in os.listdir(bank):
 print(f"[orch] fullres bank: {len(os.listdir(bank))} videos, {tot} chunks, {fail} failed")
 PY
 
-log "launching eval veil_fullres1344 ..."
-$PY experiments/tuning/veil_27b.py \
+log "launching eval reveal_fullres1344 ..."
+$PY experiments/tuning/reveal_27b.py \
   --config configs/lvbench.yaml \
   --memory-dir outputs/memory/lvbench_fullres \
   --embed-api-url http://127.0.0.1:9000 \
   --vlm-api-url "$EP" --llm-api-url "$EP" \
   --no-keyframes --answer-keyframe-k 0 \
   --workers 8 \
-  --pipeline-name veil_fullres1344 \
-  --out outputs/results/lvbench/veil_fullres1344.jsonl \
+  --pipeline-name reveal_fullres1344 \
+  --out outputs/results/lvbench/reveal_fullres1344.jsonl \
   >>"$LOG" 2>&1
-log "DONE eval -> outputs/results/lvbench/veil_fullres1344.jsonl"
+log "DONE eval -> outputs/results/lvbench/reveal_fullres1344.jsonl"

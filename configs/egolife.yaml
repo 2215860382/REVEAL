@@ -1,7 +1,7 @@
 # Config for EgoLifeQA — 500 MCQs over per-person life-stream banks.
 # video_id = person (e.g. A1_JAKE); the bank is that person's whole DAY1-DAY7
 # egocentric stream. Retrieval is time-gated by each question's query_time
-# (future memory is off-limits) — see _egolife_query_cutoff in veil_27b.py.
+# (future memory is off-limits) — see _egolife_query_cutoff in reveal_27b.py.
 # Only A1_JAKE footage+QA is fully public, so filter_people pins it until the
 # other persons' banks are built. Ego-R1-Bench (same banks, different question
 # set) lives in configs/egor1.yaml.
@@ -12,9 +12,9 @@ benchmark:
   filter_people: [A1_JAKE]
 
 paths:
-  outputs_root: /home2/ycj/Project/VEIL/outputs
+  outputs_root: /home2/ycj/Project/REVEAL/outputs
 
-veil_loop:
+reveal_loop:
   max_iter: 3
   query_history_dedup_threshold: 0.9
   evidence_dedup_threshold: 0.9
@@ -22,7 +22,7 @@ veil_loop:
   kf_dedup_threshold: 0.92
 
 eval:
-  output_dir: /home2/ycj/Project/VEIL/outputs/results/egolife
+  output_dir: /home2/ycj/Project/REVEAL/outputs/results/egolife
 
 models:
   vlm:
