@@ -146,13 +146,6 @@ def main():
     ap.add_argument("--vlm-gpu",        default="cuda:0")
     ap.add_argument("--bge-gpu",        default="cuda:3")
     ap.add_argument("--siglip-gpu",     default=None, help="GPU for SigLIP text encoder (image strategy); defaults to --bge-gpu")
-    # Visual-layer switches (also settable via REVEAL_VISUAL_* env; int so 0 can turn a default off).
-    ap.add_argument("--visual-strategy", type=int, default=None, choices=[0, 1],
-                    help="REVEAL_VISUAL_STRATEGY: planner emits `image` rounds (SigLIP text→frame)")
-    ap.add_argument("--visual-recall",   type=int, default=None, choices=[0, 1],
-                    help="REVEAL_VISUAL_RECALL: image-round chunks' captions enter evidence (recall channel)")
-    ap.add_argument("--visual-frames",   type=int, default=None, choices=[0, 1],
-                    help="REVEAL_VISUAL_FRAMES: image-round keyframes fed to the VLM (pixels channel; default on)")
     ap.add_argument("--llm-gpu",        default="cuda:1")
     ap.add_argument("--embed-api-url",  default=None,
                     help="Embedding service URL (BGE); skips loading locally")
@@ -169,8 +162,6 @@ def main():
                     help="OpenAI-compatible API base URL(s); comma-separated = round-robin")
     ap.add_argument("--llm-api-model",  default=None,
                     help="Served model id for --llm-api-url (default: Qwen3.5-27B)")
-    ap.add_argument("--answer-keyframe-k",   type=int, default=32,
-                    help="Cap keyframe images passed to the final answerer")
     ap.add_argument("--workers",             type=int, default=1,
                     help="Parallel workers (safe with API-mode LLM)")
     ap.add_argument("--pipeline-name",       default=None,
@@ -182,14 +173,6 @@ def main():
     if args.pipeline_name:
         PIPELINE_NAME = args.pipeline_name
 
-    # Visual-layer switches: CLI flag (if given) overrides env; reveal.py reads REVEAL_VISUAL_*.
-    for _flag, _env in (("visual_strategy", "REVEAL_VISUAL_STRATEGY"),
-                        ("visual_recall",   "REVEAL_VISUAL_RECALL"),
-                        ("visual_frames",   "REVEAL_VISUAL_FRAMES")):
-        _v = getattr(args, _flag)
-        if _v is not None:
-            os.environ[_env] = str(_v)
-
     cfg      = load_config(args.config)
     bench    = cfg["benchmark"]["name"]
     out_root = Path(cfg.get("paths", {}).get("outputs_root", "outputs"))
@@ -199,7 +182,6 @@ def main():
     q_hist_dedup    = float(_vl.get("query_history_dedup_threshold", 0.9))
     ev_dedup        = float(_vl.get("evidence_dedup_threshold", 0.9))
     q_ev_dedup      = float(_vl.get("query_evidence_dedup_threshold", 0.9))
-    kf_dedup_thresh = float(_vl.get("kf_dedup_threshold", 0.9))
 
     memory_dir = Path(args.memory_dir) if args.memory_dir else \
                  out_root / "memory" / f"{bench}_L_27B"
@@ -368,17 +350,18 @@ def main():
     if embedder: embedder = _LockedModel(embedder)
 
     # ── SigLIP text encoder (planner `image` strategy: text→frame retrieval) ──
-    # Load whenever ANY visual switch is on: STRATEGY (planner emits `image`), RECALL (captions
-    # into evidence) or FRAMES (keyframes to VLM). All three route through _visual_retrieve.
-    siglip = None
-    if any(os.environ.get(k) == "1" for k in
-           ("REVEAL_VISUAL_STRATEGY", "REVEAL_VISUAL_RECALL", "REVEAL_VISUAL_FRAMES")):
-        from src.clients.siglip_embedder import SigLIPEmbedder
+    # image is a permanent strategy, so SigLIP always loads; routes DENSE frames only (pixels,
+    # no caption recall) via _visual_retrieve.
+    from src.clients.siglip_embedder import SigLIPEmbedder
+    t0 = time.time()
+    if args.embed_api_url:
+        log.info("loading SigLIP via API %s ...", args.embed_api_url)
+        siglip = _LockedModel(SigLIPEmbedder(api_url=args.embed_api_url))
+    else:
         _sg_dev = args.siglip_gpu or args.bge_gpu or "cuda:6"
         log.info("loading SigLIP on %s ...", _sg_dev)
-        t0 = time.time()
         siglip = _LockedModel(SigLIPEmbedder(device=_sg_dev))
-        log.info("  SigLIP ready (%.1fs)", time.time() - t0)
+    log.info("  SigLIP ready (%.1fs)", time.time() - t0)
 
     # ── Bank cache ────────────────────────────────────────────────────────────
     _bank_cache:  dict = {}
@@ -399,7 +382,6 @@ def main():
 
     from src.eval.parse_answer import parse_letter
 
-    akk    = None if args.answer_keyframe_k is not None and args.answer_keyframe_k < 0 else args.answer_keyframe_k
     kf_dir = None if args.no_keyframes else memory_dir
 
     def run_sample(s):
@@ -414,9 +396,8 @@ def main():
             query_history_dedup_threshold=q_hist_dedup,
             evidence_dedup_threshold=ev_dedup,
             query_evidence_dedup_threshold=q_ev_dedup,
-            kf_dedup_threshold=kf_dedup_thresh,
             keyframe_dir=kf_dir,
-            answer_keyframe_cap=akk,
+            video_path=getattr(s, "video_path", None),   # single mp4 per bank (VideoMME/LVBench/LongVB); egolife=dir→ignored
             rubric_rerank=True,
             max_time=_egolife_query_cutoff(s),
         )
@@ -483,6 +464,7 @@ def main():
             "evidence_chunk_ids": (result or {}).get("evidence_chunk_ids", []),
             "n_keyframes_to_answer": (result or {}).get("n_keyframes_to_answer"),
             "n_evidence_to_answer":  (result or {}).get("n_evidence_to_answer"),
+            "online_memory":    (result or {}).get("online_memory"),
             "trace_iters":      trace,
             "elapsed":          round(elapsed, 2),
             "error":            err,

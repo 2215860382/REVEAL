@@ -17,7 +17,7 @@ from typing import List, Optional, Set
 
 import numpy as np
 
-from ._keyframes import keyframe_path, keyframe_paths, load_keyframe_pil, dense_frames_from_original
+from ._keyframes import dense_frames_from_original
 from src.build_memory.core.schema import MemoryBank
 from src.agents.planner import Planner
 from src.agents.verifier import Verifier, get_rubric_dict
@@ -36,11 +36,13 @@ def _time_range_retrieve(
 ) -> tuple[list, list, list]:
     """Fetch unseen chunks overlapping planner-provided time ranges.
 
-    Empty ranges mean uniform uncovered-time sampling, which is the explicit
-    replacement for the old broadcast strategy.
+    ``ranges`` must be non-empty concrete second-windows — a ``time`` round targets a
+    specific moment/span. When the answer is spread across the whole video with no
+    single window to target, the planner uses the ``scan`` strategy instead (see
+    ``_timeline_scan_retrieve``). An empty ``ranges`` retrieves nothing here.
     """
     if not ranges:
-        return _broadcast_retrieve(bank, seen_ids, n=n, max_time=max_time)
+        return [], [], []
 
     texts_ev = bank.memory_texts(with_time=True, with_asr=True)
     idx_map = {c.chunk_id: i for i, c in enumerate(bank.chunks)}
@@ -72,18 +74,26 @@ def _time_range_retrieve(
     return texts, ids, vecs
 
 
-# ── Broadcast (uniform timeline sampling) ────────────────────────────────────
+# ── Timeline scan (whole-video coverage / query-exhausted fallback) ──────────
 
-def _broadcast_retrieve(
-    bank: MemoryBank,
+def _timeline_scan_retrieve(
+    bank: "MemoryBank",
     seen_ids: Set[int],
     n: int = 8,
     max_time: float | None = None,
 ) -> tuple[list, list, list]:
-    """Uniformly sample n unseen chunks across the video timeline.
+    """Sample ``n`` still-unretrieved chunks evenly across the whole timeline.
 
-    ``max_time`` (EgoLife): drop any chunk whose ``end_time`` is after the
-    question's ``query_time`` — future memory is off-limits. None ⇒ no filter.
+    This is the ``scan`` strategy: it sweeps the parts of the video that targeted
+    queries have NOT reached yet, giving broad coverage. Two situations use it:
+    (1) the answer is spread across the entire video and no single query or time
+    window captures it (which-statement-is-correct, total counts, synopsis); and
+    (2) targeted queries are exhausted — every new query the planner produced was a
+    near-duplicate of one already tried (``filter_targeted_queries``), so the only
+    productive move left is to cover timeline regions not yet seen. Chunks already in
+    ``seen_ids`` are skipped, so each scan reaches fresh segments. ``max_time``
+    (EgoLife) drops any chunk ending after the question time — future memory is
+    off-limits.
     """
     texts_ev  = bank.memory_texts(with_time=True, with_asr=True)
     idx_map   = {c.chunk_id: i for i, c in enumerate(bank.chunks)}
@@ -472,10 +482,9 @@ def run_reveal(
     max_iter:      int           = 3,
     query_history_dedup_threshold:  float = 0.9,
     keyframe_dir                 = None,
-    kf_dedup_threshold:    float = 0.9,
+    video_path: Optional[str]    = None,
     evidence_dedup_threshold:    float = 0.9,
     query_evidence_dedup_threshold: float | None = 0.9,
-    answer_keyframe_cap:   int | None   = 16,
     rubric_judgment:       bool         = True,
     rubric_rerank:         bool         = False,
     max_time:              float | None = None,
@@ -484,8 +493,9 @@ def run_reveal(
 
     Each sub-question independently retrieves ``final_top_k`` chunks (no budget splitting);
     iter ≥1 query generation goes through Jaccard (``query_history_dedup_threshold``) + BGE drift
-    (``query_evidence_dedup_threshold``) filters; if all targeted queries are filtered, the iter
-    falls back to broadcast.
+    (``query_evidence_dedup_threshold``) filters; if all targeted queries are filtered, the planner
+    falls back to the ``scan`` strategy (sweep still-unretrieved chunks across the timeline for
+    broad coverage — see ``_timeline_scan_retrieve``).
     """
     # WorldMM-style implicit ablation: verifier module removed, single reasoner decides
     # search-vs-answer each round. Returns early with the same dict contract.
@@ -501,7 +511,6 @@ def run_reveal(
     # ``om.seen_ids`` replaces the old local set; ``om.evidence_*()`` the old all_* lists.
     om = OnlineMemory(llm, question, candidates)
     all_keyframes:      List              = []
-    all_kf_vecs:        List[List[float]] = []
     all_kf_chunk_ids:   List[int]         = []
     all_kf_ts:          List[float]       = []
     plan_history:       List[List[str]]   = [[question]]  # seed with original question for dedup
@@ -531,47 +540,94 @@ def run_reveal(
 
         # ── Plan (iter ≥ 1): generate new queries from last verdict + history ─
         if it > 0:
-            verdict_for_planning = last_verdict
-            # Failure-diagnosed trajectory feeds the planner only when opted in; default None
-            # keeps the planner prompt (and thus behaviour) byte-identical to the legacy loop.
-            traj_notes = (om.trajectory_notes()
-                          if os.environ.get("REVEAL_ONLINE_TRAJECTORY_FEEDBACK") == "1" else None)
-            next_plan, m_desc = planner.plan_next(
-                question, candidates, om.evidence_texts(), verdict_for_planning, plan_history,
-                rubric_judgment=rubric_judgment, trajectory_notes=traj_notes,
+            # The online memory's failure-diagnosed retrieval trajectory always feeds the planner:
+            # it tells the planner not just WHAT was tried but which method ran and WHY it was
+            # unproductive (empty / redundant / off_target), so the next plan can switch strategy
+            # instead of repeating a failed retrieval. Proven +10q on egolife → mainline, no flag.
+            #
+            # REVEAL_ABLATE_ONLINE (ablation of the Online-Memory component): degrade the online
+            # memory to a BARE EVIDENCE STORE. The planner becomes a pure function of (question,
+            # options, accumulated evidence) — no verifier missing-evidence analysis, no
+            # accumulated query history, no failure-diagnosed trajectory. Evidence still
+            # accumulates + dedups for the answerer; everything else the
+            # online memory would contribute is removed (see online_memory.py, which also stops
+            # recording trajectory/reasoning under this flag). Isolates +Iter from +Online.
+            # ── Online-Memory ablation: ONE uniform rule per signal ──────────────
+            # The planner receives three online signals: history (already-tried
+            # queries), missing (the verifier's missing_evidence gap text), reason
+            # (the failure-diagnosis trajectory). Each obeys the same rule:
+            #   • mainline (no flag)        → ON   (full Online-Memory)
+            #   • REVEAL_ABLATE_ONLINE=1    → OFF  (STRICT bare: planner is a pure
+            #                                 function of question+options+evidence,
+            #                                 NOTHING added — no history either)
+            #   • REVEAL_ONLINE_ADDITIVE=1  → OFF unless its own REVEAL_OL_* flag =1
+            # ablate and additive-all-off therefore yield the IDENTICAL strict-bare
+            # context (no more two competing "bare" definitions). The verdict feeds
+            # the planner ONLY missing_evidence_analysis (see _planner_repair_context),
+            # so an empty verdict ≡ dropping missing.
+            _additive_online = os.environ.get("REVEAL_ONLINE_ADDITIVE") == "1"
+            _ablate_online   = os.environ.get("REVEAL_ABLATE_ONLINE") == "1" and not _additive_online
+
+            def _online_on(flag: str) -> bool:
+                if _ablate_online:
+                    return False                                   # strict bare: absolute, no exceptions
+                v = os.environ.get(flag)
+                if v == "1":
+                    return True                                    # force ON  (add-to-bare)
+                if v == "0":
+                    return False                                   # force OFF (remove-from-full)
+                return not _additive_online                        # default: mainline on / additive off
+
+            _use_history = _online_on("REVEAL_OL_HISTORY")
+            _use_missing = _online_on("REVEAL_OL_MISSING")
+            _use_reason  = _online_on("REVEAL_OL_REASON")
+
+            _hist_for_planner    = plan_history if _use_history else []
+            _verdict_for_planner = dict(last_verdict) if _use_missing else {}
+            next_plan = planner.plan_next(
+                question, candidates, om.evidence_texts(), _verdict_for_planner, _hist_for_planner,
+                rubric_judgment=rubric_judgment,
+                trajectory_notes=(om.trajectory_notes() if _use_reason else None),
             )
+            # Dedup is a code safety net, DECOUPLED from the history_query DISPLAY switch: the
+            # Jaccard/drift filter always sees the real plan_history so a repeated query is dropped
+            # even in arms that hide the "Already tried" block from the planner. (Previously dedup
+            # rode on _hist_for_planner, so hiding history also silently disabled dedup.)
             next_plan = planner.filter_targeted_queries(
                 next_plan, plan_history, embedder, om.evidence_vecs(),
                 dedup_thresh=query_history_dedup_threshold,
                 drift_threshold=query_evidence_dedup_threshold,
             )
-            plan_history.append(next_plan["queries"])
+            plan_history.append(next_plan["queries"])   # always recorded (dedup + history_query)
             current_plan = next_plan
 
         strategy = current_plan.get("strategy", "query")
         if strategy == "targeted":
             strategy = "query"
-        if strategy == "broadcast":
-            strategy = "time"
-        # `image` = visual strategy (REVEAL_VISUAL_STRATEGY): SigLIP text→frame cross-modal
-        # retrieval (_visual_retrieve), then contribute captions (REVEAL_VISUAL_RECALL) and/or
-        # keyframes (REVEAL_VISUAL_FRAMES) — see the do_image block. Defensive: if the gate is off,
-        # the planner shouldn't emit `image`, but treat any stray one as plain text query.
-        if strategy == "image" and os.environ.get("REVEAL_VISUAL_STRATEGY") != "1":
-            strategy = "query"
+        # `scan` = whole-video coverage sweep (see _timeline_scan_retrieve): used when the
+        # answer is spread across the video with no single window to target, and as the
+        # fallback when targeted queries are exhausted (filter_targeted_queries returns it).
+        # A `time` round with no concrete window degrades to `scan` (nothing else to target).
+        _tr_planned = current_plan.get("time_ranges") or []
+        if strategy == "time" and not _tr_planned:
+            strategy = "scan"
+        # `image` = SigLIP text→frame cross-modal retrieval (_visual_retrieve), contributing
+        # dense frames ONLY (pixels; no caption recall) — see the do_image block. image is a
+        # permanent strategy; no gating switch.
         do_time = (strategy == "time")
+        do_scan = (strategy == "scan")
         # `image` retrieves visually (SigLIP text→frame) when a SigLIP encoder is available and
         # the per-question image-round budget isn't spent; otherwise it degrades to a plain text
         # query so behaviour stays defined.
         do_image = (strategy == "image" and siglip_embedder is not None
                     and img_rounds < _img_max)
         # Round accounting: an image round is a bonus visual look and does NOT consume the text
-        # budget; everything else (query/time, or an image that fell back to text) counts.
+        # budget; everything else (query/time/scan, or an image that fell back to text) counts.
         if do_image:
             img_rounds += 1
         else:
             text_rounds += 1
-        queries_this_iter = current_plan.get("queries", []) if not do_time else []
+        queries_this_iter = current_plan.get("queries", []) if not (do_time or do_scan) else []
 
         # ── Retrieve ──────────────────────────────────────────────────────────
         new_texts, new_ids, new_vecs = [], [], []
@@ -581,38 +637,36 @@ def run_reveal(
 
         if do_image:
             # `image` round = a bonus visual look (does NOT consume the text-round budget; see the
-            # text_rounds counter). SigLIP text→frame picks the visually most-relevant moments; what
-            # that contributes is set by two ORTHOGONAL switches (try each alone to ablate):
-            #   REVEAL_VISUAL_RECALL=1  → the found chunks' CAPTION TEXT enters evidence (recall
-            #       channel: surface gold that text retrieval missed, fed to the strong text
-            #       answerer). Downstream _dedup_by_similarity drops captions already present, so
-            #       re-hits are safe.
-            #   REVEAL_VISUAL_FRAMES    → their keyframes are pulled and fed to the VLM (pixels
-            #       channel; see the keyframe block below). Default on = legacy pixels-only.
-            # Frames de-dup against everything already fed via ``all_kf_chunk_ids``.
-            _vis_recall = os.environ.get("REVEAL_VISUAL_RECALL") == "1"
+            # text_rounds counter). SigLIP text→frame picks the visually most-relevant moments; the
+            # round contributes their DENSE frames (pulled from each top chunk's original mp4 in the
+            # keyframe block below). Pixels only — the visually-retrieved chunks' caption TEXT is not
+            # added to evidence, keeping the visual channel clean.
             for q in (queries_this_iter or [question]):
                 _vt, vi, _vv = _visual_retrieve(
                     q, bank, siglip_embedder, final_top_k, set(all_kf_chunk_ids),
                     max_time=max_time)
                 img_ids_this_round.extend(vi)
-                if _vis_recall:
-                    new_texts.extend(_vt); new_ids.extend(vi); new_vecs.extend(_vv)
             iter_query = "[visual] " + (
                 " | ".join(queries_this_iter) if queries_this_iter else question)
         elif do_time:
+            # `time` always carries concrete windows here (empty-window rounds broke
+            # out above). Retrieve the chunks overlapping the planner's ranges.
             time_ranges = current_plan.get("time_ranges") or []
             new_texts, new_ids, new_vecs = _time_range_retrieve(
                 bank, om.seen_ids, time_ranges, n=final_top_k, max_time=max_time,
             )
-            if time_ranges:
-                iter_query = " | ".join(
-                    f"[time {float(r['start_sec']):.0f}s-{float(r['end_sec']):.0f}s]"
-                    for r in time_ranges
-                    if "start_sec" in r and "end_sec" in r
-                ) or "[time]"
-            else:
-                iter_query = "[time uniform]"
+            iter_query = " | ".join(
+                f"[time {float(r['start_sec']):.0f}s-{float(r['end_sec']):.0f}s]"
+                for r in time_ranges
+                if "start_sec" in r and "end_sec" in r
+            ) or "[time]"
+        elif do_scan:
+            # `scan` = sweep still-unretrieved chunks evenly across the whole timeline
+            # (broad coverage for whole-video answers / exhausted targeted queries).
+            new_texts, new_ids, new_vecs = _timeline_scan_retrieve(
+                bank, om.seen_ids, n=final_top_k, max_time=max_time,
+            )
+            iter_query = "[scan]"
         else:
             for q in queries_this_iter:
                 t, i, v = _multi_pool_retrieve(
@@ -627,78 +681,35 @@ def run_reveal(
 
         # Admit into online memory: redundancy dedup (always) + optional relevance filter
         # (REVEAL_ONLINE_FILTER). With the filter off this is exactly the legacy dedup+accumulate.
-        # Records one RetrievalAttempt with a diagnosed outcome (productive/redundant/off_target/empty).
+        # Records one RetrievalAttempt with a diagnosed failure_reason (None on a productive round).
         n_before = len(om.evidence)
         om.admit(new_texts, new_ids, new_vecs,
-                 method=strategy, query=iter_query, round=it,
+                 query=iter_query, round=it,
                  dedup_threshold=evidence_dedup_threshold)
         new_ids = om.evidence_ids()[n_before:]   # kept ids this round (keyframes + trace)
 
-        # ── Keyframes (visual de-dup against all accumulated) ────────────────
-        # Cross-chunk dedup decision based on chunk-level v_visual (one vector
-        # per chunk). If chunk is accepted, append up to one frame from its
-        # already-deduped within-chunk frame set.
-        # REVEAL_KF_ONLY_ON_IMAGE: frames enter ONLY through the planner's `image` strategy.
-        # On a text (query/time) round no frames are attached, so a purely-textual question
-        # never gets visual distractors fed to the answerer — the model must first *decide*
-        # it needs to look (pick `image`), and only then are the corresponding frames pulled.
-        # Default off preserves the legacy one-frame-per-chunk behaviour (helps VideoMME).
-        _kf_only_on_image = os.environ.get("REVEAL_KF_ONLY_ON_IMAGE") == "1"
-        if keyframe_dir is not None and not (_kf_only_on_image and strategy != "image"):
-            # Visual strategy (strategy == "image", REVEAL_VISUAL_STRATEGY): `new_ids` is already
-            # ranked by SigLIP text→frame similarity (_visual_retrieve), so pull one frame from
-            # each of the top ``REVEAL_IMAGE_KF_CAP`` visually-relevant chunks — i.e. the frames
-            # that actually depict what the question asked about — WITHOUT the accumulated
-            # visual-dedup (which would drop near-duplicate but on-topic moments). Otherwise
-            # (text query round with legacy keyframes on): one deduped frame per new chunk.
-            img_focus = (strategy == "image")
-            _img_cap = int(os.environ.get("REVEAL_IMAGE_KF_CAP", "6") or 6)
-            # image round: frames come from the SigLIP-retrieved chunks only (img_ids_this_round),
-            # NOT the text-query chunks in new_ids. The pixels channel is gated by
-            # REVEAL_VISUAL_FRAMES (default on = legacy pixels-only); Arm A (recall-only) sets it 0
-            # to feed captions without frames. Only governs image-round frames; legacy text-round
-            # keyframes (else branch) stay controlled by REVEAL_KF_ONLY_ON_IMAGE / --no-keyframes.
-            _vis_frames = os.environ.get("REVEAL_VISUAL_FRAMES", "1") == "1"
-            if img_focus and not _vis_frames:
-                kf_targets = []
-            else:
-                kf_targets = img_ids_this_round[:_img_cap] if img_focus else new_ids
-            kf_cap = 1
-            # REVEAL_DENSE_FRAMES=N: WorldMM-style — pull N frames from the chunk's
-            # ORIGINAL 30 s mp4 instead of its single stored keyframe (see
-            # dense_frames_from_original). Falls back to the stored keyframe when the
-            # source video can't be located (e.g. non-egolife banks, unmatched chunks).
-            _dense_n = int(os.environ.get("REVEAL_DENSE_FRAMES", "0") or 0)
-            for cid in kf_targets:
+        # ── Keyframes: ONLY the planner's `image` strategy attaches frames ────
+        # A text (query/time) round never feeds frames to the answerer — the model must first
+        # DECIDE it needs to look (pick `image`); only then are DENSE frames pulled from the
+        # SigLIP-ranked chunks' ORIGINAL mp4 (REVEAL_IMAGE_KF_CAP top chunks × REVEAL_DENSE_FRAMES
+        # frames each, no accumulated visual-dedup). No stored-keyframe path: if the source video
+        # can't be located (e.g. a bank without originals) the chunk simply contributes no frames.
+        if keyframe_dir is not None and strategy == "image":
+            _img_cap = int(os.environ.get("REVEAL_IMAGE_KF_CAP", "4") or 4)
+            _dense_n = int(os.environ.get("REVEAL_DENSE_FRAMES", "6") or 6)
+            for cid in img_ids_this_round[:_img_cap]:
                 c = chunk_by_id.get(cid)
                 if c is None:
                     continue
-                if not img_focus and c.v_visual and all_kf_vecs:
-                    v = np.array(c.v_visual, dtype=np.float32)
-                    if float(np.max(np.array(all_kf_vecs, dtype=np.float32) @ v)) >= kf_dedup_threshold:
-                        continue
-                imgs = []
-                if _dense_n > 0:
-                    imgs = dense_frames_from_original(c, _dense_n)
-                if not imgs:
-                    paths = keyframe_paths(keyframe_dir, bank.video_id, c.chunk_id,
-                                           cap=kf_cap, chunk=c)
-                    imgs = [im for im in (load_keyframe_pil(p) for p in paths) if im is not None]
-                added = False
-                for img in imgs:
+                for img in dense_frames_from_original(c, _dense_n, video_path=video_path):
                     all_keyframes.append(img)
                     all_kf_chunk_ids.append(cid)
                     all_kf_ts.append(float(c.keyframe_ts or c.start_time or 0.0))
-                    added = True
-                if added:
-                    all_kf_vecs.append(c.v_visual if c.v_visual else [])
 
         # ── Verifier ──────────────────────────────────────────────────────────
         ev_for_verifier = om.evidence_texts()
 
         kf_for_verifier = all_keyframes
-        if answer_keyframe_cap is not None and len(kf_for_verifier) > answer_keyframe_cap:
-            kf_for_verifier = kf_for_verifier[:answer_keyframe_cap]
 
         last_verdict = verifier.verify(question, candidates, ev_for_verifier, rubric,
                                   keyframe_images=kf_for_verifier)
@@ -709,7 +720,6 @@ def run_reveal(
         iterations.append({
             "verdict":                   last_verdict["label"],
             "evidence":                  list(ev_for_verifier),
-            "unknown_options":           last_verdict.get("unknown_options") or [],
             "missing_evidence_analysis": last_verdict.get("missing_evidence_analysis") or None,
             "iter":                      it,
             "plan": {
@@ -728,9 +738,8 @@ def run_reveal(
             "rubric_criteria_scores":    last_verdict.get("rubric_criteria_scores"),
             "rubric_score":              last_verdict.get("rubric_score"),
             # Online-memory retrieval diagnosis for THIS round (additive; ignored by legacy
-            # consumers). ``failure_reason`` is None on a productive round.
-            "method":                    _attempt.method if _attempt else strategy,
-            "outcome":                   _attempt.outcome if _attempt else None,
+            # consumers). ``failure_reason`` is None on a productive round. (Strategy of the
+            # round is already recorded under "plan"; method and outcome were dropped as redundant.)
             "failure_reason":            _attempt.failure_reason if _attempt else None,
         })
 
@@ -751,11 +760,6 @@ def run_reveal(
     kf_for_answer        = all_keyframes
     kf_chunk_ids_for_ans = all_kf_chunk_ids
     kf_ts_for_ans        = all_kf_ts
-
-    if answer_keyframe_cap is not None and len(kf_for_answer) > answer_keyframe_cap:
-        kf_for_answer        = kf_for_answer[:answer_keyframe_cap]
-        kf_chunk_ids_for_ans = kf_chunk_ids_for_ans[:answer_keyframe_cap]
-        kf_ts_for_ans        = kf_ts_for_ans[:answer_keyframe_cap]
 
     result = answerer.answer(question, candidates, ev_texts,
                              keyframe_images=kf_for_answer,

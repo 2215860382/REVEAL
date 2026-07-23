@@ -16,13 +16,28 @@ def _format_options(candidates: List[str]) -> str:
     return " ".join(f"({chr(ord('A')+i)}) {c}" for i, c in enumerate(candidates))
 
 
+def _letter_set(n: int) -> str:
+    """'A/B/C/D' for 4 options, 'A/B/C/D/E' for 5 — matches _format_options labelling."""
+    return "/".join(chr(ord("A") + i) for i in range(max(1, n)))
+
+
+def _extract_letter(raw: str, n: int) -> str:
+    """Parse the chosen option letter, dynamic to the number of options (A..last).
+    Falls back to a loose (no word-boundary) match so a bare 'E' is never dropped."""
+    last = chr(ord("A") + max(0, n - 1))
+    m = re.search(rf"\b([A-{last}])\b", raw or "")
+    if not m:
+        m = re.search(rf"([A-{last}])", raw or "")
+    return m.group(1) if m else ""
+
+
 _PROMPT = (
     "You are answering a multiple-choice question about a long video.\n"
     "Below are {n} relevant video segments retrieved from the video.\n\n"
     "{speaker}{evidence}\n\n"
     "Question: {question}\n"
     "Choices: {choices}\n"
-    "Answer with a single letter (A/B/C/D) only, no explanation:"
+    "Answer with a single letter ({letters}) only, no explanation:"
 )
 
 _QF_HEADER = (
@@ -30,14 +45,14 @@ _QF_HEADER = (
     "Question: {question}\n"
     "Choices: {choices}\n\n"
     "Inspect the {n_kf} keyframes and {n_seg} retrieved segments below, "
-    "then choose A/B/C/D.\n"
+    "then choose {letters}.\n"
 )
 
 _QF_TAIL = (
     "{speaker}{evidence}\n\n"
     "Question: {question}\n"
     "Choices: {choices}\n"
-    "Answer with a single letter (A/B/C/D) only, no explanation:"
+    "Answer with a single letter ({letters}) only, no explanation:"
 )
 
 
@@ -82,6 +97,8 @@ class Answerer:
 
         evidence = _format_evidence(list(focused_texts) + list(evidence_texts))
         choices  = _format_options(candidates)
+        n_opt    = len(candidates)
+        letters  = _letter_set(n_opt)
         n_seg    = len(focused_texts) + len(evidence_texts)
 
         # Filter to non-null frames, aligning ts and cid lists by position.
@@ -101,21 +118,21 @@ class Answerer:
         seg_idx_for_cid = {int(cid): i + 1 for i, cid in enumerate(evidence_chunk_ids)}
 
         # ── Default path: no flags → original chat_with_frames behaviour ─────
-        if not image_timestamps and not question_first:
-            prompt = _PROMPT.format(
-                n=n_seg, evidence=evidence, speaker="",
-                question=question, choices=choices,
-            )
-            raw = self.model.chat_with_frames(
-                frames, prompt, max_new_tokens=16, enable_thinking=False
-            )
-        else:
+        def _gen(max_new_tokens: int) -> str:
+            if not image_timestamps and not question_first:
+                prompt = _PROMPT.format(
+                    n=n_seg, evidence=evidence, speaker="",
+                    question=question, choices=choices, letters=letters,
+                )
+                return self.model.chat_with_frames(
+                    frames, prompt, max_new_tokens=max_new_tokens, enable_thinking=False
+                )
             content: list = []
             if question_first:
                 content.append({
                     "type": "text",
                     "text": _QF_HEADER.format(
-                        question=question, choices=choices,
+                        question=question, choices=choices, letters=letters,
                         n_kf=len(frames), n_seg=n_seg,
                     ),
                 })
@@ -134,19 +151,26 @@ class Answerer:
                     "type": "text",
                     "text": _QF_TAIL.format(
                         evidence=evidence, speaker="",
-                        question=question, choices=choices,
+                        question=question, choices=choices, letters=letters,
                     ),
                 })
             else:
                 prompt = _PROMPT.format(
                     n=n_seg, evidence=evidence, speaker="",
-                    question=question, choices=choices,
+                    question=question, choices=choices, letters=letters,
                 )
                 content.append({"type": "text", "text": prompt})
-            raw = self.model.chat_with_content(
-                content, max_new_tokens=16, enable_thinking=False
+            return self.model.chat_with_content(
+                content, max_new_tokens=max_new_tokens, enable_thinking=False
             )
 
-        m = re.search(r"\b([A-D])\b", raw)
-        letter = m.group(1) if m else ""
+        raw = _gen(16)
+        letter = _extract_letter(raw, n_opt)
+        # Never emit an empty prediction: retry once (a dropped/blank LLM reply is
+        # a transient failure, not a real abstention), then default to 'A'.
+        if not letter:
+            raw = _gen(32)
+            letter = _extract_letter(raw, n_opt)
+        if not letter:
+            letter = "A"
         return {"answer": letter, "evidence": [], "rationale": ""}

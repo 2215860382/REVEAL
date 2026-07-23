@@ -2,8 +2,8 @@
 
 Two-stage planning:
   iter-0: sub-question decomposition (LLM-decomposed or option-grounded).
-  iter≥1: unified planner — given verifier signals (unknown_options /
-          missing_evidence_analysis), pick either query retrieval or time retrieval.
+  iter≥1: unified planner — given the verifier's missing_evidence_analysis,
+          pick either query retrieval or time retrieval.
 
 Safety nets on iter≥1 query generation (applied via ``filter_targeted_queries``):
   - Jaccard ≥ ``dedup_thresh`` vs prior queries → drop the query.
@@ -15,7 +15,7 @@ from __future__ import annotations
 import json as _json
 import os
 import re
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
 
@@ -69,80 +69,128 @@ Given the current evidence and what is still missing, decide the BEST next retri
 
 ## Strategies
 
-**query** — Issue focused semantic retrieval queries.
-  Each query must be self-contained, target a single retrievable fact, and not repeat
-  queries already tried. Use this when the missing evidence is best described by
-  people, objects, actions, dialogue, places, or relations.
+**query** — Semantic retrieval over the caption TEXT. Use when the missing evidence is a
+  fact describable in words: a specific person, object, action, dialogue, place, event, or
+  relation. Make each query pinpoint the exact fact still missing, and phrase it differently
+  from queries already tried — rewording a past query just returns the same chunks.
 
-**time** — Retrieve by timestamp or time range.
-  Use this when the missing evidence is tied to a concrete time span, timestamp,
-  sequence position, or requires coverage across a broad interval. Output one or more
-  time ranges in seconds.
+**time** — Retrieve by timestamp or time range. Use when the question targets a specific
+  moment or bounded span: the first/last time something happens, "the first minute", a named
+  segment, or chronological order. ALWAYS output concrete time ranges in seconds — never leave
+  them empty.
+
+**scan** — Timeline coverage sweep. Retrieve segments sampled evenly across the WHOLE video
+  that have not been retrieved yet. Use when the answer is spread across the entire video and no
+  single query or time window captures it — "which of these statements is correct", a total
+  count over the whole video, an overall synopsis — or when repeated queries keep returning the
+  same chunks and you need to cover parts of the video not yet seen. No queries or ranges needed.
 
 ## Output format
 Return ONLY a JSON object:
 {
-  "think": "<brief reason for the retrieval choice>",
-  "strategy": "query" | "time",
+  "think": "<brief reason for the choice>",
+  "strategy": "query" | "time" | "scan",
   "queries": ["..."],
   "time_ranges": [{"start_sec": 0, "end_sec": 60}]
 }
 
 For strategy="query", fill queries and set time_ranges to [].
-For strategy="time", fill time_ranges and set queries to [].
-If the needed interval is the whole currently available video but exact times are unknown,
-use strategy="time" with time_ranges=[] so the system samples uncovered time uniformly.
-
-Use time retrieval when coverage must span the ENTIRE video, including:
-  - Main theme, topic overview, synopsis, or overall narrative of the video
-  - Events spread throughout / across all segments / entire duration
-  - Chronological order, sequence of events, or timeline across the full video
-  - Query retrieval has repeatedly failed to find sufficient evidence"""
+For strategy="time", fill time_ranges with concrete second-windows and set queries to [].
+For strategy="scan", leave both queries and time_ranges empty."""
 
 
-# Same as _PLANNER_UNIFIED_SYS but offers a third, VISUAL retrieval strategy. Gated by
-# REVEAL_VISUAL_STRATEGY=1 so the default (query/time) planner — and every in-flight
-# experiment/threshold sweep — is byte-identical unless a run explicitly opts in.
+# The planner's system prompt: offers all three retrieval strategies (query / time / image).
+# image is a permanent capability; this is the only planner prompt used.
 _PLANNER_UNIFIED_SYS_IMG = """You are a retrieval strategy planner for a video question-answering system.
-Given the current evidence and what is still missing, decide the BEST next retrieval strategy.
+Given the current evidence and what is still missing, pick the retrieval strategy that fits
+what the missing evidence IS.
 
 ## Strategies
 
-**query** — Issue focused semantic retrieval queries over the caption TEXT.
-  Each query must be self-contained, target a single retrievable fact, and not repeat
-  queries already tried. Use this when the missing evidence is best described by
-  people, objects, actions, dialogue, places, or relations in words.
+**query** — Semantic retrieval over the caption TEXT. Use when the missing evidence is a
+  fact describable in words: a specific person, object, action, dialogue, place, event, or
+  relation. Make each query pinpoint the exact fact still missing, and phrase it differently
+  from queries already tried — rewording a past query just returns the same chunks.
 
-**image** — Retrieve KEYFRAMES (the actual video frames) for the moment your query
-  describes and look at them directly. Use this when the missing evidence is a VISUAL
-  detail captions tend to miss or get wrong — exact colour, count, on-screen text,
-  facial expression, spatial layout, who-holds-what — something you must SEE to confirm
-  or rule out an option. Put the moment description in queries.
+**image** — Retrieve the actual video KEYFRAMES and look at them. Use when the answer depends
+  on a visual detail — colour, texture, count, on-screen text, facial expression, spatial
+  layout, who-holds-what — something you must SEE. Put the moment description in queries.
 
-**time** — Retrieve by timestamp or time range.
-  Use this when the missing evidence is tied to a concrete time span, timestamp,
-  sequence position, or requires coverage across a broad interval. Output one or more
-  time ranges in seconds.
+**time** — Retrieve by timestamp or time range. Use when the question targets a specific
+  moment or bounded span: the first/last time something happens, "the first minute", a named
+  segment, or chronological order. ALWAYS output concrete time ranges in seconds — never leave
+  them empty.
+
+**scan** — Timeline coverage sweep. Retrieve segments sampled evenly across the WHOLE video
+  that have not been retrieved yet. Use when the answer is spread across the entire video and no
+  single query or time window captures it — "which of these statements is correct", a total
+  count over the whole video, an overall synopsis — or when repeated queries keep returning the
+  same chunks and you need to cover parts of the video not yet seen. No queries or ranges needed.
 
 ## Output format
 Return ONLY a JSON object:
 {
-  "think": "<brief reason for the retrieval choice>",
-  "strategy": "query" | "image" | "time",
+  "think": "<brief reason for the choice>",
+  "strategy": "query" | "image" | "time" | "scan",
   "queries": ["..."],
   "time_ranges": [{"start_sec": 0, "end_sec": 60}]
 }
 
 For strategy="query" or "image", fill queries and set time_ranges to [].
-For strategy="time", fill time_ranges and set queries to [].
-If the needed interval is the whole currently available video but exact times are unknown,
-use strategy="time" with time_ranges=[] so the system samples uncovered time uniformly.
+For strategy="time", fill time_ranges with concrete second-windows and set queries to [].
+For strategy="scan", leave both queries and time_ranges empty."""
 
-Use time retrieval when coverage must span the ENTIRE video, including:
-  - Main theme, topic overview, synopsis, or overall narrative of the video
-  - Events spread throughout / across all segments / entire duration
-  - Chronological order, sequence of events, or timeline across the full video
-  - Query retrieval has repeatedly failed to find sufficient evidence"""
+
+# Last-resort image variant (gated: REVEAL_IMAGE_LAST_RESORT=1). Same query/time strategies,
+# but image is demoted to a genuine last resort: the captions already describe the visuals in
+# text, so image is worth its cost only when a query for this exact fact has ALREADY been tried
+# and returned nothing, AND the missing detail is purely perceptual (captions cannot phrase it).
+# Empirically image is chosen far less often under this prompt, recovering the accuracy that
+# blanket image rounds drag down on VideoMME.
+_PLANNER_UNIFIED_SYS_IMG_LASTRESORT = """You are a retrieval strategy planner for a video question-answering system.
+Given the current evidence and what is still missing, pick the retrieval strategy that fits
+what the missing evidence IS. STRONGLY PREFER text retrieval (query/time): the caption memory
+already describes what is on screen — colours, objects, actions, on-screen text — in words, so a
+query almost always reaches a visual fact faster and more reliably than re-examining pixels.
+
+## Strategies
+
+**query** — Semantic retrieval over the caption TEXT. Your DEFAULT. Use whenever the missing
+  evidence is a fact describable in words: a specific person, object, action, dialogue, place,
+  event, or relation. Make each query pinpoint the exact fact still missing, and phrase it
+  differently from queries already tried — rewording a past query just returns the same chunks.
+
+**time** — Retrieve by timestamp or time range. Use when the question targets a specific
+  moment or bounded span: the first/last time something happens, "the first minute", a named
+  segment, or chronological order. ALWAYS output concrete time ranges in seconds — never leave
+  them empty.
+
+**scan** — Timeline coverage sweep. Retrieve segments sampled evenly across the WHOLE video
+  that have not been retrieved yet. Use when the answer is spread across the entire video and no
+  single query or time window captures it — "which of these statements is correct", a total
+  count over the whole video, an overall synopsis — or when repeated queries keep returning the
+  same chunks and you need to cover parts of the video not yet seen. No queries or ranges needed.
+
+**image** — LAST RESORT ONLY. Retrieve the raw video KEYFRAMES and look at the pixels. This is
+  expensive and usually WORSE than a good query, because the captions already narrate the visuals.
+  Choose image ONLY when BOTH hold: (1) a query for this exact fact has already been tried and the
+  captions genuinely do not contain it, AND (2) the answer hinges on a fine perceptual detail that
+  words cannot recover from the captions — an exact colour/shade, a precise count of small items,
+  unreadable on-screen text, a subtle facial expression, or fine spatial layout. If a query could
+  plausibly surface the fact, choose query, NOT image. Put the moment description in queries.
+
+## Output format
+Return ONLY a JSON object:
+{
+  "think": "<brief reason for the choice>",
+  "strategy": "query" | "image" | "time" | "scan",
+  "queries": ["..."],
+  "time_ranges": [{"start_sec": 0, "end_sec": 60}]
+}
+
+For strategy="query" or "image", fill queries and set time_ranges to [].
+For strategy="time", fill time_ranges with concrete second-windows and set queries to [].
+For strategy="scan", leave both queries and time_ranges empty."""
 
 
 def _coerce_time_ranges(raw) -> list[dict]:
@@ -184,8 +232,6 @@ def _plan_next(
     missing_analysis: str,
     llm,
     plan_history: List[List[str]] = (),
-    unknown_options: Optional[List[str]] = None,
-    prune_satisfied: bool = False,
     trajectory_notes: Optional[str] = None,
 ) -> dict:
     """Unified planner for iter ≥1: pick query or time retrieval.
@@ -193,38 +239,27 @@ def _plan_next(
     Returns ``{"think": "...", "strategy": "query"|"time", "queries": [...],
     "time_ranges": [...]}``.
     """
-    unknown_set = set(unknown_options or [])
-    opts_lines = []
-    for i, c in enumerate(candidates):
-        letter = chr(ord('A')+i)
-        tag = " [UNRESOLVED]" if letter in unknown_set else ""
-        opts_lines.append(f"  ({letter}) {c}{tag}")
-    opts = "\n".join(opts_lines)
+    opts = "\n".join(f"  ({chr(ord('A')+i)}) {c}" for i, c in enumerate(candidates))
 
     parts = [f"Question: {question}", f"Options:\n{opts}"]
-    if prune_satisfied and plan_history:
-        parts.append(
-            "NOTE: Review the previously tried queries against the CURRENT evidence. "
-            "For each previous query, judge whether its target fact is now adequately covered by the evidence. "
-            "Do NOT regenerate queries whose target is already satisfied. "
-            "Only generate queries for facts that remain unresolved."
-        )
 
+    # history_query — the single record of what was already searched. Same source as the old
+    # per-attempt trajectory <query> (both are the planner's past queries), collapsed to ONE
+    # representation: the original plan_history "Already tried" block. With it visible the planner
+    # never reissues a query (0% repeats vs 51% when hidden). The redundant trajectory <query> copy
+    # was removed; the trajectory now carries only the per-attempt <reason>.
+    if plan_history:
+        lines = [
+            "  " + " | ".join(f'"{q}"' for q in qs)
+            for qs in plan_history if qs
+        ]
+        if lines:
+            parts.append("Already tried (do NOT repeat):\n" + "\n".join(lines))
+    # Per-attempt outcome from the online memory, in the same order: <reason> tells the planner to
+    # abandon an exhausted direction rather than reword it. Empty unless REVEAL_OL_REASON is on.
     if trajectory_notes:
-        # Failure-aware history (REVEAL_ONLINE_TRAJECTORY_FEEDBACK): tells the planner not just
-        # WHAT was tried but the retrieval method and WHY it was unproductive, so it can switch
-        # strategy (e.g. off_target → rephrase, redundant → try time/uncovered, empty → widen).
         parts.append(
-            "Retrieval history (method | query -> outcome; do NOT repeat what failed the same "
-            "way — change the query or strategy):\n" + trajectory_notes)
-    elif plan_history:
-        lines = []
-        for qs in plan_history:
-            if qs:
-                lines.append("  " + " | ".join(f'"{q}"' for q in qs))
-            else:
-                lines.append("  [broadcast]")
-        parts.append("Already tried (do NOT repeat):\n" + "\n".join(lines))
+            "Outcome of each attempt so far, in order, tagged <reason>:\n" + trajectory_notes)
 
     if evidence_texts:
         covered = _extract_covered_times(evidence_texts)
@@ -234,16 +269,27 @@ def _plan_next(
     if missing_analysis:
         parts.append(
             "Missing fact to retrieve:\n"
-            f"{missing_analysis}\n"
+            f"<missing_evidence>{missing_analysis}</missing_evidence>\n"
             "Generate queries for the concrete visual/dialogue evidence needed to resolve this fact."
         )
 
     parts.append("Output the retrieval strategy JSON now.")
 
-    # Visual strategy (REVEAL_VISUAL_STRATEGY=1) offers a third `image` retrieval mode;
-    # off by default so the query/time planner and every in-flight sweep are unchanged.
-    _visual = os.environ.get("REVEAL_VISUAL_STRATEGY") == "1"
-    _default_sys = _PLANNER_UNIFIED_SYS_IMG if _visual else _PLANNER_UNIFIED_SYS
+    # The planner's menu tracks whether image ROUNDS can actually execute
+    # (REVEAL_IMAGE_MAX_ROUNDS): when image is disabled (=0), the model only sees the
+    # two-strategy prompt (query / time) so it can't pick a strategy that would no-op;
+    # otherwise it gets the three-strategy prompt and freely chooses image per question.
+    # Mainline (default 2) → three-strategy prompt, byte-identical to before.
+    _img_enabled = (os.environ.get("REVEAL_IMAGE_MAX_ROUNDS", "2") or "2") != "0"
+    # REVEAL_IMAGE_LAST_RESORT=1 → image demoted to last resort (see prompt above); default
+    # keeps image on equal footing (byte-identical to before when the flag is unset).
+    _img_lastresort = os.environ.get("REVEAL_IMAGE_LAST_RESORT") == "1"
+    if not _img_enabled:
+        _default_sys = _PLANNER_UNIFIED_SYS
+    elif _img_lastresort:
+        _default_sys = _PLANNER_UNIFIED_SYS_IMG_LASTRESORT
+    else:
+        _default_sys = _PLANNER_UNIFIED_SYS_IMG
     messages = [
         {"role": "system", "content": _default_sys},
         {"role": "user",   "content": "\n\n".join(parts)},
@@ -256,15 +302,21 @@ def _plan_next(
             raw_strategy = str(d.get("strategy", "query")).lower()
             if raw_strategy in ("targeted", "semantic"):
                 strategy = "query"
-            elif raw_strategy in ("broadcast", "timeline", "temporal"):
+            elif raw_strategy in ("timeline", "temporal"):
                 strategy = "time"
+            elif raw_strategy in ("scan", "sweep", "coverage", "broadcast", "uniform"):
+                strategy = "scan"
             elif raw_strategy in ("image", "visual", "frame", "keyframe", "keyframes"):
-                strategy = "image" if _visual else "query"   # falls back to text when gated off
+                strategy = "image" if _img_enabled else "query"   # image off → safe text fallback
             elif raw_strategy in ("query", "time"):
                 strategy = raw_strategy
             else:
                 strategy = "query"
             queries  = [str(q).strip() for q in (d.get("queries") or []) if str(q).strip()]
+            # REVEAL_SINGLE_QUERY: iter≥1 also emits ONE query per round (matches the
+            # single-query iter-0), so the +Iter ladder rung is single-query throughout.
+            if os.environ.get("REVEAL_SINGLE_QUERY") == "1" and queries:
+                queries = queries[:1]
             time_ranges = _coerce_time_ranges(d.get("time_ranges") or d.get("time_range") or d.get("times"))
             if strategy in ("query", "image") and not queries:
                 queries  = [question]
@@ -288,12 +340,7 @@ def _planner_repair_context(verdict: dict, rubric_judgment: bool) -> str:
     if not rubric_judgment:
         return f"Missing evidence analysis: {missing}" if missing else ""
 
-    if missing:
-        return missing
-    if list(verdict.get("unknown_options") or []):
-        return ("Retrieve concrete evidence that can confirm or rule out the options "
-                "marked [UNRESOLVED].")
-    return ""
+    return missing
 
 
 # ── Query similarity safety nets ─────────────────────────────────────────────
@@ -326,11 +373,23 @@ class Planner:
         question: str,
         candidates: List[str],
     ) -> dict:
-        """Iter-0 plan: LLM splits the question into 2-4 atomic sub-queries."""
+        """Iter-0 plan: LLM splits the question into 2-4 atomic sub-queries.
+
+        Ablation knob ``REVEAL_SINGLE_QUERY=1`` disables the decomposition and issues a
+        SINGLE query (the raw question). Combined with the same cap on iter≥1 (see
+        ``_plan_next``), EVERY round emits exactly one query, so retrieval grows one
+        query at a time: the minimal-retrieval base (~8 chunks/round). The "+Iter"
+        component (max-iter 1→3) then isolates the verifier-guided multi-round retrieval
+        value alone. Mainline sets none of it (decomposition on, byte-identical to before).
+        """
+        if os.environ.get("REVEAL_SINGLE_QUERY") == "1":
+            queries = [question]
+        else:
+            queries = _decompose_into_subquestions(question, candidates, self.llm)
         return {
-            "think":     "iter0_decompose",
+            "think":     "iter0_single" if queries == [question] else "iter0_decompose",
             "strategy":  "query",
-            "queries":   _decompose_into_subquestions(question, candidates, self.llm),
+            "queries":   queries,
             "time_ranges": [],
             "reasoning": "iter0_decompose",
         }
@@ -344,24 +403,21 @@ class Planner:
         plan_history: List[List[str]],
         *,
         rubric_judgment: bool = True,
-        prune_satisfied: bool = False,
         trajectory_notes: Optional[str] = None,
-    ) -> Tuple[dict, str]:
+    ) -> dict:
         """Pick the next iter plan from the verifier verdict.
 
-        ``trajectory_notes`` (opt-in) replaces the plain "already tried" block with a
-        failure-diagnosed retrieval history. Returns (plan, missing_description).
+        ``trajectory_notes`` (the online memory's failure-diagnosed retrieval history) replaces the
+        plain "already tried" block; mainline passes it every iter. Returns the plan dict. The
+        verifier's missing-evidence text is consumed internally (built into the planner prompt);
+        the trace reads it straight from the verdict, so it is not returned here.
         """
         m_desc = _planner_repair_context(verdict, rubric_judgment)
 
-        unk_opts = verdict.get("unknown_options") if rubric_judgment else None
-        plan = _plan_next(
+        return _plan_next(
             question, candidates, evidence_texts, m_desc, self.llm, plan_history,
-            unknown_options=unk_opts,
-            prune_satisfied=prune_satisfied,
             trajectory_notes=trajectory_notes,
         )
-        return plan, m_desc
 
     def filter_targeted_queries(
         self,
@@ -375,9 +431,12 @@ class Planner:
     ) -> dict:
         """Apply Jaccard + BGE-drift safety nets to a targeted plan.
 
-        Falls back to broadcast if all targeted queries are dropped.
+        Returns ``strategy="scan"`` if every targeted query is dropped: the planner has
+        run out of NEW targeted queries (each was a near-duplicate of one already tried),
+        so the only productive move left is to sweep timeline regions not yet retrieved
+        (see ``_timeline_scan_retrieve``).
         """
-        if plan["strategy"] not in ("query", "targeted"):
+        if plan["strategy"] not in ("query", "targeted", "image"):
             return plan
 
         prev_queries = [q for qs in plan_history for q in qs]
@@ -387,7 +446,11 @@ class Planner:
         for q in plan["queries"]:
             if _too_similar(q, prev_queries, dedup_thresh):
                 continue
-            if ev_mat is not None:
+            # An image query can intentionally revisit a concept whose caption
+            # evidence is already present: the missing fact may be visual.  It
+            # still must not repeat a previously issued visual/text query, but
+            # text-evidence drift filtering is only appropriate for text search.
+            if plan["strategy"] != "image" and ev_mat is not None:
                 qv    = embedder.encode([q])[0]
                 drift = float(np.max(ev_mat @ qv))
                 if drift >= drift_threshold:
@@ -395,5 +458,5 @@ class Planner:
             kept.append(q)
         if kept:
             return {**plan, "queries": kept}
-        return {"think": "all_query_retrievals_filtered", "strategy": "time",
+        return {"think": "all_query_retrievals_filtered", "strategy": "scan",
                 "queries": [], "time_ranges": [], "reasoning": "all_query_retrievals_filtered"}

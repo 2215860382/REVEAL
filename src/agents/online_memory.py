@@ -4,7 +4,7 @@ The online memory unifies the three things the answer loop maintains while it re
 persistent *offline* memory (multi-scale narrative + visual index):
 
   1. **evidence cache**   — the compact set of retrieved fragments admitted so far;
-  2. **retrieval trajectory** — every retrieval attempt: which method ran, with what query, and
+  2. **retrieval trajectory** — every retrieval attempt: the query tried, and
                             (if it produced nothing useful) *why it failed*;
   3. **reasoning state**  — the per-round verifier verdict (sufficiency + missing-evidence gap).
 
@@ -13,14 +13,16 @@ suppresses redundant/failed retrievals, and a fragment enters the evidence cache
 redundancy (and, optionally, relevance) filtering. This module owns that state; the main loop in
 ``experiments/core/reveal.py`` drives it.
 
-Behavioural contract: with the opt-in flags OFF, ``admit`` is exactly the legacy
-``_dedup_by_similarity`` + accumulate, so results are byte-identical to the pre-refactor loop.
-The active behaviours are gated (recall is the proven lever here, so filtering is proven via A/B
-before it becomes mainline):
+What the online memory feeds back is mainline: the failure-diagnosed retrieval trajectory
+(``trajectory_notes``) is passed to the planner every iter — it lets the planner see what was
+tried and *why* it was unproductive, so the next plan changes strategy instead of repeating a
+failed retrieval (proven +10q on egolife). Only ONE behaviour is still gated, pending A/B — the
+per-retrieval relevance filter, because recall is the proven lever here and blanket filtering has
+historically netted ≤0:
 
   - ``REVEAL_ONLINE_FILTER=1``   → per-retrieval keep-supporting / drop-misleading fragment filter
-                                    (conservative; keep-if-uncertain).
-  - trajectory *recording* is always on (additive; never changes the answer).
+                                    (conservative; keep-if-uncertain). With it unset, ``admit`` is
+                                    exactly the legacy ``_dedup_by_similarity`` + accumulate.
 """
 from __future__ import annotations
 
@@ -64,13 +66,33 @@ def _dedup_by_similarity(
 # ── Relevance / misleading filter (gated: REVEAL_ONLINE_FILTER) ───────────────
 
 _FILTER_SYS = """\
-You are curating retrieved video-evidence fragments for a multiple-choice question. For each
-fragment decide whether it could help CONFIRM or RULE OUT at least one option. KEEP a fragment
-if it is even plausibly on-topic; DROP it only when it is clearly off-topic or misleading with
-respect to the question and options. When in doubt, KEEP.
+You curate retrieved evidence fragments for a multiple-choice question about a long video. Your job
+is to REMOVE fragments that are irrelevant or misleading, so the answerer sees only trustworthy,
+on-target evidence. Read the QUESTION, every OPTION, and every FRAGMENT before deciding.
 
-Return ONLY this JSON, no prose, no fences:
-  {"keep": [<0-based indices of fragments to keep>]}"""
+STEP 1 — Extract the question's CONSTRAINTS: the specific subject/person, action, object, place, and
+time (day/part-of-day) it asks about. Fragments carry their time span as a leading [<start>s-<end>s].
+
+STEP 2 — DROP a fragment when it is:
+  - IRRELEVANT: about a different scene/subject with no bearing on the question or any option; OR
+  - MISLEADING: it looks on-topic but VIOLATES a constraint — a different person, a different
+    time/day/part-of-day, a different place, or a different event than the question asks about — so
+    using it as evidence would push toward a WRONG option. This is the case you must actively catch:
+    superficially-relevant fragments about the wrong instance are exactly what mislead the answer.
+
+KEEP a fragment when it:
+  - matches the question's constraints and could confirm the right option; OR
+  - directly helps RULE OUT an option; OR
+  - you genuinely cannot tell whether it is on- or off-target. (A clear constraint violation is NOT
+    "cannot tell" — drop it. Only true ambiguity is kept.)
+
+Guard against over-deletion: do NOT drop a fragment merely because it is inconvenient for some
+option or because you are guessing the answer — drop only for a concrete off-topic or
+constraint-violation reason you can name.
+
+Output ONLY this JSON — list the fragments to DROP, each with the concrete reason. Return
+{"drop": []} if none should be dropped. No prose, no fences:
+  {"drop": [{"i": <fragment index>, "why": "<off-topic, or the exact constraint it violates>"}]}"""
 
 
 def _filter_supporting(
@@ -79,25 +101,36 @@ def _filter_supporting(
     texts: List[str],
     llm,
 ) -> List[int]:
-    """Return the sorted indices of ``texts`` to KEEP. Conservative: on any failure keep all."""
+    """Return the sorted indices of ``texts`` to KEEP.
+
+    The model is asked only to name the fragments to DROP (each with a reason), so the default is
+    to keep — a structural bias against over-pruning. Never filters when ≤1 fragment, never drops
+    every fragment, and on any parse failure keeps all (conservative, protects recall).
+    """
     n = len(texts)
-    if n == 0:
-        return []
-    opts = "\n".join(f"({chr(65+i)}) {c}" for i, c in enumerate(candidates))
-    frags = "\n".join(f"[{i}] {t[:300]}" for i, t in enumerate(texts))
-    user = (f"Question: {question}\nOptions:\n{opts}\n\n"
-            f"Fragments:\n{frags}\n\nReturn the JSON now.")
+    if n <= 1:
+        return list(range(n))
+    opts  = "\n".join(f"({chr(65+i)}) {c}" for i, c in enumerate(candidates))
+    frags = "\n".join(f"[{i}] {t[:500]}" for i, t in enumerate(texts))
+    user  = (f"Question: {question}\n\nOptions:\n{opts}\n\n"
+             f"Fragments:\n{frags}\n\nReturn the JSON now.")
     try:
-        raw = llm.chat(
+        raw    = llm.chat(
             [{"role": "system", "content": _FILTER_SYS},
              {"role": "user", "content": user}],
-            max_new_tokens=200, enable_thinking=False)
-        keep = extract_json(raw).get("keep")
-        if isinstance(keep, list):
-            idx = sorted({int(i) for i in keep if isinstance(i, (int, float)) and 0 <= int(i) < n})
-            # Guard against a degenerate empty selection wiping out all evidence.
-            if idx:
-                return idx
+            max_new_tokens=500, enable_thinking=False)
+        parsed = extract_json(raw) or {}
+        drop   = parsed.get("drop")
+        if isinstance(drop, list):
+            drop_idx = set()
+            for d in drop:
+                v = d.get("i") if isinstance(d, dict) else d
+                if isinstance(v, (int, float)) and 0 <= int(v) < n:
+                    drop_idx.add(int(v))
+            keep = [i for i in range(n) if i not in drop_idx]
+            # Never let the filter wipe out every fragment for this retrieval.
+            if keep:
+                return keep
     except Exception:
         pass
     return list(range(n))
@@ -111,7 +144,6 @@ class EvidenceItem:
     text: str
     v_text: List[float]
     source_query: str
-    method: str
     round: int
     status: str = "kept"   # "kept" | "dropped_dup" | "dropped_irrelevant"
 
@@ -119,15 +151,13 @@ class EvidenceItem:
 @dataclass
 class RetrievalAttempt:
     round: int
-    method: str
     query: str
     params: dict
     n_retrieved: int
     n_kept: int
     n_dropped_dup: int
     n_dropped_irrelevant: int
-    outcome: str                       # productive | redundant | off_target | empty
-    failure_reason: Optional[str]
+    failure_reason: Optional[str]      # None ⇒ productive; else the sentence for the <reason> tag
 
 
 @dataclass
@@ -136,17 +166,22 @@ class ReasoningState:
     label: str
     rubric_score: Optional[float]
     per_option_scores: dict
-    unknown_options: List[str]
     missing_evidence_analysis: Optional[str]
 
 
 # ── Online memory ───────────────────────────────────────────────────────────
 
-_OUTCOME_REASON = {
-    "empty":     "no chunk matched this query / empty time range",
-    "redundant": "re-retrieved already-seen evidence",
-    "off_target": "retrieved fragments don't bear on any option",
-}
+# Strategy diagnosis for the <reason> tag — a binary the planner can act on in one read. A
+# retrieval is either productive (kept ≥1 new fragment) or brought back NOTHING NEW. The latter
+# merges the two mechanically-identical dead ends: the query re-hit already-seen chunks (exact ids
+# are excluded upstream in retrieval, so a reworded repeat surfaces here as zero new) OR the few
+# that slipped through were near-duplicates of accumulated evidence (cosine dedup). Both mean the
+# direction is exhausted — rewording won't help. (Off-target / misleading fragments are the
+# relevance filter's job, not a reason category.)
+_NO_NEW_EVIDENCE = (
+    "NO NEW EVIDENCE — this retrieval returned only already-seen or near-duplicate chunks (or "
+    "nothing at all); this query direction is exhausted. Do NOT reissue or reword it — target a "
+    "DIFFERENT fact, or switch strategy (image if it must be seen, time for a specific span).")
 
 
 class OnlineMemory:
@@ -160,6 +195,15 @@ class OnlineMemory:
         self.trajectory: List[RetrievalAttempt] = []
         self.reasoning: List[ReasoningState] = []
         self.seen_ids: Set[int] = set()
+        # REVEAL_ABLATE_ONLINE=1 (Online-Memory ablation): degrade to a BARE EVIDENCE STORE —
+        # admit() still dedups + accumulates + tracks seen_ids (the evidence cache the answerer
+        # needs), but the failure-diagnosed trajectory, the reasoning state, and the relevance
+        # filter are all switched off. Nothing here changes the answer; it removes the state the
+        # planner would otherwise be fed (see reveal.py) and keeps the ablation rung clean.
+        # Match reveal.py's guard exactly: additive field-study mode wins over ablate
+        # so the two never disagree about whether the store is bare.
+        self.ablate = (os.environ.get("REVEAL_ABLATE_ONLINE") == "1"
+                       and os.environ.get("REVEAL_ONLINE_ADDITIVE") != "1")
 
     # -- accessors (kept evidence, in admission order) --------------------------
     def evidence_texts(self) -> List[str]:
@@ -178,7 +222,6 @@ class OnlineMemory:
         new_ids: List[int],
         new_vecs: List[List[float]],
         *,
-        method: str,
         query: str,
         round: int,
         dedup_threshold: float,
@@ -187,7 +230,7 @@ class OnlineMemory:
         """Dedup (always) + optional relevance filter, then accumulate. Returns n_kept.
 
         With ``REVEAL_ONLINE_FILTER`` unset this is exactly the legacy dedup+accumulate, so the
-        answer is unchanged. Records one ``RetrievalAttempt`` with a diagnosed outcome.
+        answer is unchanged. Records one ``RetrievalAttempt`` with a diagnosed failure reason.
         """
         n_retrieved = len(new_ids)
 
@@ -197,9 +240,10 @@ class OnlineMemory:
         n_after_dedup = len(d_ids)
         n_dropped_dup = n_retrieved - n_after_dedup
 
-        # 2. relevance / misleading filter (opt-in)
+        # 2. relevance / misleading filter (opt-in; never runs under the online ablation)
         n_dropped_irrelevant = 0
-        if os.environ.get("REVEAL_ONLINE_FILTER") == "1" and n_after_dedup > 0:
+        if (not self.ablate and os.environ.get("REVEAL_ONLINE_FILTER") == "1"
+                and n_after_dedup > 0):
             keep = _filter_supporting(self.question, self.candidates, d_texts, self.llm)
             if len(keep) < n_after_dedup:
                 keep_set = set(keep)
@@ -211,70 +255,72 @@ class OnlineMemory:
         # 3. accumulate
         for t, cid, v in zip(d_texts, d_ids, d_vecs):
             self.evidence.append(EvidenceItem(
-                chunk_id=cid, text=t, v_text=v, source_query=query, method=method, round=round))
+                chunk_id=cid, text=t, v_text=v, source_query=query, round=round))
         self.seen_ids.update(d_ids)
         n_kept = len(d_ids)
 
-        # 4. diagnose outcome
-        if n_retrieved == 0:
-            outcome = "empty"
-        elif n_kept == 0 and n_dropped_dup == n_retrieved:
-            outcome = "redundant"
-        elif n_kept == 0 and n_dropped_irrelevant > 0:
-            outcome = "off_target"
-        elif n_kept == 0:
-            outcome = "redundant"
-        else:
-            outcome = "productive"
+        # Online ablation: pure evidence store — skip trajectory recording.
+        if self.ablate:
+            return n_kept
+
+        # 4. diagnose for the <reason> tag: binary — productive (kept ≥1 new fragment) vs
+        #    no-new-evidence (kept nothing: exact-id repeats already excluded upstream surface as
+        #    zero retrieved, near-dups get deduped here — both are the same exhausted direction).
+        failure_reason = None if n_kept > 0 else _NO_NEW_EVIDENCE
         self.trajectory.append(RetrievalAttempt(
-            round=round, method=method, query=query, params=params or {},
+            round=round, query=query, params=params or {},
             n_retrieved=n_retrieved, n_kept=n_kept, n_dropped_dup=n_dropped_dup,
-            n_dropped_irrelevant=n_dropped_irrelevant, outcome=outcome,
-            failure_reason=_OUTCOME_REASON.get(outcome)))
+            n_dropped_irrelevant=n_dropped_irrelevant, failure_reason=failure_reason))
         return n_kept
 
     # -- reasoning state --------------------------------------------------------
     def record_reasoning(self, verdict: dict, round: int) -> None:
+        if self.ablate:            # bare evidence store: no reasoning-state trace
+            return
         self.reasoning.append(ReasoningState(
             round=round,
             label=verdict.get("label", ""),
             rubric_score=verdict.get("rubric_score"),
             per_option_scores=verdict.get("rubric_criteria_scores") or {},
-            unknown_options=list(verdict.get("unknown_options") or []),
             missing_evidence_analysis=verdict.get("missing_evidence_analysis"),
         ))
 
     # -- planner feedback -------------------------------------------------------
     def trajectory_notes(self) -> str:
-        """Compact per-attempt log for the planner: what ran and why it didn't help.
+        """Per-attempt OUTCOME for the planner: one ``<reason>`` per retrieval, in order.
 
-        Only unproductive attempts carry a reason; productive ones are listed so the planner
-        still sees what has been covered.
+        The queries themselves are shown by the planner's history_query block (the ``Already tried``
+        list — the proven repeat-preventer), so the trajectory carries only the OUTCOME, not a
+        duplicate ``<query>``: productive (added new evidence) vs an exhausted direction. The
+        REVEAL_OL_REASON gate lives at the single call site (reveal.py's ``_online_on``), which
+        passes ``None`` instead of calling this when reason is off — so no gating here.
+        ``method``/``query``/``outcome``/``counts``/``unknown``/``scores`` were dropped from the
+        planner feed as noise or dilution; the useful gap lives in the verifier's missing_evidence,
+        and the query history in history_query.
         """
         lines = []
         for a in self.trajectory:
-            q = a.query if a.query else "[none]"
-            if a.failure_reason:
-                lines.append(f'  {a.method} | "{q}" -> {a.outcome}: {a.failure_reason}')
-            else:
-                lines.append(f'  {a.method} | "{q}" -> productive (+{a.n_kept} evidence)')
+            reason = a.failure_reason or f"WORKED — added {a.n_kept} new evidence."
+            lines.append(f"  <reason>{reason}</reason>")
         return "\n".join(lines)
 
     # -- serialization ----------------------------------------------------------
     def summary(self) -> dict:
         """Additive block for the result dict (never read by legacy consumers)."""
+        if self.ablate:
+            return {"n_evidence": len(self.evidence), "ablated_online": True}
         return {
             "n_evidence": len(self.evidence),
             "n_attempts": len(self.trajectory),
             "attempts": [
-                {"round": a.round, "method": a.method, "query": a.query,
+                {"round": a.round, "query": a.query,
                  "n_retrieved": a.n_retrieved, "n_kept": a.n_kept,
                  "n_dropped_dup": a.n_dropped_dup, "n_dropped_irrelevant": a.n_dropped_irrelevant,
-                 "outcome": a.outcome, "failure_reason": a.failure_reason}
+                 "failure_reason": a.failure_reason}
                 for a in self.trajectory
             ],
             "evidence": [
-                {"chunk_id": e.chunk_id, "method": e.method, "round": e.round,
+                {"chunk_id": e.chunk_id, "round": e.round,
                  "source_query": e.source_query}
                 for e in self.evidence
             ],

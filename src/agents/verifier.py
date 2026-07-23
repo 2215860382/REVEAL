@@ -172,9 +172,11 @@ List answer options whose evidence is still insufficient to confidently confirm 
 This field guides the next retrieval round.
 
 ## Step 3 — Missing Evidence Analysis
-Write ONE actionable sentence in "missing_evidence_analysis" naming the specific fact,
-time range, or event still needed to resolve the unknown options. If the evidence is
-sufficient, honestly write an empty string or "Nothing missing."
+In "missing_evidence_analysis", name ONLY what is still MISSING for the unknown options —
+the specific fact, event, or moment that has NOT been found yet and must be retrieved next,
+phrased as the thing to search for. Do NOT restate or summarize evidence already found; that
+is not a retrieval target. If nothing is missing, write an empty string — the rubric scores
+alone decide sufficiency, so a sufficient answer routes to the answer stage on its own.
 
 Return ONLY this JSON (use actual criterion names from the Rubric):
 {
@@ -324,6 +326,48 @@ class Verifier:
                     out[opt] = scores
         return out
 
+    # ── Implicit sufficiency (REVEAL_RUBRIC_OFF ablation) ──────────────────────
+    _IMPLICIT_SUFF_SYS = (
+        "You are the sufficiency gate for a multiple-choice question about a long video. Judge "
+        "HOLISTICALLY — there is no scoring rubric. Read the question, all options, and the EVIDENCE "
+        "retrieved so far, then decide: is that evidence enough to confidently pick the correct "
+        "option and rule the others out?\n"
+        "  - sufficient=true  → answer now from the evidence already retrieved.\n"
+        "  - sufficient=false → keep retrieving; in \"missing_evidence_analysis\" name ONLY the "
+        "specific fact, event, or moment still MISSING that must be retrieved next, phrased as the "
+        "thing to search for — do NOT restate evidence already found. If sufficient, use \"\".\n"
+        'Output ONLY this JSON, no prose: {"sufficient": true|false, "missing_evidence_analysis": "..."}')
+
+    def _verify_implicit(self, question, candidates, evidence_texts, keyframe_images=()) -> Dict:
+        """Rubric-free sufficiency GATE (REVEAL_RUBRIC_OFF ablation): the model makes one holistic
+        continue-or-answer decision AND names the missing gap. No rubric scoring and no
+        unknown_options — but it DOES emit ``missing_evidence_analysis`` so the online memory's one
+        lever (the gap fed to the planner) works even with the rubric off; this lets the ablation
+        ladder add +Online before +Rubric. Same return-dict keys as ``verify`` (scores kept empty)
+        so the caller's contract is stable."""
+        opts = "\n".join(f"  ({chr(ord('A')+i)}) {c}" for i, c in enumerate(candidates))
+        ev   = _format_evidence(evidence_texts)
+        user = "\n\n".join([f"Question: {question}", f"Options:\n{opts}",
+                            f"Evidence Chain:\n{ev}", "Return the JSON now."])
+        messages = [{"role": "system", "content": self._IMPLICIT_SUFF_SYS},
+                    {"role": "user",   "content": user}]
+        if keyframe_images and getattr(self.llm, '_api_endpoints', None):
+            messages[-1] = _inject_images(messages[-1], keyframe_images)
+        raw    = self.llm.chat(messages, max_new_tokens=300, enable_thinking=False)
+        parsed = extract_json(raw) or {}
+        suff = bool(parsed.get("sufficient"))
+        missing = None
+        if not suff:
+            raw_missing = parsed.get("missing_evidence_analysis")
+            if isinstance(raw_missing, str) and raw_missing.strip():
+                missing = raw_missing.strip()
+        return {
+            "label":                     "SUFFICIENT" if suff else "INSUFFICIENT",
+            "rubric_criteria_scores":    {},
+            "rubric_score":              1.0 if suff else 0.0,
+            "missing_evidence_analysis": missing,
+        }
+
     def verify(
         self,
         question: str,
@@ -339,6 +383,10 @@ class Verifier:
         per-option score, thresholds it, and derives the label
         ("SUFFICIENT" | "INSUFFICIENT").
         """
+        # REVEAL_RUBRIC_OFF: implicit sufficiency — the model judges holistically without a rubric
+        # (ablation of the Rubric component; planner + iteration + online memory stay intact).
+        if os.environ.get("REVEAL_RUBRIC_OFF") == "1":
+            return self._verify_implicit(question, candidates, evidence_texts, keyframe_images)
         if isinstance(rubric, str):
             rubric_dict = {"_legacy_text": rubric, "scoring_rule": "average",
                            "sufficient_threshold": 0.5}
@@ -417,23 +465,16 @@ class Verifier:
             + float(sufficient_threshold_delta),
         )
         all_opts = [chr(ord('A') + i) for i in range(len(candidates))]
-        raw_unknown = parsed.get("unknown_options") or []
-        model_unknown = {
-            u for u in (str(x).strip().upper()[:1] for x in raw_unknown)
-            if u in all_opts
-        } if isinstance(raw_unknown, list) else set()
-        score_unknown = {
-            opt for opt in all_opts
-            if per_option_rubric_scores.get(opt, 0.0) < sufficient_threshold
-        }
-        unknown_opts = sorted(model_unknown | score_unknown)
         # Aggregation of per-option scores → rubric_score (REVEAL_VERIFIER_AGG).
-        #   min  (default): sufficient only when EVERY option is decidable — high precision, but
-        #                   in open-world egocentric QA distractors are rarely excludable, so it
-        #                   fires ~5%. max: sufficient when the WINNING option is confidently
-        #                   decidable — matches "answerable" far better (sim: ~5× fire at equal
-        #                   correlation gap). mean: middle ground.
-        agg = os.environ.get("REVEAL_VERIFIER_AGG", "min").strip().lower()
+        #   max (default, = the mainline on every dataset): sufficient when the WINNING option is
+        #                   confidently decidable — matches "answerable" far better (~5× fire at
+        #                   equal correlation gap). Default is max because every mainline/ablation
+        #                   script sets max; a stale `min` default silently degraded runs that
+        #                   forgot to set it.
+        #   min: sufficient only when EVERY option is decidable — high precision, but in open-world
+        #                   egocentric QA distractors are rarely excludable, so it fires ~5%.
+        #   mean: middle ground. min/mean kept only for the aggregation ablation sweep.
+        agg = os.environ.get("REVEAL_VERIFIER_AGG", "max").strip().lower()
         if per_option_rubric_scores:
             _vals = [per_option_rubric_scores.get(opt, 0.0) for opt in all_opts]
             rubric_score = (max(_vals) if agg == "max"
@@ -441,13 +482,14 @@ class Verifier:
                             else min(_vals))
         else:
             rubric_score = 0.0
-        # For min, min≥threshold already implies no score-unknown; keep the model_unknown veto.
-        # For max/mean the point is that ONE confident option suffices, so the per-score unknown
-        # set must NOT veto sufficiency — only the aggregated score gates the label.
-        if agg == "min":
-            label = "SUFFICIENT" if rubric_score >= sufficient_threshold and not unknown_opts else "INSUFFICIENT"
-        else:
-            label = "SUFFICIENT" if rubric_score >= sufficient_threshold else "INSUFFICIENT"
+        # The aggregated rubric_score alone gates sufficiency, uniformly across all three
+        # aggregations (max/mean/min differ only in how per-option scores combine, not in the
+        # gate). unknown_options is NOT parsed or carried as a verdict field — it survives only as
+        # the model's Step-2 chain-of-thought inside VERIFIER_SYS (list-unresolved-options → write
+        # missing_evidence "for the unknown options"), scaffolding the missing lever. The
+        # add_unknown ablation showed unknown carries no signal downstream (symmetric churn), so min
+        # now matches the mainline (max) gate exactly and nothing consumes the field.
+        label = "SUFFICIENT" if rubric_score >= sufficient_threshold else "INSUFFICIENT"
 
         # ── Missing evidence analysis ─────────────────────────────────────────
         missing: Optional[str] = None
@@ -458,7 +500,6 @@ class Verifier:
 
         return {
             "label":                  label,
-            "unknown_options":        unknown_opts,
             "rubric_criteria_scores": per_option_scores,
             "rubric_score":           round(rubric_score, 4),
             "missing_evidence_analysis": missing,

@@ -42,14 +42,30 @@ def _chunk_source_mp4(chunk, root: str) -> Optional[Path]:
     return mp4 if mp4.is_file() else None
 
 
-def dense_frames_from_original(chunk, n: int, root: Optional[str] = None) -> List:
-    """Sample ``n`` PIL frames evenly from the chunk's original EgoLife clip mp4.
+def dense_frames_from_original(chunk, n: int, root: Optional[str] = None,
+                               video_path: Optional[str] = None) -> List:
+    """Sample ``n`` PIL frames evenly from the chunk's original source mp4.
 
-    Returns [] if the source mp4 can't be located or decoded — callers fall back
-    to the single stored keyframe. Uses decord for in-memory decode (no disk I/O).
+    Two locate strategies:
+      - ``video_path`` — a single mp4 for the whole bank (VideoMME / LVBench /
+        LongVideoBench: one video per bank). Used directly if it's a real file.
+      - EgoLife — one bank spans many 30 s clips, so the mp4 is derived per-chunk
+        from the keyframe filename (``_chunk_source_mp4``). EgoLife's sample
+        ``video_path`` is a DIRECTORY (not a file), so it falls through to here.
+
+    Returns [] if no source mp4 can be located or decoded — callers then get no
+    frames for that chunk. Uses decord for in-memory decode (no disk I/O).
     """
-    root = root or os.environ.get("REVEAL_EGOLIFE_ROOT", _EGOLIFE_ROOT_DEFAULT)
-    mp4 = _chunk_source_mp4(chunk, root)
+    mp4 = None
+    windowed = False   # True ⇒ mp4 is a FULL video → restrict sampling to the chunk's [t_start,t_end]
+    if video_path:
+        _p = Path(video_path)
+        if _p.is_file():
+            mp4 = _p
+            windowed = True
+    if mp4 is None:
+        root = root or os.environ.get("REVEAL_EGOLIFE_ROOT", _EGOLIFE_ROOT_DEFAULT)
+        mp4 = _chunk_source_mp4(chunk, root)   # EgoLife: mp4 IS the 30s clip → sample whole
     if mp4 is None:
         return []
     try:
@@ -59,12 +75,32 @@ def dense_frames_from_original(chunk, n: int, root: Optional[str] = None) -> Lis
         tot = len(vr)
         if tot <= 0:
             return []
-        if n >= tot:
-            idx = list(range(tot))
+        # Frame window: whole clip for EgoLife per-clip mp4; the chunk's time span for a
+        # full VideoMME/LVBench video (else 6 frames would smear across the entire hour).
+        lo, hi = 0, tot - 1
+        if windowed:
+            fps = float(vr.get_avg_fps() or 0) or 25.0
+            ts, te = getattr(chunk, "start_time", None), getattr(chunk, "end_time", None)
+            if ts is not None and te is not None and te > ts:
+                lo = max(0, min(tot - 1, int(ts * fps)))
+                hi = max(lo + 1, min(tot - 1, int(te * fps)))
+        span = hi - lo
+        if n >= span + 1:
+            idx = list(range(lo, hi + 1))
         else:
-            idx = sorted(set(int(i * (tot - 1) / (n - 1)) for i in range(n)))
+            idx = sorted(set(lo + int(i * span / (n - 1)) for i in range(n)))
         batch = vr.get_batch(idx).asnumpy()   # (k, H, W, 3) RGB
-        return [Image.fromarray(f) for f in batch]
+        imgs = [Image.fromarray(f) for f in batch]
+        # Downscale to keep vision-token count (hence KV cache) sane: a raw 1408² frame
+        # is ~2500 vision tokens in Qwen-VL, so 24 of them blow past the KV budget and
+        # trigger preemption. REVEAL_DENSE_FRAME_MAXSIDE (default 448 = Qwen's native
+        # tile → ~256 tokens/img) caps the long edge. thumbnail() never upscales.
+        _mx = int(os.environ.get("REVEAL_DENSE_FRAME_MAXSIDE", "448") or 0)
+        if _mx > 0:
+            for im in imgs:
+                if max(im.size) > _mx:
+                    im.thumbnail((_mx, _mx), Image.BILINEAR)
+        return imgs
     except Exception:
         return []
 
