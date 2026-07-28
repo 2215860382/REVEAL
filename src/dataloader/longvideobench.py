@@ -37,16 +37,24 @@ def load_longvideobench(
     bench_root: str | Path,
     video_dir: str | Path,
     subtitle_dir: Optional[str | Path] = None,   # unused here; build reads SRTs itself
-    duration_groups: Optional[Iterable] = None,  # unused; kept for interface parity
+    duration_groups: Optional[Iterable] = None,
     max_samples: Optional[int] = None,
 ) -> List[LongVideoBenchSample]:
     bench_root = Path(bench_root)
     video_dir = Path(video_dir)
     rows = json.loads((bench_root / "lvb_val.json").read_text(encoding="utf-8"))
 
+    allowed_duration_groups = (
+        {int(group) for group in duration_groups}
+        if duration_groups is not None else None
+    )
+
     samples: List[LongVideoBenchSample] = []
     idx = 0
     for row in rows:
+        if (allowed_duration_groups is not None
+                and int(row.get("duration_group", -1)) not in allowed_duration_groups):
+            continue
         if max_samples is not None and len(samples) >= max_samples:
             break
         vid = str(row["video_id"])

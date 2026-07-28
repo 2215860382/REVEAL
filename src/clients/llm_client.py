@@ -102,12 +102,13 @@ class LLMClient:
         max_new_tokens: int | None = None,
         temperature: float = 0.0,
         enable_thinking: bool | None = None,
+        response_format: dict | None = None,
     ) -> str:
         et = self.enable_thinking if enable_thinking is None else enable_thinking
         n_tokens = max_new_tokens or self.default_max_new_tokens
 
         if self._api_endpoints:
-            return self._chat_api(messages, n_tokens, temperature, et)
+            return self._chat_api(messages, n_tokens, temperature, et, response_format)
 
         try:
             text = self.tokenizer.apply_chat_template(
@@ -125,7 +126,7 @@ class LLMClient:
             return self._chat_transformers(text, n_tokens, temperature)
 
     def _chat_api(self, messages: List[dict], max_new_tokens: int, temperature: float,
-                  enable_thinking: bool = False) -> str:
+                  enable_thinking: bool = False, response_format: dict | None = None) -> str:
         payload = {
             "model":       self._api_model,
             "messages":    messages,
@@ -134,6 +135,8 @@ class LLMClient:
             # Optional; tokenizer chat templates that support it (e.g. thinking modes) consume this.
             "chat_template_kwargs": {"enable_thinking": enable_thinking},
         }
+        if response_format is not None:
+            payload["response_format"] = response_format
         import logging
         _log = logging.getLogger(__name__)
 

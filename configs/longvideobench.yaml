@@ -3,13 +3,15 @@
 # {id}.srt under subtitle_dir (converted from {id}_en.json by scripts/lvb_json2srt.py).
 benchmark:
   name: longvideobench
-  bench_root: /home2/ycj/Datas/LongVideoBench          # lvb_val.json here
-  video_dir: /home2/ycj/Datas/LongVideoBench/videos    # {video_id}.mp4
-  subtitle_dir: /home2/ycj/Datas/LongVideoBench/subtitles_srt
-  duration_groups: null
+  bench_root: ../../Datas/LongVideoBench          # lvb_val.json here
+  video_dir: ../../Datas/LongVideoBench/videos    # {video_id}.mp4
+  subtitle_dir: ../../Datas/LongVideoBench/subtitles_srt
+  # LongVideoBench's true long split: videos grouped under the 3600-second
+  # budget (actual durations are approximately 15-60 minutes).
+  duration_groups: [3600]
 
 paths:
-  outputs_root: /home2/ycj/Project/REVEAL/outputs
+  outputs_root: ./outputs
 
 reveal_loop:
   max_iter: 3
@@ -19,15 +21,15 @@ reveal_loop:
   kf_dedup_threshold: 0.92
 
 eval:
-  output_dir: /home2/ycj/Project/REVEAL/outputs/results/longvideobench
+  output_dir: ./outputs/results/longvideobench
 
 models:
   vlm:
-    model_path: /home2/ycj/Models/Qwen/Qwen3.5-27B
+    model_path: ../../Models/Qwen/Qwen3.5-27B
   llm:
-    model_path: /home2/ycj/Models/Qwen/Qwen3.5-27B
+    model_path: ../../Models/Qwen/Qwen3.5-27B
     dtype: bfloat16
     attn_impl: sdpa
   embedder:
-    model_path: /home2/ycj/Models/BAAI/bge-m3
+    model_path: ../../Models/BAAI/bge-m3
     use_fp16: true

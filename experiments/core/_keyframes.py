@@ -26,7 +26,7 @@ def load_keyframe_pil(path: str):
 # retrieve-segment-then-extract. Mapping is exact: a chunk's keyframe filename
 # (DAY1_A2_ALICE_11093000_0000_0.jpg) is the stem of its source clip mp4
 # ({root}/A2_ALICE/DAY1/DAY1_A2_ALICE_11093000.mp4).
-_EGOLIFE_ROOT_DEFAULT = "/home2/ycj/Project/WorldMM/data/EgoLife"
+_EGOLIFE_ROOT_DEFAULT = "../WorldMM/data/EgoLife"
 
 
 def _chunk_source_mp4(chunk, root: str) -> Optional[Path]:

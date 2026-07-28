@@ -32,8 +32,8 @@ sample_chains → make_pairs → refine_rubric(round1)
 
 ```bash
 MEMORY_DIR=outputs/memory/videomme_multiframe \
-VLM_API_URL=http://10.82.1.145:8002,http://10.82.1.145:8004 \
-LLM_API_URL=http://10.82.1.145:8002,http://10.82.1.145:8004 \
+VLM_API_URL=http://localhost:8002,http://localhost:8004 \
+LLM_API_URL=http://localhost:8002,http://localhost:8004 \
 MAX_ROUNDS=3 WORKERS=12 \
 bash scripts/run_online_rubric.sh
 ```

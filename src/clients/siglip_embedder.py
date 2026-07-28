@@ -5,7 +5,7 @@ from typing import List
 
 import numpy as np
 
-_DEFAULT_MODEL = "/home2/ycj/Models/google/siglip-large-patch16-384"
+_DEFAULT_MODEL = "../../Models/google/siglip-large-patch16-384"
 
 
 class SigLIPEmbedder:

@@ -259,6 +259,28 @@ def _format_evidence(evidence_texts: List[str]) -> str:
     return "\n".join(f"[E{i+1}] {t}" for i, t in enumerate(evidence_texts))
 
 
+def _relevance_response_format(names: List[str], *, max_items: int) -> dict:
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "relevant_criteria",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "relevant": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": names},
+                        "maxItems": min(max_items, len(names)),
+                    },
+                },
+                "required": ["relevant"],
+                "additionalProperties": False,
+            },
+        },
+    }
+
+
 # ── Verifier class ─────────────────────────────────────────────────────────────
 
 class Verifier:
@@ -269,6 +291,61 @@ class Verifier:
 
     def get_rubric(self, question: str, task_type: Optional[str] = None) -> str:
         return get_rubric(question, task_type)
+
+    def _select_relevant_strict(
+        self,
+        question: str,
+        opts: str,
+        criteria: List[dict],
+        *,
+        max_items: int = 8,
+    ) -> set:
+        names = [str(c.get("name") or "").strip() for c in criteria]
+        names = [name for name in names if name]
+        allowed = set(names)
+        if not names:
+            return set()
+        catalog = "\n".join(
+            f"- {c['name']}: {c.get('description', '')}"
+            for c in criteria if c.get("name")
+        )
+        user = "\n\n".join([
+            f"Question: {question}", f"Options:\n{opts}",
+            f"Criteria library:\n{catalog}", "Return the JSON now.",
+        ])
+        raw = self.llm.chat(
+            [{"role": "system", "content": VERIFIER_SYS_RELEVANCE},
+             {"role": "user", "content": user}],
+            max_new_tokens=500,
+            enable_thinking=False,
+            response_format=_relevance_response_format(names, max_items=max_items),
+        )
+        picked = extract_json(raw).get("relevant") or []
+        return {str(item).strip() for item in picked if str(item).strip() in allowed}
+
+    def _relevant_criteria_batched(
+        self, question: str, opts: str, criteria: List[dict], batch_size: int,
+    ) -> set:
+        shortlisted = set()
+        for start in range(0, len(criteria), batch_size):
+            batch = criteria[start:start + batch_size]
+            try:
+                shortlisted.update(self._select_relevant_strict(
+                    question, opts, batch, max_items=8,
+                ))
+            except Exception as exc:
+                log.warning("criteria selection batch %d failed: %s", start // batch_size, exc)
+        if not shortlisted:
+            return set()
+        finalists = [c for c in criteria if str(c.get("name") or "").strip() in shortlisted]
+        try:
+            selected = self._select_relevant_strict(
+                question, opts, finalists, max_items=8,
+            )
+            return selected or shortlisted
+        except Exception as exc:
+            log.warning("criteria selection consolidation failed: %s", exc)
+            return shortlisted
 
     def _relevant_criteria(self, question: str, opts: str, rubric_dict: dict) -> set:
         """Pass 1: which criteria are relevant to THIS question (evidence-independent).
@@ -284,9 +361,30 @@ class Verifier:
         with self._relevance_lock:
             if key in self._relevance_cache:
                 return self._relevance_cache[key]
+        criteria = rubric_dict.get("rubric_criteria") or []
+        use_schema = os.environ.get("REVEAL_CRITERIA_SELECTION_SCHEMA", "").strip() == "1"
+        if use_schema:
+            try:
+                sel = self._select_relevant_strict(question, opts, criteria)
+            except Exception as exc:
+                log.warning("strict criteria selection failed: %s", exc)
+                sel = set()
+            if not sel:
+                batch_size = max(1, int(os.environ.get(
+                    "REVEAL_CRITERIA_BATCH_SIZE", "48"
+                )))
+                sel = self._relevant_criteria_batched(
+                    question, opts, criteria, batch_size,
+                )
+            if not sel:
+                sel = all_set
+            with self._relevance_lock:
+                self._relevance_cache[key] = sel
+            return sel
+
         catalog = "\n".join(
             f"- {c['name']}: {c.get('description','')}"
-            for c in (rubric_dict.get("rubric_criteria") or []) if c.get("name"))
+            for c in criteria if c.get("name"))
         user = "\n\n".join([
             f"Question: {question}", f"Options:\n{opts}",
             f"Criteria library:\n{catalog}", "Return the JSON now.",
@@ -326,48 +424,6 @@ class Verifier:
                     out[opt] = scores
         return out
 
-    # ── Implicit sufficiency (REVEAL_RUBRIC_OFF ablation) ──────────────────────
-    _IMPLICIT_SUFF_SYS = (
-        "You are the sufficiency gate for a multiple-choice question about a long video. Judge "
-        "HOLISTICALLY — there is no scoring rubric. Read the question, all options, and the EVIDENCE "
-        "retrieved so far, then decide: is that evidence enough to confidently pick the correct "
-        "option and rule the others out?\n"
-        "  - sufficient=true  → answer now from the evidence already retrieved.\n"
-        "  - sufficient=false → keep retrieving; in \"missing_evidence_analysis\" name ONLY the "
-        "specific fact, event, or moment still MISSING that must be retrieved next, phrased as the "
-        "thing to search for — do NOT restate evidence already found. If sufficient, use \"\".\n"
-        'Output ONLY this JSON, no prose: {"sufficient": true|false, "missing_evidence_analysis": "..."}')
-
-    def _verify_implicit(self, question, candidates, evidence_texts, keyframe_images=()) -> Dict:
-        """Rubric-free sufficiency GATE (REVEAL_RUBRIC_OFF ablation): the model makes one holistic
-        continue-or-answer decision AND names the missing gap. No rubric scoring and no
-        unknown_options — but it DOES emit ``missing_evidence_analysis`` so the online memory's one
-        lever (the gap fed to the planner) works even with the rubric off; this lets the ablation
-        ladder add +Online before +Rubric. Same return-dict keys as ``verify`` (scores kept empty)
-        so the caller's contract is stable."""
-        opts = "\n".join(f"  ({chr(ord('A')+i)}) {c}" for i, c in enumerate(candidates))
-        ev   = _format_evidence(evidence_texts)
-        user = "\n\n".join([f"Question: {question}", f"Options:\n{opts}",
-                            f"Evidence Chain:\n{ev}", "Return the JSON now."])
-        messages = [{"role": "system", "content": self._IMPLICIT_SUFF_SYS},
-                    {"role": "user",   "content": user}]
-        if keyframe_images and getattr(self.llm, '_api_endpoints', None):
-            messages[-1] = _inject_images(messages[-1], keyframe_images)
-        raw    = self.llm.chat(messages, max_new_tokens=300, enable_thinking=False)
-        parsed = extract_json(raw) or {}
-        suff = bool(parsed.get("sufficient"))
-        missing = None
-        if not suff:
-            raw_missing = parsed.get("missing_evidence_analysis")
-            if isinstance(raw_missing, str) and raw_missing.strip():
-                missing = raw_missing.strip()
-        return {
-            "label":                     "SUFFICIENT" if suff else "INSUFFICIENT",
-            "rubric_criteria_scores":    {},
-            "rubric_score":              1.0 if suff else 0.0,
-            "missing_evidence_analysis": missing,
-        }
-
     def verify(
         self,
         question: str,
@@ -383,10 +439,6 @@ class Verifier:
         per-option score, thresholds it, and derives the label
         ("SUFFICIENT" | "INSUFFICIENT").
         """
-        # REVEAL_RUBRIC_OFF: implicit sufficiency — the model judges holistically without a rubric
-        # (ablation of the Rubric component; planner + iteration + online memory stay intact).
-        if os.environ.get("REVEAL_RUBRIC_OFF") == "1":
-            return self._verify_implicit(question, candidates, evidence_texts, keyframe_images)
         if isinstance(rubric, str):
             rubric_dict = {"_legacy_text": rubric, "scoring_rule": "average",
                            "sufficient_threshold": 0.5}
@@ -402,15 +454,13 @@ class Verifier:
         opts = "\n".join(f"  ({chr(ord('A')+i)}) {c}" for i, c in enumerate(candidates))
         ev   = _format_evidence(evidence_texts)
 
-        # ── Relevance gating (mainline default; dataset-independent) ───────────
+        # ── Relevance gating (mainline; dataset-independent, always on) ────────
         # Pass 1 picks the criteria RELEVANT to THIS question so irrelevant
         # type-criteria don't dilute the per-option denominator (on egolife only
         # ~6 of 33 apply → scoring all → every option ~0.18 → always INSUFFICIENT).
         # This IS the paper's mainline sufficiency judgment and is the SAME across
-        # datasets, so it defaults ON. Opt out with REVEAL_VERIFIER_NO_RELEVANCE=1
-        # (legacy score-all ablation) — mirrors the holistic path's opt-out (~L459).
-        if (not os.environ.get("REVEAL_VERIFIER_NO_RELEVANCE", "").strip()
-                and "_legacy_text" not in rubric_dict):
+        # datasets — always on (the legacy score-all path has been removed).
+        if "_legacy_text" not in rubric_dict:
             relevant = self._relevant_criteria(question, opts, rubric_dict)
             sel_crits = [c for c in (rubric_dict.get("rubric_criteria") or [])
                          if str(c.get("name") or "").strip() in relevant]
@@ -459,36 +509,31 @@ class Verifier:
 
         # ── Enforce threshold and derive unknown options ───────────────────────
         # rubric_score measures evidence sufficiency to judge an option (not support direction).
+        # REVEAL_SUFFICIENT_THRESHOLD overrides the rubric YAML base (unset ⇒ YAML value,
+        # byte-identical). A higher base ⇒ more INSUFFICIENT ⇒ the loop runs more query rounds.
+        _env_thr = os.environ.get("REVEAL_SUFFICIENT_THRESHOLD", "").strip()
+        _base_thr = float(_env_thr) if _env_thr else float(rubric_dict.get("sufficient_threshold", 0.75))
         sufficient_threshold = min(
             1.0,
-            float(rubric_dict.get("sufficient_threshold", 0.75))
-            + float(sufficient_threshold_delta),
+            _base_thr + float(sufficient_threshold_delta),
         )
         all_opts = [chr(ord('A') + i) for i in range(len(candidates))]
-        # Aggregation of per-option scores → rubric_score (REVEAL_VERIFIER_AGG).
-        #   max (default, = the mainline on every dataset): sufficient when the WINNING option is
-        #                   confidently decidable — matches "answerable" far better (~5× fire at
-        #                   equal correlation gap). Default is max because every mainline/ablation
-        #                   script sets max; a stale `min` default silently degraded runs that
-        #                   forgot to set it.
-        #   min: sufficient only when EVERY option is decidable — high precision, but in open-world
-        #                   egocentric QA distractors are rarely excludable, so it fires ~5%.
-        #   mean: middle ground. min/mean kept only for the aggregation ablation sweep.
-        agg = os.environ.get("REVEAL_VERIFIER_AGG", "max").strip().lower()
+        # Paper-mainline aggregation: evidence is sufficient when the winning option
+        # is confidently decidable.
         if per_option_rubric_scores:
             _vals = [per_option_rubric_scores.get(opt, 0.0) for opt in all_opts]
-            rubric_score = (max(_vals) if agg == "max"
-                            else sum(_vals) / len(_vals) if agg == "mean"
-                            else min(_vals))
+            # Aggregation over per-option scores gates sufficiency. Default ``max``
+            # (winning option decidable) trips early — a decent best option ≥ threshold
+            # after iter0 stops the loop. ``min`` (REVEAL_SUFFICIENCY_AGG=min) requires
+            # EVERY option to clear the threshold, so retrieval keeps grinding until all
+            # distractors are also decidable — closer to the 78.9 "grind all rounds" behavior.
+            _agg = os.environ.get("REVEAL_SUFFICIENCY_AGG", "max").strip().lower()
+            rubric_score = min(_vals) if _agg == "min" else max(_vals)
         else:
             rubric_score = 0.0
-        # The aggregated rubric_score alone gates sufficiency, uniformly across all three
-        # aggregations (max/mean/min differ only in how per-option scores combine, not in the
-        # gate). unknown_options is NOT parsed or carried as a verdict field — it survives only as
-        # the model's Step-2 chain-of-thought inside VERIFIER_SYS (list-unresolved-options → write
-        # missing_evidence "for the unknown options"), scaffolding the missing lever. The
-        # add_unknown ablation showed unknown carries no signal downstream (symmetric churn), so min
-        # now matches the mainline (max) gate exactly and nothing consumes the field.
+        # The aggregated rubric_score alone gates sufficiency. ``unknown_options`` is not parsed
+        # or carried as a verdict field; unresolved options only scaffold the model's
+        # missing-evidence analysis inside the verifier prompt.
         label = "SUFFICIENT" if rubric_score >= sufficient_threshold else "INSUFFICIENT"
 
         # ── Missing evidence analysis ─────────────────────────────────────────

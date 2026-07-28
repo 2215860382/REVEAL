@@ -259,7 +259,7 @@ def main() -> None:
 
     from src.config import load_config
     cfg = load_config(args.config)
-    from experiments.tuning.reveal_27b import load_samples
+    from experiments.reveal_27b import load_samples
     samples = {s.sample_idx: s for s in load_samples(cfg)}
 
     gap = json.load(open(args.gap_idxs))

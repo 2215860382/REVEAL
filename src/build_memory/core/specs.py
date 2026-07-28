@@ -25,9 +25,9 @@ def outputs_root() -> Path:
 def benchmark_videomme() -> dict[str, Any]:
     return {
         "name": "videomme",
-        "parquet_path": "/home2/ycj/Datas/VideoMME/videomme/test-00000-of-00001.parquet",
-        "video_dir": "/home2/ycj/Datas/VideoMME/videos",
-        "subtitle_dir": "/home2/ycj/Datas/VideoMME/subtitle",
+        "parquet_path": "../../Datas/VideoMME/videomme/test-00000-of-00001.parquet",
+        "video_dir": "../../Datas/VideoMME/videos",
+        "subtitle_dir": "../../Datas/VideoMME/subtitle",
         "duration_groups": ["long"],
     }
 
@@ -35,8 +35,8 @@ def benchmark_videomme() -> dict[str, Any]:
 def benchmark_lvbench() -> dict[str, Any]:
     return {
         "name": "lvbench",
-        "meta_path": "/home2/ycj/Datas/LVBench/video_info.meta.jsonl",
-        "video_dir": "/home2/ycj/Datas/LVBench/videos",   # {key}.mp4 (download separately)
+        "meta_path": "../../Datas/LVBench/video_info.meta.jsonl",
+        "video_dir": "../../Datas/LVBench/videos",   # {key}.mp4 (download separately)
         "subtitle_dir": None,
         "duration_groups": None,
     }
@@ -50,7 +50,7 @@ def benchmark_egolife() -> dict[str, Any]:
     # so subtitle_dir stays None (that knob is the single-SRT-per-video path).
     return {
         "name": "egolife",
-        "egolife_root": "/home2/ycj/Datas/EgoLife",
+        "egolife_root": "../../Datas/EgoLife",
         "subtitle_dir": None,
         "duration_groups": None,
     }
@@ -63,9 +63,9 @@ def benchmark_longvideobench() -> dict[str, Any]:
     # path (parse_srt → align_subtitles) attaches them per chunk unchanged.
     return {
         "name": "longvideobench",
-        "bench_root": "/home2/ycj/Datas/LongVideoBench",
-        "video_dir": "/home2/ycj/Datas/LongVideoBench/videos",   # {video_id}.mp4
-        "subtitle_dir": "/home2/ycj/Datas/LongVideoBench/subtitles_srt",  # {video_id}.srt
+        "bench_root": "../../Datas/LongVideoBench",
+        "video_dir": "../../Datas/LongVideoBench/videos",   # {video_id}.mp4
+        "subtitle_dir": "../../Datas/LongVideoBench/subtitles_srt",  # {video_id}.srt
         "duration_groups": None,
     }
 
@@ -85,7 +85,7 @@ def _bench(name: BenchName) -> dict[str, Any]:
 
 def embedder_bge_m3(device: str = "cuda:0") -> dict[str, Any]:
     return {
-        "model_path": "/home2/ycj/Models/BAAI/bge-m3",
+        "model_path": "../../Models/BAAI/bge-m3",
         "use_fp16": True,
         "device": device,
         "batch_size": 16,
@@ -116,7 +116,7 @@ def cfg_for_similarity_build(name: BenchName, bge_device: str = "cuda:0") -> dic
 
 # ── Fixed wall-clock (event / dense) build defaults ─────────────────────────
 
-FIXEDFRAME_DEFAULT_VLM = "/home/Dataset/Models/Qwen/Qwen3-VL-32B-Instruct"
+FIXEDFRAME_DEFAULT_VLM = "../../Models/Qwen/Qwen3-VL-32B-Instruct"
 FIXEDFRAME_DEFAULT_MAX_CHUNKS = 900
 FIXEDFRAME_DEFAULT_RESOLUTION = 448
 

@@ -28,7 +28,7 @@ from pathlib import Path
 
 # bypass any local HTTP proxy for the internal vLLM/embed endpoints (LLMClient/VLMClient
 # respect *_PROXY and would 502 otherwise).
-os.environ.setdefault("NO_PROXY", "127.0.0.1,10.82.1.145,10.82.1.147,localhost,::1")
+os.environ.setdefault("NO_PROXY", "127.0.0.1,localhost,::1")
 os.environ.setdefault("no_proxy", os.environ["NO_PROXY"])
 for _k in ("http_proxy", "https_proxy", "all_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
     os.environ.pop(_k, None)
@@ -191,7 +191,7 @@ def _positive(cfg, s, bank, cmap, args):
 
 
 def _cutoff(s):
-    from experiments.tuning.reveal_27b import _egolife_query_cutoff
+    from experiments.reveal_27b import _egolife_query_cutoff
     return _egolife_query_cutoff(s)
 
 
@@ -254,7 +254,7 @@ def main() -> None:
     args = ap.parse_args()
 
     from src.config import load_config
-    from experiments.tuning.reveal_27b import load_samples
+    from experiments.reveal_27b import load_samples
     cfg = load_config(args.config)
     tag = args.tag or cfg["benchmark"]["name"]
     samples = {int(s.sample_idx): s for s in load_samples(cfg)}

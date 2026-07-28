@@ -1,0 +1,32 @@
+# LongVideoBench non-long duration groups.  The 3600-second group is rebuilt
+# separately in longvideobench_long_fixed*.
+benchmark:
+  name: longvideobench
+  bench_root: ../../Datas/LongVideoBench
+  video_dir: ../../Datas/LongVideoBench/videos
+  subtitle_dir: ../../Datas/LongVideoBench/subtitles_srt
+  duration_groups: [15, 60, 600]
+
+paths:
+  outputs_root: ./outputs
+
+reveal_loop:
+  max_iter: 3
+  query_history_dedup_threshold: 0.9
+  evidence_dedup_threshold: 0.9
+  query_evidence_dedup_threshold: 0.7
+  kf_dedup_threshold: 0.92
+
+eval:
+  output_dir: ./outputs/results/longvideobench
+
+models:
+  vlm:
+    model_path: ../../Models/Qwen/Qwen3.5-27B
+  llm:
+    model_path: ../../Models/Qwen/Qwen3.5-27B
+    dtype: bfloat16
+    attn_impl: sdpa
+  embedder:
+    model_path: ../../Models/BAAI/bge-m3
+    use_fp16: true

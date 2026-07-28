@@ -204,7 +204,7 @@ def main() -> None:
 
     from src.config import load_config
     cfg = load_config(args.config)
-    from experiments.tuning.reveal_27b import load_samples
+    from experiments.reveal_27b import load_samples
     samples = {int(s.sample_idx): s for s in load_samples(cfg)}
     if args.idxs and Path(args.idxs).is_file():
         idxs = [int(x) for x in json.load(open(args.idxs)) if int(x) in samples]

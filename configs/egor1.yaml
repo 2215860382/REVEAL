@@ -8,12 +8,12 @@
 # EgoLifeQA lives in configs/egolife.yaml — same banks, different dataset.
 benchmark:
   name: egor1_manual
-  bench_root: /home2/ycj/Datas/Ego-R1-Bench
-  video_dir: /home2/ycj/Datas/EgoLife
+  bench_root: ../../Datas/Ego-R1-Bench
+  video_dir: ../../Datas/EgoLife
   filter_people: [A1_JAKE, A2_ALICE, A3_TASHA, A4_LUCIA, A5_KATRINA, A6_SHURE]
 
 paths:
-  outputs_root: /home2/ycj/Project/REVEAL/outputs
+  outputs_root: ./outputs
 
 reveal_loop:
   max_iter: 3
@@ -23,15 +23,15 @@ reveal_loop:
   kf_dedup_threshold: 0.92
 
 eval:
-  output_dir: /home2/ycj/Project/REVEAL/outputs/results/egor1
+  output_dir: ./outputs/results/egor1
 
 models:
   vlm:
-    model_path: /home2/ycj/Models/Qwen/Qwen3.5-27B
+    model_path: ../../Models/Qwen/Qwen3.5-27B
   llm:
-    model_path: /home2/ycj/Models/Qwen/Qwen3.5-27B
+    model_path: ../../Models/Qwen/Qwen3.5-27B
     dtype: bfloat16
     attn_impl: sdpa
   embedder:
-    model_path: /home2/ycj/Models/BAAI/bge-m3
+    model_path: ../../Models/BAAI/bge-m3
     use_fp16: true

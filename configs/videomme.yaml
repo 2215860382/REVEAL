@@ -1,16 +1,16 @@
 # Config for two-layer VideoMME long-duration experiment.
 benchmark:
   name: videomme
-  parquet_path: /home2/ycj/Datas/VideoMME/videomme/test-00000-of-00001.parquet
-  video_dir: /home2/ycj/Datas/VideoMME/videos
+  parquet_path: ../../Datas/VideoMME/videomme/test-00000-of-00001.parquet
+  video_dir: ../../Datas/VideoMME/videos
   duration_groups: ["long"]
   subtitle_dir: null  # not used for this experiment
 
 paths:
-  outputs_root: /home2/ycj/Project/REVEAL/outputs
+  outputs_root: ./outputs
 
 memory:
-  cache_dir: /home2/ycj/Project/REVEAL/outputs/memory/videomme_L_27B
+  cache_dir: ./outputs/memory/videomme_L_27B
 
 reveal_loop:
   max_iter: 3
@@ -20,15 +20,15 @@ reveal_loop:
   kf_dedup_threshold: 0.92                # SigLIP cosine, keyframe vs keyframe
 
 eval:
-  output_dir: /home2/ycj/Project/REVEAL/outputs/results/videomme
+  output_dir: ./outputs/results/videomme
 
 models:
   vlm:
-    model_path: /home2/ycj/Models/Qwen/Qwen3.5-27B
+    model_path: ../../Models/Qwen/Qwen3.5-27B
   llm:
-    model_path: /home2/ycj/Models/Qwen/Qwen3.5-27B
+    model_path: ../../Models/Qwen/Qwen3.5-27B
     dtype: bfloat16
     attn_impl: sdpa
   embedder:
-    model_path: /home2/ycj/Models/BAAI/bge-m3
+    model_path: ../../Models/BAAI/bge-m3
     use_fp16: true

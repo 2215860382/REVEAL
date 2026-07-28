@@ -33,12 +33,12 @@ Pipeline per video:
         {out_dir}/{video_id}/frames_raw/          all post-cleanup frames per chunk (original res)
 
 Usage:
-    cd /home2/ycj/Project/REVEAL
+    cd /path/to/REVEAL
     PYTHONPATH=. python -m src.build_memory.build_single_similarity \\
         --benchmark videomme \\
-        --siglip-model /home2/ycj/Models/google/siglip-large-patch16-384 \\
+        --siglip-model ../../Models/google/siglip-large-patch16-384 \\
         --siglip-gpu cuda:1 --bge-gpu cuda:1 \\
-        --api-url http://10.82.1.145:8001,http://10.82.1.145:8002 \\
+        --api-url http://localhost:8001,http://localhost:8002 \\
         --api-model Qwen3.5-27B
 """
 from __future__ import annotations
@@ -445,6 +445,7 @@ def _get_video_paths(cfg: dict, video_dir: str | None = None) -> dict[str, str]:
         samples = load_longvideobench(
             bench_root=b["bench_root"],
             video_dir=b["video_dir"],
+            duration_groups=b.get("duration_groups"),
         )
         return {s.video_id: s.video_path for s in samples}
     elif bench == "egolife":
@@ -744,6 +745,10 @@ def main():
                          "t_end = t_start + 30s nominal (EgoLife clips are 30-s segments).")
     ap.add_argument("--siglip-gpu",       default="cuda:0")
     ap.add_argument("--bge-gpu",          default="cuda:0")
+    ap.add_argument("--siglip-api-url",   default=None,
+                    help="Use an existing SigLIP HTTP service instead of loading it locally.")
+    ap.add_argument("--embed-api-url",    default=None,
+                    help="Use an existing BGE-M3 HTTP service instead of loading it locally.")
     ap.add_argument("--subtitle-dir",     default=None)
     ap.add_argument("--filter-from",      default=None)
     # ── EgoLife only: a "video" is a person (dir of ~30-s clips on a global
@@ -785,7 +790,7 @@ def main():
     ap.add_argument("--firstperson-cap-dir",
                     default=os.environ.get(
                         "REVEAL_FIRSTPERSON_CAP_DIR",
-                        "/home2/ycj/Project/WorldMM/data/EgoLife/EgoLifeCap"),
+                        "../WorldMM/data/EgoLife/EgoLifeCap"),
                     help="Dir holding <PERSON>/<PERSON>_30sec.json "
                          "(for --narrative-source firstperson).")
     ap.add_argument("--frame-max-dim", type=int, default=448,
@@ -848,21 +853,23 @@ def main():
     else:
         if not args.siglip_model:
             ap.error("--siglip-model is required unless --no-visual")
-        log.info("Loading SigLIP on %s …", args.siglip_gpu)
+        log.info("Loading SigLIP via %s …", args.siglip_api_url or args.siglip_gpu)
         t0 = time.time()
         from src.clients.siglip_embedder import SigLIPEmbedder
-        siglip = SigLIPEmbedder(args.siglip_model, device=args.siglip_gpu)
+        siglip = SigLIPEmbedder(
+            args.siglip_model, device=args.siglip_gpu, api_url=args.siglip_api_url)
         log.info("  SigLIP ready (%.1fs)", time.time() - t0)
 
     log.info("API mode — VLM/LLM at %s (%s)", args.api_url, args.api_model)
 
-    log.info("Loading BGE-M3 on %s …", args.bge_gpu)
+    log.info("Loading BGE-M3 via %s …", args.embed_api_url or args.bge_gpu)
     t0 = time.time()
     from src.clients.embedder import BGEM3Embedder
     embedder = BGEM3Embedder(
         model_path=cfg["models"]["embedder"]["model_path"],
         use_fp16=cfg["models"]["embedder"].get("use_fp16", True),
         device=args.bge_gpu,
+        api_url=args.embed_api_url,
     )
     log.info("  BGE-M3 ready (%.1fs)", time.time() - t0)
 

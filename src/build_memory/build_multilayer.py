@@ -346,7 +346,7 @@ def main():
     ap.add_argument("--llm-api-url", required=True, help="comma-separated = round-robin")
     ap.add_argument("--llm-api-model", default="Qwen3.5-27B")
     ap.add_argument("--embed-api-url", default=None, help="BGE embed service; omit for local")
-    ap.add_argument("--bge-model", default="/home2/ycj/Models/BAAI/bge-m3")
+    ap.add_argument("--bge-model", default="../../Models/BAAI/bge-m3")
     ap.add_argument("--bge-gpu", default="cuda:0")
     ap.add_argument("--workers", type=int, default=8,
                     help="Videos processed concurrently")
