@@ -17,7 +17,6 @@ from typing import List, Optional, Set
 
 import numpy as np
 
-from ._keyframes import dense_frames_from_original, load_keyframe_pil
 from src.build_memory.core.schema import MemoryBank
 from src.agents.planner import Planner
 from src.agents.verifier import Verifier, get_rubric_dict
@@ -31,14 +30,15 @@ from experiments.ablations.online import (
 ONLINE_FIELD_NAMES = PLANNER_ONLINE_FIELDS
 
 
-# ── Gated deterministic visual routing (REVEAL_VISUAL_ROUTE) ─────────────────
-# OFF by default → byte-identical to the text pipeline. When on, a question whose
-# text carries an explicit time anchor (mm:ss / h:mm:ss) or a counting cue
-# (how many / times) is handed REAL frames sampled from the ORIGINAL mp4 — the
-# pixels a text caption cannot preserve — APPENDED to the accumulated text
-# evidence (never replacing it). Routing is pure regex IN CODE, not a planner/LLM
-# choice, so the model cannot "mis-pick" a strategy. Anything not matched falls
-# straight through to the unchanged text pipeline.
+# ── Deterministic visual routing (REVEAL_VISUAL_ROUTE) ───────────────────────
+# ON by default (set REVEAL_VISUAL_ROUTE=0 to disable). A question whose text carries
+# an explicit time anchor (mm:ss / h:mm:ss), OR whose video is short enough to cover
+# whole (≤ REVEAL_VR_SHORT_SEC, default 10min), is handed REAL frames sampled from the
+# ORIGINAL mp4 — the pixels a text caption cannot preserve — APPENDED to the accumulated
+# text evidence (never replacing it). Routing is pure regex + duration IN CODE, not a
+# planner/LLM choice, so the model cannot "mis-pick" a strategy. Anything not matched
+# (no timestamp AND video >10min — i.e. the long-video benches) falls straight through
+# to the unchanged text pipeline.
 _VR_TS    = re.compile(r'(?<!\d)(\d{1,2}):([0-5]\d)(?::([0-5]\d))?(?!\d)')
 
 
@@ -104,85 +104,131 @@ def _probe_duration(video_path) -> "float | None":
         return None
 
 
-def route_visual_frames(question: str, om, chunk_by_id: dict, video_path):
-    """Real frames for time/counting questions → [(PIL, chunk_id, ts), ...]; [] otherwise.
+_CLIP_INDEX_CACHE: dict = {}
 
-    TIME single (one mm:ss)  → sample ±REVEAL_VR_WINDOW s around it.
-    TIME range  (two mm:ss)  → sample UNIFORMLY across the whole [t0,t1] span
-                               (~1 frame / REVEAL_VR_RANGE_STEP s, capped), so
-                               long ranges like "02:03-04:09" aren't reduced to
-                               two tiny endpoint windows with the middle missing.
-    Decode is via ffmpeg (handles the AV1 videos decord/cv2 choke on).
+
+def _egolife_clip_index(dir_path):
+    """[(abs_start, abs_end, path), …] for an egolife person footage dir, time-sorted.
+
+    The bank's chunk start/end times live on a DAY1-anchored global timeline
+    (``(day-1)*86400 + hh:mm:ss.ff``); each ``DAY{n}_{PERSON}_{ts}.mp4`` clip's
+    absolute start is recoverable from its name and its length from ffprobe, so a
+    global time maps to (clip, local offset).  Cached per dir. [] if not egolife-like.
+    """
+    key = str(dir_path)
+    if key in _CLIP_INDEX_CACHE:
+        return _CLIP_INDEX_CACHE[key]
+    import re as _re
+    from pathlib import Path as _P
+    pat = _re.compile(r"DAY(\d+)_(A\d+_[A-Z]+)_(\d{8})\.mp4$")
+    starts = []
+    try:
+        for mp4 in _P(dir_path).rglob("*.mp4"):
+            m = pat.search(mp4.name)
+            if not m:
+                continue
+            day, _, ts = m.groups()
+            st = (int(day) - 1) * 86400.0 + (
+                int(ts[0:2]) * 3600 + int(ts[2:4]) * 60 + int(ts[4:6]) + int(ts[6:8]) / 100.0)
+            starts.append((st, str(mp4)))
+    except Exception:
+        starts = []
+    starts.sort()
+    # Clip length = next clip's start − this start (the true duration while recording
+    # is continuous).  No ffprobe — probing thousands of clips is far too slow.  A
+    # recording gap makes a clip "over-claim" the gap, but ffmpeg simply returns
+    # fewer frames when a seek lands past real EOF, so it is harmless.
+    idx = [(st, (starts[i + 1][0] if i + 1 < len(starts) else st + 60.0), path)
+           for i, (st, path) in enumerate(starts)]
+    _CLIP_INDEX_CACHE[key] = idx
+    return idx
+
+
+def _sample_window(video_path, start: float, end: float, n: int) -> List:
+    """Sample ≤n frames across GLOBAL [start,end].
+
+    Dispatches on the target: a single-file ``video_path`` (VideoMME/LVBench/
+    LongVideoBench) goes straight to :func:`_ffmpeg_window_frames` — byte-identical
+    to the old behaviour.  A *directory* (egolife/egor1 per-person footage, many
+    day-clips) is resolved via the clip index: every clip overlapping [start,end]
+    contributes frames proportional to its overlap, each sampled at its own local
+    offset, then concatenated in time order.
+    """
+    if video_path and os.path.isdir(str(video_path)):
+        idx = _egolife_clip_index(video_path)
+        if not idx:
+            return []
+        s, e = max(0.0, float(start)), float(end)
+        total = max(0.2, e - s)
+        imgs: List = []
+        for cst, cen, path in idx:
+            ov0, ov1 = max(s, cst), min(e, cen)
+            if ov1 - ov0 <= 0.05:
+                continue
+            n_c = max(1, int(round(n * (ov1 - ov0) / total)))
+            imgs += _ffmpeg_window_frames(path, ov0 - cst, ov1 - cst, n_c)
+            if len(imgs) >= n:
+                break
+        return imgs[:n]
+    return _ffmpeg_window_frames(video_path, start, end, n)
+
+
+def route_visual_frames(question: str, om, chunk_by_id: dict, video_path):
+    """Real frames for this question → [(PIL, chunk_id, ts), ...]; [] otherwise.
+
+    Deterministic priority (answer-independent — never looks at the gold):
+      1. TIME  — an explicit mm:ss in the question → sample at that exact time
+                 (single ±REVEAL_VR_WINDOW s window, or uniformly across a range).
+      2. SHORT — video duration ≤ REVEAL_VR_SHORT_SEC (default 600s = 10min) → the
+                 whole clip is coverable, so sample the ENTIRE video at
+                 REVEAL_VR_SHORT_FPS (dense whole-video coverage, exactly where naive
+                 frame sampling already wins).
+    Anything else (no timestamp AND longer than the short cap) → no frames; the text
+    pipeline is left unchanged. Decode is via ffmpeg (handles the AV1 videos
+    decord/cv2 choke on). ``om``/``chunk_by_id`` are unused now (kept for a stable
+    call signature).
     """
     if not video_path:
         return []
+
     win_pm = float(os.environ.get("REVEAL_VR_WINDOW", "4") or 4)
     n_each = int(os.environ.get("REVEAL_VR_FRAMES", "8") or 8)
     cap = int(os.environ.get("REVEAL_VR_MAXFRAMES", "12") or 12)
 
-    # SHORT route (REVEAL_VR_SHORT_SEC>0): whole short videos are fully coverable,
-    # so uniformly sample the entire clip. Answer-independent (duration-only gate).
-    # Default 0 → skipped entirely → behaviour byte-identical to the TIME/COUNT path.
-    short_sec = float(os.environ.get("REVEAL_VR_SHORT_SEC", "0") or 0)
+    # ── Priority 1: TIME — explicit mm:ss in the question → sample at that time ──
+    secs = _vr_parse_seconds(question)
+    if secs:
+        out = []
+        if len(secs) >= 2:                               # RANGE → sample across span
+            t0, t1 = min(secs), max(secs)
+            st, en = max(0.0, t0 - win_pm), t1 + win_pm
+            step = float(os.environ.get("REVEAL_VR_RANGE_STEP", "8") or 8)  # ~1 frame / step s
+            rcap = int(os.environ.get("REVEAL_VR_RANGE_FRAMES", "20") or 20)
+            n = max(n_each, min(rcap, int((en - st) / max(step, 0.1)) + 1))
+            for img in _sample_window(video_path, st, en, n):
+                out.append((img, -1, float(t0)))
+            return out
+        s = secs[0]                                      # SINGLE → ±win window
+        for img in _sample_window(video_path, max(0.0, s - win_pm), s + win_pm, n_each):
+            out.append((img, -1, float(s)))
+            if len(out) >= cap:
+                break
+        return out
+
+    # ── Priority 2: SHORT — whole video ≤10min is fully coverable → sample it all ──
+    # Duration-only gate (answer-independent). Samples the ENTIRE clip at a fixed fps
+    # so short videos get dense whole-video coverage (not a narrow retrieval window),
+    # which is exactly where naive frame sampling already scores high.
+    short_sec = float(os.environ.get("REVEAL_VR_SHORT_SEC", "600") or 600)
     if short_sec > 0:
         dur = _probe_duration(video_path)
         if dur is not None and 0 < dur <= short_sec:
-            n_short = int(os.environ.get("REVEAL_VR_SHORT_FRAMES", "16") or 16)
+            sfps = float(os.environ.get("REVEAL_VR_SHORT_FPS", "1.0") or 1.0)
+            n_short = max(1, int(round(dur * sfps)))
             return [(img, -1, 0.0)
-                    for img in _ffmpeg_window_frames(video_path, 0.0, dur, n_short)]
+                    for img in _sample_window(video_path, 0.0, dur, n_short)]
 
-    # SPAN route (REVEAL_VR_MODE=span): retrieval-guided window. Take the top-k
-    # retrieved evidence chunks, form the time envelope [min start, max end], and
-    # uniformly sample across it. Works for EVERY question (no literal mm:ss needed)
-    # — the text retrieval decides *where* to look. A span cap guards the failure
-    # mode where the top-k chunks are scattered across the whole video (envelope
-    # explosion): if the envelope exceeds it, fall back to a window around the
-    # single top-1 chunk instead of sampling a huge near-empty range.
-    if os.environ.get("REVEAL_VR_MODE", "time").lower() == "span":
-        k = int(os.environ.get("REVEAL_VR_SPAN_K", "10") or 10)             # more evidence chunks
-        chunks = [chunk_by_id[c] for c in om.evidence_ids()[:k] if c in chunk_by_id]
-        if not chunks:
-            return []
-        t0 = min(float(c.start_time) for c in chunks)
-        t1 = max(float(c.end_time) for c in chunks)
-        span_cap = float(os.environ.get("REVEAL_VR_SPAN_CAP", "0") or 0)     # 0 = no cap
-        if span_cap > 0 and (t1 - t0) > span_cap:                            # envelope too wide
-            c0 = chunks[0]                                                   # → top-1 window
-            t0 = max(0.0, float(c0.start_time) - win_pm)
-            t1 = float(c0.end_time) + win_pm
-        # Sample at a fixed FPS across the envelope (not a fixed frame count spread
-        # thin): the density is what matters at the answer moment. A generous frame
-        # cap only guards the VLM context; it is not the sampling driver.
-        fps = float(os.environ.get("REVEAL_VR_SPAN_FPS", "1.0") or 1.0)
-        maxf = int(os.environ.get("REVEAL_VR_SPAN_MAXFRAMES", "64") or 64)
-        n = max(1, min(maxf, int(round((t1 - t0) * fps))))
-        return [(img, -1, float(t0))
-                for img in _ffmpeg_window_frames(video_path, max(0.0, t0), t1, n)]
-
-    # TIME route only: an explicit mm:ss in the question.
-    # (The COUNT route was cut — "how many" Qs are aggregate/knowledge, not locally
-    #  countable, and feeding evidence-segment frames hurt: net -3, 15 reg / 12 rec.)
-    secs = _vr_parse_seconds(question)
-    if not secs:
-        return []
-
-    out = []
-    if len(secs) >= 2:                                   # RANGE → sample across span
-        t0, t1 = min(secs), max(secs)
-        st, en = max(0.0, t0 - win_pm), t1 + win_pm
-        step = float(os.environ.get("REVEAL_VR_RANGE_STEP", "8") or 8)      # ~1 frame / step s
-        rcap = int(os.environ.get("REVEAL_VR_RANGE_FRAMES", "20") or 20)    # KV bound for long ranges
-        n = max(n_each, min(rcap, int((en - st) / max(step, 0.1)) + 1))
-        for img in _ffmpeg_window_frames(video_path, st, en, n):
-            out.append((img, -1, float(t0)))
-        return out
-
-    s = secs[0]                                          # SINGLE → ±win window (unchanged)
-    for img in _ffmpeg_window_frames(video_path, max(0.0, s - win_pm), s + win_pm, n_each):
-        out.append((img, -1, float(s)))
-        if len(out) >= cap:
-            break
-    return out
+    return []
 
 
 # ── Timeline scan (whole-video coverage / query-exhausted fallback) ──────────
@@ -341,42 +387,6 @@ def _query_retrieve(
     )
 
 
-def _visual_retrieve(
-    query: str,
-    bank: MemoryBank,
-    siglip_embedder,
-    final_top_k: int,
-    exclude_ids: Set[int],
-    max_time: float | None = None,
-) -> tuple[List[str], List[int], List[List[float]]]:
-    """SigLIP text→frame retrieval (planner `image` strategy): rank L1 chunks by the cosine
-    between the query text (SigLIP text encoder) and each chunk's stored keyframe SigLIP vector
-    (``v_visual``), then return the top ``final_top_k`` unseen chunks in the SAME shape as
-    ``_query_retrieve``. The chunk's caption text still enters evidence; its keyframe is pulled
-    downstream. ``max_time`` (EgoLife) masks future chunks. Falls back to empty if no visual
-    vectors exist (e.g. text-only bank without SigLIP)."""
-    texts_ev = bank.memory_texts(with_time=True, with_asr=True)
-    idxs = [i for i, c in enumerate(bank.chunks) if c.v_visual]
-    if not idxs:
-        return [], [], []
-    mat = np.asarray([bank.chunks[i].v_visual for i in idxs], dtype=np.float32)
-    q = np.asarray(siglip_embedder.encode_text([query])[0], dtype=np.float32)
-    scores = mat @ q                       # both L2-normed → cosine
-    order = np.argsort(-scores)
-    out_t, out_i, out_v = [], [], []
-    for j in order:
-        i = int(idxs[j])
-        c = bank.chunks[i]
-        if c.chunk_id in exclude_ids:
-            continue
-        if max_time is not None and c.end_time > max_time:
-            continue
-        out_t.append(texts_ev[i]); out_i.append(c.chunk_id); out_v.append(c.v_text)
-        if len(out_t) >= final_top_k:
-            break
-    return out_t, out_i, out_v
-
-
 # ── Relative-time window (egocentric) ────────────────────────────────────────
 
 _REL_DAY_WORDS = {"yesterday": 1, "the day before yesterday": 2}
@@ -467,7 +477,6 @@ def run_reveal(
     answerer,
     llm,
     verifier_llm                  = None,
-    siglip_embedder              = None,
     task_type:     Optional[str] = None,
     coarse_top_k:  int           = 8,
     final_top_k:   int           = 8,
@@ -523,27 +532,13 @@ def run_reveal(
     plan_history.append(current_plan["queries"])
     last_verdict: dict = {}
 
-    # Round budget: PER-STRATEGY independent caps — no shared budget, no hard total-round cap.
-    #   query (incl. its ``scan`` fallback)  ≤ _q_max = max_iter        (CLI --max-iter, default 3)
-    #   image                                ≤ _i_max                    (REVEAL_IMAGE_MAX_ROUNDS, default 0)
-    # ``scan`` is NOT a separate strategy — it is query's remedial fallback (targeted queries
-    # exhausted), so it draws from query's budget. There is NO total-round gate: the loop ends
-    # only when the verifier is SUFFICIENT, or when the planner still wants a query/scan round
-    # but query's budget is spent.
+    # Round budget: query (incl. its ``scan`` fallback) ≤ _q_max = max_iter
+    # (CLI --max-iter, default 3). ``scan`` is NOT a separate budget — it is query's
+    # remedial fallback (targeted queries exhausted), so it draws from query's budget.
+    # There is NO total-round gate: the loop ends only when the verifier is SUFFICIENT,
+    # or when the planner still wants a query/scan round but query's budget is spent.
     _q_max = max_iter
-    # ``REVEAL_PLANNER_MODE=visual`` is the single-keyframe visual extension
-    # of the mainline prompt.  Its image budget is deliberately independent of
-    # text-query rounds and fixed at one.  The older qsi mode retains its
-    # configurable dense-frame budget.
-    _visual_mainline = (
-        os.environ.get("REVEAL_PLANNER_MODE", "").strip().lower() == "visual"
-    )
-    _i_max = (
-        1 if _visual_mainline
-        else int(os.environ.get("REVEAL_IMAGE_MAX_ROUNDS", "0") or 0)
-    )
     q_rounds = 0
-    i_rounds = 0
     it       = -1
     while True:
         it += 1
@@ -589,59 +584,25 @@ def run_reveal(
             requested_strategy = "query"
         strategy = requested_strategy
         fallback_reason = current_plan.get("fallback_reason")
-        # ``scan`` is never planner-selectable. It is only the code-level query
-        # fallback set by ``filter_targeted_queries`` or triggered below when a
-        # query round admits no new evidence.
+        # ``scan`` sweeps the whole timeline on query's budget. It runs either as
+        # query's remedial fallback (targeted queries exhausted, set by
+        # ``filter_targeted_queries`` or below when a query round admits no new
+        # evidence) OR when the planner deliberately selected it.
         scan_fallback = current_plan.get("fallback") == "scan"
-        # `image` = SigLIP text→frame cross-modal retrieval (_visual_retrieve), contributing dense
-        # frames ONLY (pixels; no caption recall) — see the do_image block.
-        # Per-strategy budget gate: image with no SigLIP or its round budget spent degrades to a
-        # plain text query so behaviour stays defined. Only a failed query execution may become scan.
-        if strategy == "image" and (siglip_embedder is None or i_rounds >= _i_max):
-            strategy = "query"
-            fallback_reason = "image_unavailable_or_budget_to_query"
-        # ``scan`` runs either as query's remedial fallback OR, under
-        # REVEAL_PLANNER_MODE=qs/qsi, as a strategy the planner deliberately selected.
-        # Either way it sweeps the timeline on query's budget (else-branch below).
         do_scan  = (strategy == "scan") or (strategy == "query" and scan_fallback)
-        do_image = (strategy == "image")            # here ⇒ SigLIP present and image budget left
-        # Per-strategy round accounting — independent caps, no shared budget, no total-round gate.
-        # query (incl. its scan fallback) ≤ _q_max; image ≤ _i_max. The loop ends
-        # only on verifier-SUFFICIENT (below) or when the planner still wants query/scan but query
-        # is spent.
-        if do_image:
-            i_rounds += 1
-        else:                                        # query or scan (scan = query's remedy)
-            if q_rounds >= _q_max:
-                break
-            q_rounds += 1
+        # query (incl. its scan fallback) ≤ _q_max. The loop ends only on
+        # verifier-SUFFICIENT (below) or when query's budget is spent.
+        if q_rounds >= _q_max:
+            break
+        q_rounds += 1
         queries_this_iter = current_plan.get("queries", []) if not do_scan else []
         if strategy == "query" and not do_scan and not queries_this_iter:
             queries_this_iter = [question]
 
         # ── Retrieve ──────────────────────────────────────────────────────────
         new_texts, new_ids, new_vecs = [], [], []
-        # SigLIP-retrieved chunk ids this round (frames pulled from these, even if additive
-        # text retrieval also ran); empty on non-image rounds.
-        img_ids_this_round: List[int] = []
 
-        if do_image:
-            # The mainline visual extension performs exactly one text→SigLIP
-            # lookup and takes exactly the top-ranked chunk.  qsi keeps its
-            # existing multi-query/dense-frame semantics for its own ablation.
-            visual_queries = (queries_this_iter or [question])
-            if _visual_mainline:
-                visual_queries = visual_queries[:1]
-            for q in visual_queries:
-                _vt, vi, _vv = _visual_retrieve(
-                    q, bank, siglip_embedder,
-                    1 if _visual_mainline else final_top_k,
-                    set(all_kf_chunk_ids),
-                    max_time=max_time)
-                img_ids_this_round.extend(vi)
-            iter_query = "[visual] " + (
-                " | ".join(queries_this_iter) if queries_this_iter else question)
-        elif do_scan:
+        if do_scan:
             # `scan` = sweep still-unretrieved chunks evenly across the whole timeline
             # (broad coverage for whole-video answers / exhausted targeted queries).
             new_texts, new_ids, new_vecs = _timeline_scan_retrieve(
@@ -668,31 +629,9 @@ def run_reveal(
                  dedup_threshold=evidence_dedup_threshold)
         new_ids = om.evidence_ids()[n_before:]   # kept ids this round (keyframes + trace)
 
-        # ── Keyframes: ONLY the planner's `image` strategy attaches frames ────
-        # A text (query/scan) round never feeds frames to the answerer — the model must first
-        # DECIDE it needs to look (pick `image`); only then are DENSE frames pulled from the
-        # SigLIP-ranked chunks' ORIGINAL mp4 (REVEAL_IMAGE_KF_CAP top chunks × REVEAL_DENSE_FRAMES
-        # frames each, no accumulated visual-dedup). No stored-keyframe path: if the source video
-        # can't be located (e.g. a bank without originals) the chunk simply contributes no frames.
-        if keyframe_dir is not None and strategy == "image":
-            _img_cap = 1 if _visual_mainline else int(
-                os.environ.get("REVEAL_IMAGE_KF_CAP", "4") or 4)
-            _dense_n = int(os.environ.get("REVEAL_DENSE_FRAMES", "6") or 6)
-            for cid in img_ids_this_round[:_img_cap]:
-                c = chunk_by_id.get(cid)
-                if c is None:
-                    continue
-                images = (
-                    [load_keyframe_pil(c.keyframe_path)]
-                    if _visual_mainline else
-                    dense_frames_from_original(c, _dense_n, video_path=video_path)
-                )
-                for img in images:
-                    if img is None:
-                        continue
-                    all_keyframes.append(img)
-                    all_kf_chunk_ids.append(cid)
-                    all_kf_ts.append(float(c.keyframe_ts or c.start_time or 0.0))
+        # Text (query/scan) rounds never feed frames to the answerer — the accumulated
+        # visual evidence comes solely from the deterministic TIME/SHORT route after the
+        # loop (see route_visual_frames), never from retrieval-round keyframes.
 
         # Same update contract as the final Online ablation: only the
         # preceding compact state and this round's newly admitted evidence may
@@ -759,12 +698,14 @@ def run_reveal(
         if last_verdict["label"] in ("sufficient", "SUFFICIENT", "FULLY_SUFFICIENT", "ANSWER_SUFFICIENT"):
             break
 
-    # ── Gated visual route (REVEAL_VISUAL_ROUTE): append REAL frames for time/counting Qs ──
-    # OFF by default → this block is skipped and all_keyframes stays as the text
-    # pipeline left it (empty for mainline) ⇒ byte-identical. Never runs under
-    # evidence-state mode (that path feeds a consolidated string, no pixels).
+    # ── Visual route (REVEAL_VISUAL_ROUTE): append REAL frames (TIME / SHORT) ──
+    # ON by default (set REVEAL_VISUAL_ROUTE=0 to disable). route_visual_frames only
+    # fires for a timestamped question (TIME) or a whole video ≤10min (SHORT); the
+    # long-video benches (>10min, no timestamp) fall straight through to pure text,
+    # so this stays a no-op there. Never runs under evidence-state mode (that path
+    # feeds a consolidated string, no pixels).
     vr_used = 0
-    if (os.environ.get("REVEAL_VISUAL_ROUTE") == "1"
+    if (os.environ.get("REVEAL_VISUAL_ROUTE", "1") != "0"
             and not use_evidence_state and keyframe_dir is not None):
         for img, cid, ts in route_visual_frames(question, om, chunk_by_id, video_path):
             all_keyframes.append(img)

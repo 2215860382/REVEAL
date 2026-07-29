@@ -259,28 +259,6 @@ def _format_evidence(evidence_texts: List[str]) -> str:
     return "\n".join(f"[E{i+1}] {t}" for i, t in enumerate(evidence_texts))
 
 
-def _relevance_response_format(names: List[str], *, max_items: int) -> dict:
-    return {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "relevant_criteria",
-            "strict": True,
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "relevant": {
-                        "type": "array",
-                        "items": {"type": "string", "enum": names},
-                        "maxItems": min(max_items, len(names)),
-                    },
-                },
-                "required": ["relevant"],
-                "additionalProperties": False,
-            },
-        },
-    }
-
-
 # ── Verifier class ─────────────────────────────────────────────────────────────
 
 class Verifier:
@@ -291,61 +269,6 @@ class Verifier:
 
     def get_rubric(self, question: str, task_type: Optional[str] = None) -> str:
         return get_rubric(question, task_type)
-
-    def _select_relevant_strict(
-        self,
-        question: str,
-        opts: str,
-        criteria: List[dict],
-        *,
-        max_items: int = 8,
-    ) -> set:
-        names = [str(c.get("name") or "").strip() for c in criteria]
-        names = [name for name in names if name]
-        allowed = set(names)
-        if not names:
-            return set()
-        catalog = "\n".join(
-            f"- {c['name']}: {c.get('description', '')}"
-            for c in criteria if c.get("name")
-        )
-        user = "\n\n".join([
-            f"Question: {question}", f"Options:\n{opts}",
-            f"Criteria library:\n{catalog}", "Return the JSON now.",
-        ])
-        raw = self.llm.chat(
-            [{"role": "system", "content": VERIFIER_SYS_RELEVANCE},
-             {"role": "user", "content": user}],
-            max_new_tokens=500,
-            enable_thinking=False,
-            response_format=_relevance_response_format(names, max_items=max_items),
-        )
-        picked = extract_json(raw).get("relevant") or []
-        return {str(item).strip() for item in picked if str(item).strip() in allowed}
-
-    def _relevant_criteria_batched(
-        self, question: str, opts: str, criteria: List[dict], batch_size: int,
-    ) -> set:
-        shortlisted = set()
-        for start in range(0, len(criteria), batch_size):
-            batch = criteria[start:start + batch_size]
-            try:
-                shortlisted.update(self._select_relevant_strict(
-                    question, opts, batch, max_items=8,
-                ))
-            except Exception as exc:
-                log.warning("criteria selection batch %d failed: %s", start // batch_size, exc)
-        if not shortlisted:
-            return set()
-        finalists = [c for c in criteria if str(c.get("name") or "").strip() in shortlisted]
-        try:
-            selected = self._select_relevant_strict(
-                question, opts, finalists, max_items=8,
-            )
-            return selected or shortlisted
-        except Exception as exc:
-            log.warning("criteria selection consolidation failed: %s", exc)
-            return shortlisted
 
     def _relevant_criteria(self, question: str, opts: str, rubric_dict: dict) -> set:
         """Pass 1: which criteria are relevant to THIS question (evidence-independent).
@@ -362,26 +285,6 @@ class Verifier:
             if key in self._relevance_cache:
                 return self._relevance_cache[key]
         criteria = rubric_dict.get("rubric_criteria") or []
-        use_schema = os.environ.get("REVEAL_CRITERIA_SELECTION_SCHEMA", "").strip() == "1"
-        if use_schema:
-            try:
-                sel = self._select_relevant_strict(question, opts, criteria)
-            except Exception as exc:
-                log.warning("strict criteria selection failed: %s", exc)
-                sel = set()
-            if not sel:
-                batch_size = max(1, int(os.environ.get(
-                    "REVEAL_CRITERIA_BATCH_SIZE", "48"
-                )))
-                sel = self._relevant_criteria_batched(
-                    question, opts, criteria, batch_size,
-                )
-            if not sel:
-                sel = all_set
-            with self._relevance_lock:
-                self._relevance_cache[key] = sel
-            return sel
-
         catalog = "\n".join(
             f"- {c['name']}: {c.get('description','')}"
             for c in criteria if c.get("name"))

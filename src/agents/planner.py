@@ -68,9 +68,7 @@ def _decompose_into_subquestions(
 # strategies are surfaced to the model as **Text Retrieval** and **Uniform Sampling**
 # (same behavior as the old targeted / broadcast-sweep). The JSON ``strategy`` value
 # stays the compact ``text`` / ``scan`` token so the parser and the 79-run output
-# distribution are unchanged. No time channel. (Visual Retrieval is a future add —
-# see REVEAL_PLANNER_MODE=qsi + REVEAL_IMAGE_MAX_ROUNDS; when enabled it should cap
-# at one image round.)
+# distribution are unchanged. No time or visual channel.
 _PLANNER_MAINLINE_SYS = """
 You are a retrieval strategy planner for a video question-answering system.
 Given the current evidence and what is still missing, decide the BEST next retrieval strategy.
@@ -99,44 +97,6 @@ Use "Text Retrieval" for Text Retrieval and "Uniform Sampling" for Uniform Sampl
 For Uniform Sampling, set queries to [].
 """
 
-# # Mainline prompt plus exactly one additional retrieval action.  Keep this as a
-# # separate literal (rather than mutating the paper-mainline prompt at runtime)
-# # so ``REVEAL_PLANNER_MODE=visual`` is an explicit, reproducible visual arm.
-# _PLANNER_MAINLINE_VISUAL_SYS = """You are a retrieval strategy planner for a video question-answering system.
-# Given the current evidence and what is still missing, decide the BEST next retrieval strategy.
-
-# ## Strategies
-
-# **Text Retrieval** — Issue 1–4 focused queries to retrieve specific missing evidence.
-#   Each query must be self-contained, target a single retrievable fact,
-#   and not repeat queries already tried.
-
-# **Uniform Sampling** — Sample frames uniformly across the uncovered video timeline (no queries needed).
-#   Use when coverage must span the ENTIRE video, including:
-#   - Main theme, topic overview, synopsis, or overall narrative of the video
-#   - Events spread throughout / across all segments / entire duration
-#   - Chronological order, sequence of events, or timeline across the full video
-#   - Targeted text queries have repeatedly failed to find sufficient evidence
-
-# **Visual Retrieval** — Issue ONE focused query for a fact that must be visually inspected
-#   (for example an object's appearance, a displayed action, a scene detail, or on-screen text).
-#   The system retrieves the single most visually similar video chunk and shows its representative
-#   keyframe. Use this only when the missing fact is genuinely visual rather than recoverable from
-#   captions or speech.
-
-# ## Output format
-# Return ONLY a JSON object:
-# {
-#   "strategy": "Text Retrieval" | "Uniform Sampling" | "Visual Retrieval",
-#   "queries": ["..."],
-#   "reasoning": "<one sentence explaining the choice>"
-# }
-# Use "Text Retrieval" for Text Retrieval, "Uniform Sampling" for Uniform Sampling, and
-# "Visual Retrieval" for Visual Retrieval. For Uniform Sampling, set queries to []. For Visual
-# Retrieval, provide exactly one query."""
-
-
-
 def _extract_covered_times(evidence_texts: List[str]) -> str:
     """Extract time ranges present in evidence texts to inform the planner."""
     pattern = r'\[(\d+)s[-–](\d+)s\]'
@@ -160,7 +120,7 @@ def _plan_next(
 ) -> dict:
     """Unified planner for iter ≥1: pick text-query or timeline-scan retrieval.
 
-    Returns ``{"think": "...", "strategy": "query"|"scan"|"image", "queries": [...]}``.
+    Returns ``{"think": "...", "strategy": "query"|"scan", "queries": [...]}``.
     """
     opts = "\n".join(f"  ({chr(ord('A')+i)}) {c}" for i, c in enumerate(candidates))
 
@@ -203,32 +163,11 @@ def _plan_next(
 
     parts.append("Output the retrieval strategy JSON now.")
 
-    # Mainline planner = the VEIL-79 text|scan prompt. The low-scoring query|time and
-    # query|image|time prompts were removed — the mainline no longer has a time/image
-    # retrieval channel. scan is planner-selectable here AND the execution fallback via
-    # filter_targeted_queries. REVEAL_PLANNER_MODE=qs/qsi still selects the separate
-    # retrieval-design ablation prompts (left untouched).
-    _mode = os.environ.get("REVEAL_PLANNER_MODE", "").strip().lower()
-    # ``visual`` is the mainline-compatible single-keyframe arm.  The older
-    # qsi ablation continues to use REVEAL_IMAGE_MAX_ROUNDS for its dense-frame
-    # visual channel.
-    _visual_mainline = _mode == "visual"
-    _img_enabled = _visual_mainline or (
-        (os.environ.get("REVEAL_IMAGE_MAX_ROUNDS", "0") or "0") != "0"
-    )
-    # Mainline default = the VEIL-79 text|scan prompt, where scan IS planner-selectable.
-    _default_mainline = not _mode
-    _scan_selectable = _mode in ("qs", "qsi") or _default_mainline
-    if _mode == "qs":
-        _default_sys = _PLANNER_SYS_QS
-    elif _mode == "qsi":
-        _default_sys = _PLANNER_SYS_QSI
-    elif _visual_mainline:
-        _default_sys = _PLANNER_MAINLINE_VISUAL_SYS
-    else:
-        _default_sys = _PLANNER_MAINLINE_SYS         # mainline: text | scan  (VEIL-79)
+    # Mainline planner = the VEIL-79 text|scan prompt. ``scan`` is planner-selectable
+    # here AND the execution fallback via filter_targeted_queries. There is no time or
+    # image/visual retrieval channel.
     messages = [
-        {"role": "system", "content": _default_sys},
+        {"role": "system", "content": _PLANNER_MAINLINE_SYS},
         {"role": "user",   "content": "\n\n".join(parts)},
     ]
     raw = llm.chat(messages, max_new_tokens=200, enable_thinking=False)
@@ -237,21 +176,12 @@ def _plan_next(
         try:
             d        = _json.loads(m.group())
             raw_strategy = str(d.get("strategy", "query")).lower()
-            if raw_strategy in ("text", "targeted", "semantic", "query"):
-                strategy = "query"
-            elif raw_strategy in ("scan", "sweep", "coverage", "broadcast", "uniform"):
-                # Mainline: ``scan`` is an execution fallback, never planner-selectable —
-                # collapse a scan-like generation to a normal text query. Under
-                # REVEAL_PLANNER_MODE=qs/qsi it IS selectable, so keep it as "scan".
-                strategy = "scan" if _scan_selectable else "query"
-            elif raw_strategy in (
-                "image", "visual", "visual retrieval", "frame", "keyframe", "keyframes"
-            ):
-                strategy = "image" if _img_enabled else "query"   # image off → safe text fallback
+            if raw_strategy in ("scan", "sweep", "coverage", "broadcast", "uniform"):
+                strategy = "scan"
             else:
                 strategy = "query"
             queries  = [str(q).strip() for q in (d.get("queries") or []) if str(q).strip()]
-            if strategy in ("query", "image") and not queries:
+            if strategy == "query" and not queries:
                 queries  = [question]
             return {
                 "think":     str(d.get("think") or d.get("reasoning") or ""),
@@ -357,7 +287,7 @@ class Planner:
         and adds ``fallback="scan"``.  Scan is an execution fallback, not a fourth
         planner-selectable retrieval strategy.
         """
-        if plan["strategy"] not in ("query", "targeted", "image"):
+        if plan["strategy"] not in ("query", "targeted"):
             return plan
 
         prev_queries = [q for qs in plan_history for q in qs]
@@ -367,11 +297,7 @@ class Planner:
         for q in plan["queries"]:
             if _too_similar(q, prev_queries, dedup_thresh):
                 continue
-            # An image query can intentionally revisit a concept whose caption
-            # evidence is already present: the missing fact may be visual.  It
-            # still must not repeat a previously issued visual/text query, but
-            # text-evidence drift filtering is only appropriate for text search.
-            if plan["strategy"] != "image" and ev_mat is not None:
+            if ev_mat is not None:
                 qv    = embedder.encode([q])[0]
                 drift = float(np.max(ev_mat @ qv))
                 if drift >= drift_threshold:
@@ -379,10 +305,6 @@ class Planner:
             kept.append(q)
         if kept:
             return {**plan, "queries": kept}
-        if plan["strategy"] == "query":
-            return {**plan, "queries": [], "fallback": "scan",
-                    "fallback_reason": "all_query_retrievals_filtered"}
-        # An exhausted image query returns to text retrieval with the same
-        # semantic targets; it must not silently become a timeline scan.
-        return {**plan, "strategy": "query", "queries": list(plan["queries"]),
-                "fallback_reason": "all_image_queries_filtered_to_query"}
+        # All targeted queries dropped → fall back to a timeline scan.
+        return {**plan, "strategy": "query", "queries": [], "fallback": "scan",
+                "fallback_reason": "all_query_retrievals_filtered"}

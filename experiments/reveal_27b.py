@@ -559,7 +559,6 @@ def main(run_pipeline=None):
                     help="JSONL containing sample_idx fields, or a text file with one sample_idx per line")
     ap.add_argument("--vlm-gpu",        default="cuda:0")
     ap.add_argument("--bge-gpu",        default="cuda:3")
-    ap.add_argument("--siglip-gpu",     default=None, help="GPU for SigLIP text encoder (image strategy); defaults to --bge-gpu")
     ap.add_argument("--llm-gpu",        default="cuda:1")
     ap.add_argument("--embed-api-url",  default=None,
                     help="Embedding service URL (BGE); skips loading locally")
@@ -779,20 +778,6 @@ def main(run_pipeline=None):
 
     if embedder: embedder = _LockedModel(embedder)
 
-    # ── SigLIP text encoder (planner `image` strategy: text→frame retrieval) ──
-    # image is a permanent strategy, so SigLIP always loads; routes DENSE frames only (pixels,
-    # no caption recall) via _visual_retrieve.
-    from src.clients.siglip_embedder import SigLIPEmbedder
-    t0 = time.time()
-    if args.embed_api_url:
-        log.info("loading SigLIP via API %s ...", args.embed_api_url)
-        siglip = _LockedModel(SigLIPEmbedder(api_url=args.embed_api_url))
-    else:
-        _sg_dev = args.siglip_gpu or args.bge_gpu or "cuda:6"
-        log.info("loading SigLIP on %s ...", _sg_dev)
-        siglip = _LockedModel(SigLIPEmbedder(device=_sg_dev))
-    log.info("  SigLIP ready (%.1fs)", time.time() - t0)
-
     # ── Bank cache ────────────────────────────────────────────────────────────
     _bank_cache:  dict = {}
     _cache_lock = threading.Lock()
@@ -834,7 +819,7 @@ def main(run_pipeline=None):
         if verifier_llm is not None:
             kw["verifier_llm"] = verifier_llm
         return run_pipeline(s.question, s.candidates, bank, embedder, answerer, llm,
-                            siglip_embedder=siglip, task_type=s.question_type, **kw), None
+                            task_type=s.question_type, **kw), None
 
     # ── Run loop ──────────────────────────────────────────────────────────────
     write_header = (not out_path.exists()) or out_path.stat().st_size == 0
