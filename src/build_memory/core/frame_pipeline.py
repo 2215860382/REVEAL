@@ -1,5 +1,5 @@
 """Shared frame pipeline: extract → drop blank → drop blurry → SigLIP group →
-persist all post-cleanup frames + one keyframe per chunk (Binlu-aligned).
+persist all post-cleanup frames + one keyframe per chunk (reference-aligned).
 
 Output directories under each ``{out_dir}/``:
 * ``frames_raw/{cid:04d}/{i:04d}.jpg`` — every post-cleanup frame for the chunk
@@ -16,11 +16,11 @@ and the raw building blocks (``extract_frames``, ``group_frames``,
 banks).  Downstream code (``experiments/core/_keyframes.py``) reads
 keyframes via ``glob("{keyframes_origin|keyframes_resized}/{cid:04d}_*.jpg")``.
 
-Decisions (Binlu-aligned, see Binlu/videolens/build/build_index_multiscale.py
+Decisions (reference-aligned, see the reference build pipeline
 :_pick_keyframe_idx):
 * No dedup. Pre-dedup (dHash window=10 before SigLIP) and per-chunk dHash+SigLIP
   dedup both removed — recurring shots and near-identical frames all kept,
-  matching Binlu's "every 1fps frame survives" policy.
+  matching the reference build's "every 1fps frame survives" policy.
 * One keyframe per chunk: the group center frame, unless its Laplacian
   variance is below ``KEYFRAME_LAPLACIAN_THRESH`` (=100) in which case the
   sharpest frame in the chunk is used instead. No top-k retention.
@@ -63,9 +63,9 @@ BLUR_FAILSAFE_RATIO      = 0.5    # if blur filter would drop > this fraction of
 DEFAULT_GROUP_THETA      = 0.80   # SigLIP cosine threshold for grouping
 DEFAULT_GROUP_N_MAX      = 30
 DEFAULT_DEDUP_HAMMING    = 4      # legacy; dedup is disabled in the current
-DEFAULT_DEDUP_SIGLIP_COS = 0.95   # pipeline (Binlu-aligned). Kept for callers
+DEFAULT_DEDUP_SIGLIP_COS = 0.95   # pipeline (reference-aligned). Kept for callers
 DHASH_SIZE               = 8      # that re-enable dedup (e.g. multi-pyramid).
-KEYFRAME_LAPLACIAN_THRESH = 100.0 # Binlu build_index_multiscale.py default:
+KEYFRAME_LAPLACIAN_THRESH = 100.0 # the reference build build_index_multiscale.py default:
                                   # center frame is used as the chunk's single
                                   # keyframe unless its Laplacian variance is
                                   # below this, in which case the sharpest
@@ -121,7 +121,7 @@ def extract_frames(video_path: str, out_dir: Path, fps: float = DEFAULT_FPS,
                    hwaccel_device: str | None = None) -> List[Path]:
     """ffmpeg → frame_000001.jpg, frame_000002.jpg, … in out_dir.
 
-    ``-q:v 2`` (≈ JPEG q95) matches Binlu extract_frames.py — keep narrative
+    ``-q:v 2`` (≈ JPEG q95) matches the reference build extract_frames.py — keep narrative
     frames near-lossless so the multi-image VLM call sees full detail before
     the 448-side downscale at the API boundary.
     """
@@ -402,7 +402,7 @@ def clean_and_group_frames(
     frame_max_dim: Optional[int] = 448,
     keyframe_laplacian_thresh: float = KEYFRAME_LAPLACIAN_THRESH,
 ) -> List[CleanedGroup]:
-    """Run the shared pre-build frame pipeline for one video (Binlu-aligned).
+    """Run the shared pre-build frame pipeline for one video (reference-aligned).
 
     Steps:
         1. ffmpeg extract at ``fps`` into a tempdir (-q:v 2)
@@ -466,7 +466,7 @@ def clean_and_group_frames(
         survived_paths = [p for _, p in survived]
         survived_timestamps = [idx / fps for idx, _ in survived]
 
-        # 4. SigLIP encode (Binlu-aligned: no pre-dedup; all post-cleanup
+        # 4. SigLIP encode (reference-aligned: no pre-dedup; all post-cleanup
         #    frames go to the encoder so the chunk grouping sees the full
         #    sequence and recurring shots are not silently merged).
         v_frames = siglip.encode_images([str(p) for p in survived_paths])
@@ -507,7 +507,7 @@ def clean_and_group_frames(
             # Pick ONE keyframe: chunk center, unless its Laplacian variance
             # is below the threshold and there's more than one frame to choose
             # from — then use the sharpest frame in the chunk
-            # (Binlu/videolens/build/build_index_multiscale.py:_pick_keyframe_idx).
+            # (the reference build pipeline).
             center_local = len(group_paths) // 2
             kf_local = center_local
             if len(group_paths) > 1:

@@ -64,7 +64,7 @@ def _decompose_into_subquestions(
 
 # ── Iter ≥1: Unified Planner ─────────────────────────────────────────────────
 
-# Mainline planner prompt — the VEIL-79.00 targeted|broadcast design. The two
+# Mainline planner prompt — the targeted|broadcast design. The two
 # strategies are surfaced to the model as **Text Retrieval** and **Uniform Sampling**
 # (same behavior as the old targeted / broadcast-sweep). The JSON ``strategy`` value
 # stays the compact ``text`` / ``scan`` token so the parser and the 79-run output
@@ -163,7 +163,7 @@ def _plan_next(
 
     parts.append("Output the retrieval strategy JSON now.")
 
-    # Mainline planner = the VEIL-79 text|scan prompt. ``scan`` is planner-selectable
+    # Mainline planner = the text|scan prompt. ``scan`` is planner-selectable
     # here AND the execution fallback via filter_targeted_queries. There is no time or
     # image/visual retrieval channel.
     messages = [

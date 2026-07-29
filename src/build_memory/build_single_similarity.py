@@ -71,7 +71,7 @@ from src.utils.logging import get_logger
 log = get_logger("build_single_similarity")
 
 
-# ── Prompts (Binlu-style segment captioning, one multi-image call per chunk) ──
+# ── Prompts (reference-style segment captioning, one multi-image call per chunk) ──
 
 SYSTEM_PROMPT = (
     "You are an expert video captioner.\n"
@@ -113,7 +113,7 @@ USER_TRAILER = "Write the caption for this segment."
 
 
 def _hms(seconds: float) -> str:
-    # Round (not truncate) — matches Binlu multiscale_segment.hms() so the
+    # Round (not truncate) — matches the reference build multiscale_segment.hms() so the
     # timestamps in the VLM prompt line up with where speech/actions actually
     # happen (truncation drifts by up to a second per chunk boundary).
     s = int(round(seconds))
@@ -255,7 +255,7 @@ async def _call_api(
     session, messages, api_model: str, max_tokens: int = 150,
     max_retries: int = 5, retry_base_delay: float = 2.0,
 ) -> str:
-    """Exponential-backoff retry on connection drops / 5xx (matches Binlu
+    """Exponential-backoff retry on connection drops / 5xx (matches the reference build
     api_backend.py:79-101). Only retries network-level failures; 4xx and JSON
     parse errors still propagate."""
     import aiohttp
@@ -291,7 +291,7 @@ async def _call_api(
 
 
 def _img_block(path: Path, max_side: int | None = None) -> dict | None:
-    """Long-edge resize → JPEG q=85 → base64 (mirrors Binlu api_backend.py:104-119).
+    """Long-edge resize → JPEG q=85 → base64 (mirrors the reference build api_backend.py:104-119).
     Matters most for the multi-image narrative call: raw 1fps frames are 1280+
     on the long edge; sending 30 of them un-scaled triples the prompt-token
     budget and bloats attention noise, dragging caption quality down.
@@ -325,7 +325,7 @@ def _format_transcript_block(
     speech_lines: List[Tuple[float, float, str]],
     video_has_speech: bool,
 ) -> str:
-    """Three-way subtitle handling matching Binlu segment_caption.py:155-165:
+    """Three-way subtitle handling matching the reference build segment_caption.py:155-165:
     - video has no SRT at all → block omitted entirely
     - video has SRT but this chunk has no overlap → explicit NO_TRANSCRIPT marker
     - chunk has overlapping lines → list with time ranges
@@ -790,13 +790,13 @@ def main():
     ap.add_argument("--firstperson-cap-dir",
                     default=os.environ.get(
                         "REVEAL_FIRSTPERSON_CAP_DIR",
-                        "../WorldMM/data/EgoLife/EgoLifeCap"),
+                        "data/EgoLife/EgoLifeCap"),
                     help="Dir holding <PERSON>/<PERSON>_30sec.json "
                          "(for --narrative-source firstperson).")
     ap.add_argument("--frame-max-dim", type=int, default=448,
                     help="Longer-side target for keyframes_resized/. Origin"
                          " keyframes and frames_raw are always full res."
-                         " Default 448 matches Binlu save_keyframe (build_index.py).")
+                         " Default 448 matches the reference build save_keyframe (build_index.py).")
     # ── One-command pipeline: also emit the self-contained multi-layer (ml3_n12)
     #    bank per video right after its single-layer bank is written. ──
     ap.add_argument("--emit-multilayer", action="store_true",

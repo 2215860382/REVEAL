@@ -1,4 +1,4 @@
-# VEIL contrastive rubric
+# REVEAL contrastive rubric
 # 结构: types(类型清单) → general(每题都加的通用准则) → 各类型专属准则(类型名直接做键)
 # task_type 直接匹配下面的同名块; 未匹配则只用 general。
 
