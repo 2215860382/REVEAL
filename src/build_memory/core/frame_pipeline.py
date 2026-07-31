@@ -53,14 +53,36 @@ DEFAULT_BLANK_BYTES_MIN  = 3000   # < this = blank/uniform frame, drop.
                                   # all-black outros) while preserving low-texture
                                   # but visible content (~8-10 KB for channel
                                   # logos / fade-in / dim scenes).
-DEFAULT_BLUR_THRESHOLD   = 10.0   # Laplacian variance below = blurry, drop.
-                                  # Conservative: low-texture-but-sharp content
-                                  # (white-background, PPT, anime) sits around
-                                  # 20–30, severe motion blur is <5.
+BLUR_CANON_LONG          = 448    # RESOLUTION-INVARIANT blur: resize every frame
+                                  # to this long edge (downscale-only) BEFORE the
+                                  # Laplacian-variance blur metric. Laplacian var
+                                  # scales ~(resolution)², so the SAME frame at 4K
+                                  # vs 720p gives wildly different variance (4K
+                                  # medians ~10, 720p ~130) — a fixed threshold on
+                                  # native frames drops 48% of 4K vs 4% of 720p
+                                  # for identical content. Canonicalizing first
+                                  # makes the threshold mean the same thing on any
+                                  # source resolution (all converge). 0 = disable.
+DEFAULT_BLUR_THRESHOLD   = 40.0   # Laplacian variance below = blurry, drop —
+                                  # RE-TUNED for the BLUR_CANON_LONG=448 scale
+                                  # (was 10.0 on native frames). At 448, sharp
+                                  # content medians ~790; thresh 40 drops only the
+                                  # ~1% genuinely-blurry tail (recall-safe).
 BLUR_FAILSAFE_RATIO      = 0.5    # if blur filter would drop > this fraction of
                                   # frames, the threshold is wrong for this clip
                                   # → skip the blur pass entirely.
-DEFAULT_GROUP_THETA      = 0.80   # SigLIP cosine threshold for grouping
+GROUP_ENCODE_LONG        = 448    # RESOLUTION-INVARIANT grouping: resize frames to
+                                  # this long edge (downscale-only) before SigLIP
+                                  # encoding so grouping input is canonical across
+                                  # source resolutions. 0 = feed frames as-is.
+DEFAULT_GROUP_THETA      = 0.60   # SigLIP cosine threshold for grouping (anchor
+                                  # mode). Lower than the old 0.80 adjacent default
+                                  # because anchor mode resists drift.
+DEFAULT_GROUP_MODE       = "anchor"  # "anchor" = compare each frame to the group's
+                                  # FIRST frame (resists gradual drift across scene
+                                  # cuts; one group ≈ one coherent shot). "adjacent"
+                                  # = legacy: compare to previous frame (low theta
+                                  # chains distinct scenes together via slow drift).
 DEFAULT_GROUP_N_MAX      = 30
 DEFAULT_DEDUP_HAMMING    = 4      # legacy; dedup is disabled in the current
 DEFAULT_DEDUP_SIGLIP_COS = 0.95   # pipeline (reference-aligned). Kept for callers
@@ -192,12 +214,25 @@ def is_blank_pixel(
     return float(img.std()) < std_thresh
 
 
-def is_blurry(path: Path, threshold: float = DEFAULT_BLUR_THRESHOLD) -> bool:
-    """Laplacian variance ≥ threshold = sharp enough. Returns True on read error."""
+def is_blurry(path: Path, threshold: float = DEFAULT_BLUR_THRESHOLD,
+              canon_long: int = BLUR_CANON_LONG) -> bool:
+    """Laplacian variance ≥ threshold = sharp enough. Returns True on read error.
+
+    RESOLUTION-INVARIANT: the frame is first downscaled so its long edge is at
+    most ``canon_long`` (never upscaled), then the Laplacian variance is computed
+    on that canonical grid. Without this the metric scales with source resolution
+    and a fixed threshold drops a wildly different fraction of frames per source
+    (see ``BLUR_CANON_LONG``). ``canon_long=0`` disables the resize (legacy).
+    """
     import cv2
     img = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
     if img is None:
         return True
+    h, w = img.shape
+    if canon_long and max(h, w) > canon_long:
+        s = canon_long / float(max(h, w))
+        img = cv2.resize(img, (max(1, int(w * s)), max(1, int(h * s))),
+                         interpolation=cv2.INTER_AREA)
     return float(cv2.Laplacian(img, cv2.CV_64F).var()) < threshold
 
 
@@ -323,13 +358,24 @@ def group_frames(
     theta: float = DEFAULT_GROUP_THETA,
     n_max: int = DEFAULT_GROUP_N_MAX,
     min_size: int = 1,
+    mode: str = DEFAULT_GROUP_MODE,   # "anchor" | "adjacent"
 ) -> List[FrameGroup]:
     """Greedy cosine-similarity grouping of consecutive frames into "shots".
 
-    Adjacent frames with cosine similarity ≥ ``theta`` are merged into one
-    group, up to ``n_max`` frames. A short (1–2 frame) shot is kept as its OWN
-    group by default (``min_size=1`` ⇒ no folding). Folding is opt-in via
-    ``min_size>1`` and, when it does fold, never grows a group past ``n_max``.
+    Two comparison modes:
+
+    * ``"anchor"`` (default) — each frame is compared to the group's FIRST frame
+      (the anchor). A new group starts when a frame's cosine to the anchor drops
+      below ``theta``. This RESISTS DRIFT: with adjacent-only comparison, a low
+      theta lets the content slowly drift across a scene cut (each consecutive
+      pair stays > theta while the ends are unrelated), merging distinct scenes
+      into one group. Comparing to the anchor keeps a group visually coherent, so
+      one group ≈ one shot.
+    * ``"adjacent"`` — legacy: compare to the previous frame only.
+
+    In both modes a group grows to at most ``n_max`` frames. A short (1–2 frame)
+    shot is kept as its OWN group by default (``min_size=1`` ⇒ no folding).
+    Folding is opt-in via ``min_size>1`` and never grows a group past ``n_max``.
     """
     T = len(v_frames)
     if T == 0:
@@ -337,14 +383,17 @@ def group_frames(
 
     groups: List[List[int]] = []
     current: List[int] = [0]
+    anchor = v_frames[0]
 
     for t in range(1, T):
-        sim = float(v_frames[t] @ v_frames[t - 1])
+        ref = anchor if mode == "anchor" else v_frames[t - 1]
+        sim = float(v_frames[t] @ ref)
         if sim >= theta and len(current) < n_max:
             current.append(t)
         else:
             groups.append(current)
             current = [t]
+            anchor = v_frames[t]
     groups.append(current)
 
     # Do NOT blindly fold short shots into the left neighbour. The old code did
@@ -466,10 +515,23 @@ def clean_and_group_frames(
         survived_paths = [p for _, p in survived]
         survived_timestamps = [idx / fps for idx, _ in survived]
 
-        # 4. SigLIP encode (reference-aligned: no pre-dedup; all post-cleanup
-        #    frames go to the encoder so the chunk grouping sees the full
-        #    sequence and recurring shots are not silently merged).
-        v_frames = siglip.encode_images([str(p) for p in survived_paths])
+        # 4. Resize to a canonical long edge (GROUP_ENCODE_LONG, downscale-only)
+        #    for RESOLUTION-INVARIANT grouping input, then SigLIP encode. No
+        #    pre-dedup; all post-cleanup frames go to the encoder so the chunk
+        #    grouping sees the full sequence and recurring shots are not silently
+        #    merged. frames_raw/ persistence below stays at ORIGINAL resolution
+        #    (captions still get full detail); only the grouping vecs use 448.
+        if GROUP_ENCODE_LONG:
+            enc_dir = tmp_dir / "enc_canon"
+            enc_dir.mkdir(exist_ok=True)
+            enc_paths: List[Path] = []
+            for i, src in enumerate(survived_paths):
+                ep = enc_dir / f"{i:06d}.jpg"
+                _persist_frame(src, ep, GROUP_ENCODE_LONG)
+                enc_paths.append(ep)
+            v_frames = siglip.encode_images([str(p) for p in enc_paths])
+        else:
+            v_frames = siglip.encode_images([str(p) for p in survived_paths])
 
         # 5. Group
         groups = group_frames(

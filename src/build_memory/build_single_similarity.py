@@ -768,7 +768,7 @@ def main():
                          "are deleted; only the keyframe is persisted. Slashes writes "
                          "to a saturated HDD; resume re-extracts (cheap via NVDEC).")
     ap.add_argument("--fps",              type=float, default=1.0)
-    ap.add_argument("--theta",            type=float, default=0.80)
+    ap.add_argument("--theta",            type=float, default=0.60)
     ap.add_argument("--n-max",            type=int,   default=30)
     ap.add_argument("--api-url",          required=True,
                     help="vLLM OpenAI-compatible base URL(s); comma-separated"
