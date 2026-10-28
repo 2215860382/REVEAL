@@ -421,16 +421,17 @@ class Verifier:
             _base_thr + float(sufficient_threshold_delta),
         )
         all_opts = [chr(ord('A') + i) for i in range(len(candidates))]
-        # Paper-mainline aggregation: evidence is sufficient when the winning option
-        # is confidently decidable.
+        # Paper-mainline aggregation: min-over-options — evidence is sufficient only
+        # when EVERY option is confidently decidable.
         if per_option_rubric_scores:
             _vals = [per_option_rubric_scores.get(opt, 0.0) for opt in all_opts]
-            # Aggregation over per-option scores gates sufficiency. Default ``max``
-            # (winning option decidable) trips early — a decent best option ≥ threshold
-            # after iter0 stops the loop. ``min`` (REVEAL_SUFFICIENCY_AGG=min) requires
-            # EVERY option to clear the threshold, so retrieval keeps grinding until all
-            # distractors are also decidable — closer to the 78.9 "grind all rounds" behavior.
-            _agg = os.environ.get("REVEAL_SUFFICIENCY_AGG", "max").strip().lower()
+            # Aggregation over per-option scores gates sufficiency. Default ``min``
+            # (REVEAL_SUFFICIENCY_AGG=min) requires EVERY option to clear the threshold,
+            # so retrieval keeps grinding until all distractors are also decidable — the
+            # mainline behavior and the numbers reported in the paper. ``max`` (winning
+            # option decidable) trips early after iter0 and is used only for the max/min
+            # aggregation ablation.
+            _agg = os.environ.get("REVEAL_SUFFICIENCY_AGG", "min").strip().lower()
             rubric_score = min(_vals) if _agg == "min" else max(_vals)
         else:
             rubric_score = 0.0

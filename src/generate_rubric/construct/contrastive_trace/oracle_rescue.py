@@ -1,8 +1,8 @@
 """Oracle rescue for RECALL-GAP questions — build a sufficient positive chain for every
 question where query retrieval never surfaced enough evidence.
 
-Motivation: after gold-aware `judge_sufficiency`, ~293/900 VideoMME questions have NO sufficient
-query chain (retrieval missed the discriminating fact). make_pairs drops those questions — they
+Motivation: after gold-aware `judge_sufficiency`, a sizable fraction of questions (e.g. ~1/3 on a
+typical dev split) have NO sufficient query chain (retrieval missed the discriminating fact). make_pairs drops those questions — they
 lose their positive anchor. Per the method, we DON'T drop them: a strong model reads the
 question + options + GOLD answer and searches the WHOLE memory bank for the minimal chunk subset
 that verifies / excludes, producing an oracle positive. Only construction-time (sees gold).
@@ -241,8 +241,10 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--gap-idxs", required=True, help="json list of recall-gap sample_idx")
     ap.add_argument("--out", required=True, help="oracle_chains.jsonl (sample_idx+chunk_ids+judge)")
-    ap.add_argument("--config", default="configs/videomme.yaml")
-    ap.add_argument("--memory-dir", default="outputs/memory/videommeL")
+    ap.add_argument("--config", required=True,
+                    help="dataset config YAML, e.g. configs/<dataset>.yaml")
+    ap.add_argument("--memory-dir", required=True,
+                    help="offline memory bank dir for the target dataset")
     ap.add_argument("--llm-api-url", required=True)
     ap.add_argument("--llm-api-model", default="Qwen3.5-27B")
     ap.add_argument("--window", type=int, default=40, help="chunks per MAP window")

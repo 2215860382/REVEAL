@@ -185,8 +185,10 @@ def _query_chains(bank, cmap, question, candidates, embedder, siglip,
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--config", default="configs/videomme.yaml")
-    ap.add_argument("--memory-dir", default="outputs/memory/videomme_multiframe")
+    ap.add_argument("--config", required=True,
+                    help="dataset config YAML, e.g. configs/<dataset>.yaml")
+    ap.add_argument("--memory-dir", required=True,
+                    help="offline memory bank dir for the target dataset")
     ap.add_argument("--keyframe-dir", default=None, help="defaults to --memory-dir")
     ap.add_argument("--embed-api-url", required=True, help="BGE + SigLIP embedding service")
     ap.add_argument("--vlm-api-url", required=True, help="deployed multimodal answerer (27B)")

@@ -38,7 +38,8 @@ def main() -> None:
     ap.add_argument("--pairs", required=True)
     ap.add_argument("--chains", required=True)
     ap.add_argument("--rubric", required=True)
-    ap.add_argument("--config", default="configs/videomme.yaml")
+    ap.add_argument("--config", required=True,
+                    help="dataset config YAML, e.g. configs/<dataset>.yaml")
     ap.add_argument("--llm-api-url", required=True)
     ap.add_argument("--llm-api-model", default=None)
     ap.add_argument("--workers", type=int, default=16)
@@ -46,7 +47,9 @@ def main() -> None:
     #    label chains (sample_chains._label_chain -> load_keyframes + chat_with_frames).
     #    A text-only verifier can't predict a multimodal answerer, so pair separation
     #    stalls near chance; aligning the modality is the fix. ──
-    ap.add_argument("--memory-dir", default="outputs/memory/videommeL")
+    ap.add_argument("--memory-dir", default=None,
+                    help="offline memory bank dir for the target dataset "
+                         "(required unless --no-images)")
     ap.add_argument("--keyframe-dir", default=None, help="defaults to --memory-dir")
     ap.add_argument("--answer-keyframe-k", type=int, default=32)
     ap.add_argument("--no-images", action="store_true",
@@ -55,6 +58,9 @@ def main() -> None:
     ap.add_argument("--resume", action="store_true", help="resume from <out>.state.json")
     ap.add_argument("--progress-every", type=int, default=50)
     args = ap.parse_args()
+    if not args.no_images and not args.memory_dir:
+        ap.error("--memory-dir is required unless --no-images "
+                 "(needed to load keyframes for multimodal alignment)")
 
     from src.config import load_config
     cfg = load_config(args.config)

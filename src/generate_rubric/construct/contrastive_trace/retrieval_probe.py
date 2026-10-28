@@ -127,8 +127,10 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--gap-idxs", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--config", default="configs/videomme.yaml")
-    ap.add_argument("--memory-dir", default="outputs/memory/videommeL")
+    ap.add_argument("--config", required=True,
+                    help="dataset config YAML, e.g. configs/<dataset>.yaml")
+    ap.add_argument("--memory-dir", required=True,
+                    help="offline memory bank dir for the target dataset")
     ap.add_argument("--embed-api-url", required=True)
     ap.add_argument("--llm-api-url", required=True)
     ap.add_argument("--llm-api-model", default="Qwen3.5-27B")

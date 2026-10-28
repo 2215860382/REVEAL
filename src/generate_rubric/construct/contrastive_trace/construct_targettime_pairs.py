@@ -232,7 +232,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
     ap.add_argument("--config", required=True)
-    ap.add_argument("--memory-dir", default="outputs/memory/egolife")
+    ap.add_argument("--memory-dir", required=True,
+                    help="offline memory bank dir for the target dataset")
     ap.add_argument("--embed-api-url", required=True, help="BGE + SigLIP")
     ap.add_argument("--vlm-api-url", default=None, help="27B (caption only)")
     ap.add_argument("--vlm-api-model", default="Qwen3.5-27B")

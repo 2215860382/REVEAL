@@ -161,7 +161,8 @@ def main() -> None:
     ap.add_argument("--chains", required=True)
     ap.add_argument("--rubric-in", default=None, help="current rubric yaml (omit → coarse seed)")
     ap.add_argument("--rubric-out", required=True)
-    ap.add_argument("--config", default="configs/videomme.yaml")
+    ap.add_argument("--config", required=True,
+                    help="dataset config YAML, e.g. configs/<dataset>.yaml")
     ap.add_argument("--llm-api-url", required=True)
     ap.add_argument("--llm-api-model", default="Qwen3.5-27B")
     ap.add_argument("--max-tokens", type=int, default=2000)
